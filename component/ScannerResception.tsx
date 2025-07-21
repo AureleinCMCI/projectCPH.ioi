@@ -165,7 +165,7 @@ export default function   Resception() {
 
       alert("Livre, inventaire et réception ajoutés avec succès !");
       setFormOpened(false);
-      setFormData({  title: '',   author: '', price: '',  quantite: '',   isbn: '',   description: '',  image: '' });
+      setFormData({  title: '',   author: '', price: '',  quantite: '',   isbn: '',   description: '',  image: '', livre_id: '', livre_title: '',  name_user: '',   info: '',  user_id: '', date_reception: '' });
       setResult('');
       setCapturedImage('');
 
