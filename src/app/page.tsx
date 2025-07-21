@@ -2,7 +2,7 @@
 
 import { LoginForm } from '../../component/LoginForm';
 
-export default function LoginFrom() {
+export default function Page() {
   return (
     <html>
       <body>
