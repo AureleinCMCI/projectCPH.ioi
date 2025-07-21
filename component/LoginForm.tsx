@@ -1,8 +1,13 @@
 'use client';
 
-import React, { useState, FormEvent, ChangeEvent } from 'react';
 import { useRouter } from 'next/navigation';
+import React, { ChangeEvent, FormEvent, useState } from 'react';
+import Webcam from "react-webcam";
 import style from './style/login.module.css';
+
+
+
+
 
 export const LoginForm: React.FC = () => {
   // États pour le formulaire de connexion
@@ -35,10 +40,35 @@ export const LoginForm: React.FC = () => {
         if (data.token) {
           localStorage.setItem('jwt', data.token);
         }
-        router.push('/hom'); // ← Mets ici la route de ta page d'accueil
+        router.push('/acceuil'); // ← Mets ici la route de ta page d'accueil
       }
-    } catch (err) {
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setMessage(err.message);
+      } else {
+        setMessage('Erreur lors de la connexion');
+      }
       setMessage('Erreur lors de la connexion');
+    }
+  };
+
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
+  const [showWebcam, setShowWebcam] = useState(false);
+  const webcamRef = React.useRef<Webcam>(null);
+
+  const capture = () => {
+    if (webcamRef.current) {
+      const imageSrc = webcamRef.current.getScreenshot();
+      if (imageSrc) {
+        setAvatarPreview(imageSrc);
+        setShowWebcam(false);
+      }
+    }
+  };
+
+  const handleAvatarUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      setAvatarPreview(URL.createObjectURL(e.target.files[0]));
     }
   };
 
@@ -52,14 +82,19 @@ export const LoginForm: React.FC = () => {
         body: JSON.stringify({
           name: signupName,
           password: signupPassword,
+          photo: avatarPreview, // base64 ou url
         }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Erreur lors de l\'inscription');
       setMessage('Inscription réussie ! Connecte-toi');
       setRightPanelActive(false); // Retourne au formulaire de connexion
-    } catch (err: any) {
-      setMessage(err.message);
+    } catch (err: unknown) {
+      if (err instanceof Error) {
+        setMessage(err.message);
+      } else {
+        setMessage('Erreur lors de l\'inscription');
+      }
     }
   };
 
@@ -79,6 +114,41 @@ export const LoginForm: React.FC = () => {
               <a href="#" className={style.social}><i className="fab fa-linkedin-in"></i></a>
             </div>
             <span className={style.formSpan}>or use your email for registration</span>
+            <div style={{ marginBottom: 16 }}>
+              {showWebcam ? (
+                <>
+                  <Webcam
+                    audio={false}
+                    ref={webcamRef}
+                    screenshotFormat="image/jpeg"
+                    videoConstraints={{ facingMode: "user" }}
+                    style={{ width: 200, borderRadius: 8 }}
+                  />
+                  <button type="button" onClick={capture} style={{ margin: 8 }}>Prendre une photo</button>
+                  <button type="button" onClick={() => setShowWebcam(false)}>Annuler</button>
+                </>
+              ) : (
+                <>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    capture="user"
+                    onChange={handleAvatarUpload}
+                    style={{ marginBottom: 8 }}
+                  />
+                  <button type="button" onClick={() => setShowWebcam(true)} style={{ marginLeft: 8 }}>
+                    Ouvrir la caméra
+                  </button>
+                </>
+              )}
+              {avatarPreview && (
+                <img
+                  src={avatarPreview}
+                  alt="Aperçu avatar"
+                  style={{ width: 100, height: 100, borderRadius: "50%", marginTop: 8 }}
+                />
+              )}
+            </div>
             <input
               className={style.formInput}
               type="text"

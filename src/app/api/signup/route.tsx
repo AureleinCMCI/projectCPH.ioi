@@ -1,10 +1,11 @@
 import { createClient } from '@/lib/supabase/clients';
+import bcrypt from 'bcrypt';
 import type { NextRequest } from 'next/server';
 
 export async function POST(request: NextRequest): Promise<Response> {
   try {
     const supabase = createClient();
-    const { name, password }: { name: string; password: string } = await request.json();
+    const { name, password, photo }: { name: string; password: string; photo?: string } = await request.json();
     console.log("Tentative d'inscription avec :", { name, password });
 
     // Vérifie si le nom existe déjà
@@ -23,13 +24,13 @@ export async function POST(request: NextRequest): Promise<Response> {
       return new Response(JSON.stringify({ error: "Ce nom existe déjà", success: false }), { status: 409 });
     }
 
-    // Insère le nouvel utilisateur
+    // Insère le nouvel utilisateu
+    const hashedPassword = await bcrypt.hash(password, 10);
     const { data, error } = await supabase
       .from('USER')
-      .insert([{ name, password }])
+      .insert([{ name, password: hashedPassword , photo }])
       .select()
       .maybeSingle();
-
     console.log("Résultat Supabase :", data, error);
 
     if (error) {
@@ -37,8 +38,12 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
 
     return new Response(JSON.stringify({ message: 'Inscription réussie !', user: data, success: true }), { status: 201 });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      console.error("Erreur serveur :", err.message);
+      return new Response(JSON.stringify({ error: "Erreur serveur", details: err.message }), { status: 500 });
+    }
     console.error("Erreur serveur :", err);
-    return new Response(JSON.stringify({ error: "Erreur serveur", details: err.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: "Erreur serveur", details: err instanceof Error ? err.message : 'Erreur inconnue' }), { status: 500 });
   }
 }

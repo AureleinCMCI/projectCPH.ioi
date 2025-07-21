@@ -1,0 +1,146 @@
+
+
+.containerCompte {
+  display: flex;
+  min-height: 540px;
+  background: #fff;
+  border-radius: 18px;
+  box-shadow: 0 4px 24px #0001;
+  overflow: hidden;
+  margin-top: 32px;
+}
+
+.menuCompte {
+  background: #f7fafd;
+  width: 270px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 40px 0 0 0;
+  border-top-left-radius: 18px;
+  border-bottom-left-radius: 18px;
+  min-height: 540px;
+}
+
+.avatarCompte {
+  width: 130px;
+  height: 130px;
+  border-radius: 50%;
+  object-fit: cover;
+  margin-bottom: 10px;
+  cursor: pointer;
+  border: 4px solid #e3e8f0;
+  box-shadow: 0 2px 8px #0001;
+  transition: box-shadow 0.2s, border 0.2s;
+}
+.avatarCompte:hover {
+  box-shadow: 0 4px 16px #1971c233;
+  border: 4px solid #1971c2;
+}
+
+.menuLinks {
+  margin-top: 32px;
+  width: 85%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.menuLink {
+  background: none;
+  border: none;
+  color: #495057;
+  font-weight: 500;
+  text-align: left;
+  padding: 10px 18px 10px 36px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  transition: background 0.2s, color 0.2s;
+  position: relative;
+}
+.menuLink:not(.active):hover {
+  background: #e3e8f0;
+  color: #1971c2;
+}
+.menuLink.active {
+  background: #e3e8f0;
+  color: #1971c2;
+}
+.menuLink svg {
+  font-size: 18px;
+  margin-right: 8px;
+}
+
+.containerCompteInfo {
+  flex: 1;
+  padding: 48px 48px 48px 48px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.containerCompteInfoItem {
+  display: flex;
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.textInput {
+  width: 100%;
+  background: #f4f7fa;
+  border-radius: 10px;
+  border: 1px solid #e3e8f0;
+  font-size: 16px;
+  margin-bottom: 18px;
+}
+
+.textInput input {
+  background: #f4f7fa;
+  border: none;
+  border-radius: 10px;
+  font-size: 16px;
+}
+
+.textInput label {
+  font-size: 13px;
+  color: #868e96;
+  margin-bottom: 4px;
+}
+
+.buttonCommande, .updateButton {
+  margin-top: 24px;
+  background: #228be6;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 32px;
+  font-weight: 600;
+  font-size: 17px;
+  cursor: pointer;
+  box-shadow: 0 2px 8px #1971c233;
+  transition: background 0.2s, box-shadow 0.2s;
+}
+.buttonCommande:hover, .updateButton:hover {
+  background: #1971c2;
+  box-shadow: 0 4px 16px #1971c233;
+}
+
+@media (max-width: 900px) {
+  .containerCompte {
+    flex-direction: column;
+    min-width: 0;
+  }
+  .menuCompte {
+    width: 100%;
+    border-radius: 18px 18px 0 0;
+    min-height: unset;
+    padding-bottom: 24px;
+  }
+  .containerCompteInfo {
+    padding: 32px 16px;
+  }
+}

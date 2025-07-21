@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/clients';
+import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
 import type { NextRequest } from 'next/server';
 
@@ -11,12 +12,11 @@ export async function POST(request: NextRequest): Promise<Response> {
     const { name, password }: { name: string; password: string } = await request.json();
     console.log('Tentative de connexion avec :', name, password);
 
-    // Recherche de l'utilisateur par nom et mot de passe
+    // Recherche de l'utilisateur par nom uniquement
     const { data, error } = await supabase
       .from('USER')
       .select('*')
       .eq('name', name)
-      .eq('password', password)
       .maybeSingle();
 
     console.log('Résultat Supabase :', data, error);
@@ -29,8 +29,26 @@ export async function POST(request: NextRequest): Promise<Response> {
       return new Response(JSON.stringify({ error: 'Nom ou mot de passe incorrect', success: false }), { status: 401 });
     }
 
+    // Vérification du mot de passe hashé
+    const passwordMatch = await bcrypt.compare(password, data.password);
+
+    if (!passwordMatch) {
+      // Si le hash ne correspond pas, on tente la comparaison en clair
+      if (password === data.password) {
+        // Si c'est bon, on migre le mot de passe en base
+        const hashedPassword = await bcrypt.hash(password, 10);
+        await supabase
+          .from('USER')
+          .update({ password: hashedPassword })
+          .eq('id', data.id);
+      } else {
+        // Mot de passe incorrect
+        return new Response(JSON.stringify({ error: 'Nom ou mot de passe incorrect', success: false }), { status: 401 });
+      }
+    }
+
     // On ne retourne pas le mot de passe dans la réponse !
-    const { password: _, ...userWithoutPassword } = data;
+    const { password:   _, ...userWithoutPassword } = data;
 
     // Création du jeton JWT
     const token = jwt.sign(
@@ -49,8 +67,12 @@ export async function POST(request: NextRequest): Promise<Response> {
       token, // Le jeton JWT est renvoyé ici
       success: true
     }), { status: 200 });
-  } catch (err: any) {
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      console.error('Erreur serveur :', err.message);
+      return new Response(JSON.stringify({ error: 'Erreur serveur', details: err.message }), { status: 500 });
+    }
     console.error('Erreur serveur :', err);
-    return new Response(JSON.stringify({ error: 'Erreur serveur', details: err.message }), { status: 500 });
+    return new Response(JSON.stringify({ error: 'Erreur serveur', details: err instanceof Error ? err.message : 'Erreur inconnue' }), { status: 500 });
   }
 }

@@ -1,8 +1,8 @@
-import { NextRequest } from 'next/server';
 import { createClient } from '@/lib/supabase/clients';
+import { NextRequest } from 'next/server';
 
 // Exemple de typage pour une ligne de la table "inventaire"
-type HistoriqueResception = {
+export type HistoriqueResception = {
   id?: number; // id généré par la BDD
   user_id: number;
   date_reception: number;
@@ -11,31 +11,36 @@ type HistoriqueResception = {
   info: number;
 }
 
-export async function POST(request: NextRequest) {
-  try {
-    const supabase = createClient();
-    const {  id, user_id, date_reception, quantite , livre_id , info} = await request.json() as HistoriqueResception;
-
-    // Insertion d'une nouvelle commande
-    const { data, error } = await supabase.from('inventaire').insert([{ id, user_id, quantite, date_reception , livre_id , info }]).select().maybeSingle();
-
-
-
-    console.log("Résultat Supabase :", data, error);
-
-    if (error) {
-      return new Response(JSON.stringify({ error: error.message }), { status: 400 });
-    }
-
-    return new Response(
-      JSON.stringify({ message: 'ajout réussie', user: data, success: true }),
-      { status: 201 }
-    );
-  } catch (err: any) {
-    console.error("Erreur serveur :", err);
-    return new Response(
-      JSON.stringify({ error: "Erreur serveur", details: err.message }),
-      { status: 500 }
-    );
-  }
+export type Reception = {
+  id?: number; // id généré par la BDD
+  user_id: number;
+  date_reception: number;
+  quantite: number;
+  livre_id: number;
+  info: number;
+  livre_title: string;
 }
+export async function POST(request: NextRequest) {
+  const supabase = createClient();
+  const { quantite, name_user, livre_id, info  , user_id, livre_title} = await request.json();
+  if (!quantite || !name_user || !livre_id || !livre_title) {
+    return new Response(JSON.stringify({ error: "Champs manquants" }), { status: 400 });
+  }
+  const { data, error } = await supabase
+    .from('reception')
+    .insert([{ quantite, name_user, livre_id, info ,user_id, livre_title }])
+    .select();
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }), { status: 400 });
+  }
+  return new Response(JSON.stringify({ message: 'Réception ajoutée', user: data, success: true }), { status: 200 });
+}
+
+export async function GET() {
+  const supabase = createClient();
+  const { data, error } = await supabase.from('reception').select('*'); 
+  if (error) {
+    return new Response(JSON.stringify({ error: error.message }), { status: 400 });
+  }
+  return new Response(JSON.stringify({ message: 'historique réception', user: data, success: true }), { status: 200 });
+}   

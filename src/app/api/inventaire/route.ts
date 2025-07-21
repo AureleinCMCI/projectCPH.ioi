@@ -11,7 +11,7 @@ type Inventaire = {
   isbn: number;
 };
 // affiche les infos 
-export async function GET(req: NextRequest) {
+export async function GET() {
   const supabase = createClient();
 
   // Jointure sur livre_id pour récupérer l'image
@@ -46,10 +46,10 @@ export async function POST(request: NextRequest) {
       JSON.stringify({ message: 'ajout réussie', user: data, success: true }),
       { status: 201 }
     );
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error("Erreur serveur :", err);
     return new Response(
-      JSON.stringify({ error: "Erreur serveur", details: err.message }),
+      JSON.stringify({ error: "Erreur serveur", details: err instanceof Error ? err.message : 'Erreur inconnue' }),
       { status: 500 }
     );
   }

@@ -6,6 +6,7 @@ type Profile = {
   name: string;
   password: string;
   updated_at?: string;
+  photo?: string;
 };
 
 // GET: Récupérer un profil par ID
@@ -19,8 +20,8 @@ export async function GET(req: NextRequest) {
   }
 
   const { data, error } = await supabase
-    .from('profiles')
-    .select('name, password')
+    .from('USER')
+    .select('name, password, photo , admin')
     .eq('id', userId)
     .single();
 

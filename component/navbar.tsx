@@ -1,18 +1,7 @@
-import {
-  ActionIcon,
-  Avatar,
-  Badge,
-  Box,
-  Code,
-  Group,
-  Menu,
-  Text,
-  TextInput,
-  Tooltip,
-  UnstyledButton,
-} from '@mantine/core';
-import { IconBulb, IconCheckbox, IconPlus, IconSearch, IconUser } from '@tabler/icons-react';
+import { ActionIcon,Avatar, Box, Code,Group, Menu, Text,TextInput,Tooltip, UnstyledButton} from '@mantine/core';
+import { IconBulb, IconPlus, IconSearch } from '@tabler/icons-react';
 import { jwtDecode } from 'jwt-decode';
+import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import classes from './style/nav.module.css';
 
@@ -25,25 +14,26 @@ type JwtPayload = {
 };
 
 const links = [
-  { icon: IconBulb, label: 'Activity', notifications: 3 },
-  { icon: IconCheckbox, label: 'Tasks', notifications: 4 },
-  { icon: IconUser, label: 'Contacts' },
+  { icon: IconBulb, label: 'inventaire', href: '/inventaire' },
+  { icon: IconBulb, label: 'acceuil', href: '/acceuil' },
+  { icon: IconBulb, label: 'commande', href: '/commande' },
 ];
 
-const collections = [
-  { emoji: '👍', label: 'Sales' },
-  { emoji: '🚚', label: 'Deliveries' },
-  { emoji: '💸', label: 'Discounts' },
-  { emoji: '💰', label: 'Profits' },
-  { emoji: '✨', label: 'Reports' },
-  { emoji: '🛒', label: 'Orders' },
-  { emoji: '📅', label: 'Events' },
-  { emoji: '🙈', label: 'Debts' },
-  { emoji: '💁‍♀️', label: 'Customers' },
-];
+const mainLinks = links.map((link) => (
+  <Link key={link.label} href={link.href} passHref legacyBehavior>
+    <UnstyledButton className={classes.mainLink} component="a">
+      <div className={classes.mainLinkInner}>
+        <link.icon size={20} className={classes.mainLinkIcon} stroke={1.5} />
+        <span className={classes.a}>{link.label}</span>
+      </div>
+    </UnstyledButton>
+  </Link>
+));
+
 
 export function UserMenu() {
   const [user, setUser] = useState<JwtPayload | null>(null);
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
 
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('jwt') : null;
@@ -57,6 +47,26 @@ export function UserMenu() {
     }
   }, []);
 
+  const userId = user?.id;
+  const fetchAvatar = async () => {
+    if (!userId) return;
+    try {
+      const response = await fetch(`/api/acount?id=${userId}`, { method: 'GET' });
+      const result = await response.json();
+      if (result.data && result.data.photo) {
+        setAvatarPreview(result.data.photo);
+      }
+    } catch {
+      console.error('Erreur lors de la récupération de la photo', userId);
+    }
+  };
+
+  useEffect(() => {
+    if (userId) {
+      fetchAvatar();
+    }
+  }, [userId]);
+
   if (!user) return null;
 
   return (
@@ -64,7 +74,7 @@ export function UserMenu() {
       <Menu.Target>
         <UnstyledButton>
           <Group gap="sm">
-            <Avatar src={user.avatar || '/img/avatar.png'} radius="xl" />
+            <Avatar src={avatarPreview || user?.photo || '/img/avatar.png'} radius="xl" />
             <div style={{ lineHeight: 1 }}>
               <Text size="sm" fw={500}>{user.name}</Text>
             </div>
@@ -80,36 +90,7 @@ export function UserMenu() {
 }
 
 export function NavbarSearch() {
-  const mainLinks = links.map((link) => (
-    <UnstyledButton key={link.label} className={classes.mainLink}>
-      <div className={classes.mainLinkInner}>
-        <link.icon size={20} className={classes.mainLinkIcon} stroke={1.5} />
-        <span>{link.label}</span>
-      </div>
-      {link.notifications && (
-        <Badge size="sm" variant="filled" className={classes.mainLinkBadge}>
-          {link.notifications}
-        </Badge>
-      )}
-    </UnstyledButton>
-  ));
-
-  const collectionLinks = collections.map((collection) => (
-    <a
-      href="#"
-      onClick={(event) => event.preventDefault()}
-      key={collection.label}
-      className={classes.collectionLink}
-    >
-      <Box component="span" mr={9} fz={16}>
-        {collection.emoji}
-      </Box>{' '}
-      {collection.label}
-    </a>
-  ));
-
   return (
-    
     <nav className={classes.navbar}>
       <div className={classes.section}>
       </div>
@@ -141,7 +122,6 @@ export function NavbarSearch() {
             </ActionIcon>
           </Tooltip>
         </Group>
-        <div className={classes.collections}>{collectionLinks}</div>
       </div>
     </nav>
   );

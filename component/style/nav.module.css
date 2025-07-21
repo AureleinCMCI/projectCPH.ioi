@@ -57,6 +57,16 @@
 .mainLinkIcon {
   margin-right: var(--mantine-spacing-sm);
   color: light-dark(var(--mantine-color-gray-6), var(--mantine-color-dark-2));
+  text-decoration: none;
+}
+
+.mainLinkInnerAcceuil , .mainLinkInnerCommande {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  margin-top: 0;
+  margin-bottom: 10px;
+  padding: 0;
 }
 
 .mainLinkBadge {
@@ -65,7 +75,10 @@
   height: 20px;
   pointer-events: none;
 }
-
+.a{
+  text-decoration: none;
+  color: rgb(0, 0, 0);
+}
 .collections {
   padding-left: calc(var(--mantine-spacing-md) - 6px);
   padding-right: calc(var(--mantine-spacing-md) - 6px);

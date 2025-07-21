@@ -7,6 +7,7 @@ import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './style/ScannerResception.module.css';
 
+
 type InventaireItem = {
   id: number;
   livre_id: number;
@@ -64,6 +65,30 @@ export default function Commande() {
   const [commandeOpened, setCommandeOpened] = useState(false);
   const [commandes, setCommandes] = useState<{ user_id: number; date_achat: string; title: string;quantite: number; vendeur?: string; user?: { name?: string };
   }[]>([]);
+
+
+  /* Téléchargement du fichier CSV */
+  const downloadCSV = () => {
+    const header = ["Date", "Utilisateur", "Titre", "Quantité"];
+    const rows = commandes.map(cmd => [
+      cmd.date_achat,
+      cmd.vendeur,
+      cmd.title,
+      cmd.quantite
+    ]);
+    const csvContent = [header, ...rows].map(e => e.join(",")).join("\n");
+
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "commandes.csv";
+    link.click();
+    setTimeout(() => window.URL.revokeObjectURL(url), 100);
+  };
+
+
   useEffect(() => {
     const fetchCommandes = async () => {
       const response = await fetch('/api/commande', { method: 'GET' });
@@ -212,6 +237,7 @@ export default function Commande() {
           </div>
         </div>
           <Modal opened={commandeOpened} onClose={() => setCommandeOpened(false)} title="Commandes"  centered  size="xxl" >
+          <Button onClick={downloadCSV}>Télécharger en CSV</Button>
             <div className={styles.tableContainer}>
               <Table.ScrollContainer minWidth={900} type="native">
                 <Table  striped  highlightOnHover  withColumnBorders  className={styles.tableModern} >

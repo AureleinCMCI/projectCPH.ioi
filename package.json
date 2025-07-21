@@ -18,6 +18,7 @@
     "@supabase/ssr": "^0.6.1",
     "@supabase/supabase-js": "^2.50.0",
     "@tabler/icons-react": "^3.34.0",
+    "bcrypt": "^6.0.0",
     "embla-carousel": "^8.6.0",
     "embla-carousel-react": "^8.6.0",
     "jsonwebtoken": "^9.0.2",
@@ -26,11 +27,13 @@
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
     "react-router-dom": "^7.6.2",
+    "react-webcam": "^7.2.0",
     "react-zxing": "^2.1.0",
     "tailwind-merge": "^3.3.1"
   },
   "devDependencies": {
     "@eslint/eslintrc": "^3",
+    "@types/bcrypt": "^6.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "20.19.4",
     "@types/react": "19.1.8",

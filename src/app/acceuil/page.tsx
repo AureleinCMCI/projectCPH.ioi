@@ -1,4 +1,4 @@
-import Hom from '../../../component/hom';
+import Hom from '../../../component/acceuil';
 
 export default function HomPage() {
   return (
