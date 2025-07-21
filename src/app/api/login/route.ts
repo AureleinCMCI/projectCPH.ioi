@@ -48,8 +48,8 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
 
     // On ne retourne pas le mot de passe dans la réponse !
-    const { password:   _, ...userWithoutPassword } = data;
-
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+    const { password: _password, ...userWithoutPassword } = data;
     // Création du jeton JWT
     const token = jwt.sign(
       {
