@@ -1,4 +1,4 @@
-import { ActionIcon,Avatar, Box, Code,Group, Menu, Text,TextInput,Tooltip, UnstyledButton} from '@mantine/core';
+import { ActionIcon, Avatar, Box, Code, Group, Menu, Text, TextInput, Tooltip, UnstyledButton } from '@mantine/core';
 import { IconBulb, IconPlus, IconSearch } from '@tabler/icons-react';
 import { jwtDecode } from 'jwt-decode';
 import Link from 'next/link';
@@ -74,7 +74,7 @@ export function UserMenu() {
       <Menu.Target>
         <UnstyledButton>
           <Group gap="sm">
-            <Avatar src={avatarPreview || user?.photo || '/img/avatar.png'} radius="xl" />
+            <Avatar src={(avatarPreview ?? user?.photo ?? '/img/avatar.png') as string} radius="xl" />
             <div style={{ lineHeight: 1 }}>
               <Text size="sm" fw={500}>{user.name}</Text>
             </div>
