@@ -2,7 +2,7 @@
 
 import { Badge, Button, Center, Checkbox, Loader, Modal, Paper, Table, Text, TextInput, Title } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { BrowserMultiFormatReader } from '@zxing/browser';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './style/ScannerResception.module.css';
@@ -107,35 +107,37 @@ export default function Commande() {
 
   useEffect(() => {
     if (popoverOpened && scannerReady && scannerRef.current) {
-      // Nettoyer le conteneur
+      const reader = new BrowserMultiFormatReader();
+      
+      // Créer un élément vidéo pour le scanner
+      const videoElement = document.createElement('video');
+      videoElement.style.width = '100%';
+      videoElement.style.height = '300px';
+      videoElement.style.borderRadius = '8px';
+      
       if (scannerRef.current) {
         scannerRef.current.innerHTML = '';
+        scannerRef.current.appendChild(videoElement);
       }
       
-      // Créer le scanner HTML5-QRCode
-      const html5QrcodeScanner = new Html5QrcodeScanner(
-        "qr-reader",
-        { 
-          fps: 10,
-          qrbox: { width: 250, height: 250 },
-          aspectRatio: 1.0
-        },
-        false
+      // Démarrer le scanner
+      reader.decodeFromVideoDevice(
+        undefined, // Caméra par défaut
+        videoElement,
+        (result, err) => {
+          if (result) {
+            console.log('ISBN détecté (ZXing):', result.getText());
+            setResult(result.getText());
+            setIsbn(result.getText());
+          }
+          if (err && err.name !== 'NotFoundException') {
+            console.error('Erreur scanner ZXing:', err);
+          }
+        }
       );
 
-      // Démarrer le scanner
-      html5QrcodeScanner.render((decodedText: string) => {
-        console.log('ISBN détecté (HTML5-QRCode):', decodedText);
-        setResult(decodedText);
-        setIsbn(decodedText);
-        // La modal reste ouverte pour que l'utilisateur puisse valider
-      }, (error: string) => {
-        // Erreur de scan (normal, pas besoin d'alerte)
-        console.log('Scan en cours...', error);
-      });
-
       return () => {
-        html5QrcodeScanner.clear();
+        // Nettoyage automatique
       };
     }
   }, [popoverOpened, scannerReady]);
