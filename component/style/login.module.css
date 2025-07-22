@@ -360,3 +360,55 @@
   height: 40px;
   width: 40px;
 }
+
+@media (max-width: 600px) and (max-height: 900px) {
+  .container {
+    max-height: 200px !important;
+    width: 350px;
+    min-height: 350px;
+    ;
+
+  }
+  .formTitle{
+    font-size: 10px;
+    margin: 0;
+    padding: 0;
+  }
+  .formText{
+    font-size: 10px;
+    margin: 0;
+    padding: 0;
+  }
+  .formButton{
+    font-size: 10px;
+  }
+  .formInput{
+    font-size: 10px;
+    margin: 10;
+    padding: 0;
+  }
+.formLink{
+  font-size: 6.5px;
+  margin: 10;
+  display: block; /* ou flex-direction: column; */   /* ou supprime */
+
+}
+  .formSpan{
+    font-size: 6.5px;
+  }
+  .formSubtitle{
+    font-size: 6.5px;
+  }
+  .form-container{
+    max-height: 200px !important;
+    max-width: 350px;
+  }
+  .formButton{
+    font-size: 6.55px;
+    margin: 0;
+  }
+  .formButton{
+    padding: 5px 15px !important;
+  }
+
+}

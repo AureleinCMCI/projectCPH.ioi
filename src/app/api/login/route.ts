@@ -42,15 +42,11 @@ export async function POST(request: NextRequest): Promise<Response> {
           .update({ password: hashedPassword })
           .eq('id', data.id);
       } else {
-        // Mot de passe incorrect
         return new Response(JSON.stringify({ error: 'Nom ou mot de passe incorrect', success: false }), { status: 401 });
       }
     }
 
-    // On ne retourne pas le mot de passe dans la réponse !
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
     const { password: _password, ...userWithoutPassword } = data;
-    // Création du jeton JWT
     const token = jwt.sign(
       {
         id: userWithoutPassword.id,

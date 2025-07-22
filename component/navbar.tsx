@@ -1,9 +1,10 @@
 import { ActionIcon, Avatar, Box, Code, Group, Menu, Text, TextInput, Tooltip, UnstyledButton } from '@mantine/core';
-import { IconBulb, IconPlus, IconSearch } from '@tabler/icons-react';
+import { IconBulb, IconMenu2, IconPlus, IconSearch, IconX } from '@tabler/icons-react';
 import { jwtDecode } from 'jwt-decode';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import classes from './style/nav.module.css';
+import { Burger } from '@mantine/core';
 
 // Typage du payload du JWT (adapte selon ta structure réelle)
 type JwtPayload = {
@@ -90,39 +91,46 @@ export function UserMenu() {
 }
 
 export function NavbarSearch() {
+  const [opened, setOpened] = useState(false);
+
   return (
-    <nav className={classes.navbar}>
-      <div className={classes.section}>
-      </div>
-      <Box p="md">
-        <UserMenu />
-      </Box>
-      <TextInput
-        placeholder="Search"
-        size="xs"
-        leftSection={<IconSearch size={12} stroke={1.5} />}
-        rightSectionWidth={70}
-        rightSection={<Code className={classes.searchCode}>Ctrl + K</Code>}
-        styles={{ section: { pointerEvents: 'none' } }}
-        mb="sm"
-      />
+    <>
+      {/* Burger visible sur mobile */}
+      <Burger opened={opened} onClick={() => setOpened((o) => !o)} aria-label="Ouvrir le menu"size="md"  // tu peux ajuster la taille selon besoin  className={classes.burgerMenu}  // Pour garder ton stylage CSS
+       />
+       <nav className={`${classes.navbar} ${opened ? classes.open : ''}`}>
+        <div className={classes.section}>
+        </div>
+        <Box p="md">
+          <UserMenu />
+        </Box>
+        <TextInput
+          placeholder="Search"
+          size="xs"
+          leftSection={<IconSearch size={12} stroke={1.5} />}
+          rightSectionWidth={70}
+          rightSection={<Code className={classes.searchCode}>Ctrl + K</Code>}
+          styles={{ section: { pointerEvents: 'none' } }}
+          mb="sm"
+        />
 
-      <div className={classes.section}>
-        <div className={classes.mainLinks}>{mainLinks}</div>
-      </div>
+        <div className={classes.section}>
+          <div className={classes.mainLinks}>{mainLinks}</div>
+        </div>
 
-      <div className={classes.section}>
-        <Group className={classes.collectionsHeader} justify="space-between">
-          <Text size="xs" fw={500} c="dimmed">
-            Collections
-          </Text>
-          <Tooltip label="Create collection" withArrow position="right">
-            <ActionIcon variant="default" size={18}>
-              <IconPlus size={12} stroke={1.5} />
-            </ActionIcon>
-          </Tooltip>
-        </Group>
-      </div>
-    </nav>
+        <div className={classes.section}>
+          <Group className={classes.collectionsHeader} justify="space-between">
+            <Text size="xs" fw={500} c="dimmed">
+              Collections
+            </Text>
+            <Tooltip label="Create collection" withArrow position="right">
+              <ActionIcon variant="default" size={18}>
+                <IconPlus size={12} stroke={1.5} />
+              </ActionIcon>
+            </Tooltip>
+          </Group>
+        </div>
+      </nav>
+    </>
   );
 }

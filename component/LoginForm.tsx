@@ -34,13 +34,20 @@ export const LoginForm: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, password }),
       });
+
       const data = await res.json();
       setMessage(data.message);
-      if (res.ok && data.success) {
+
+      if (name === '' && password === '') {
+        setMessage('Veuillez entrer un nom et un mot de passe');
+      }
+      else if (res.ok && data.success) {
         if (data.token) {
           localStorage.setItem('jwt', data.token);
         }
-        router.push('/acceuil'); // ← Mets ici la route de ta page d'accueil
+        router.push('/acceuil');
+      } else {
+        setMessage(data.error || 'Erreur de connexion');
       }
     } catch (err: unknown) {
       if (err instanceof Error) {
@@ -50,6 +57,7 @@ export const LoginForm: React.FC = () => {
       }
       setMessage('Erreur lors de la connexion');
     }
+    /*si le nom et le mot de passe sont corrects, on redirige vers la page d'accueil*/
   };
 
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
@@ -97,7 +105,7 @@ export const LoginForm: React.FC = () => {
       }
     }
   };
-
+  
   return (
     <div className={style.formRoot}>
       <div className={`${style.container} ${rightPanelActive ? style.rightPanelActive : ''}`}>
@@ -109,9 +117,6 @@ export const LoginForm: React.FC = () => {
           <form className={style.form} onSubmit={handleSignUp}>
             <h1 className={style.formTitle}>Create Account</h1>
             <div className={style.socialContainer}>
-              <a href="#" className={style.social}><i className="fab fa-facebook-f"></i></a>
-              <a href="#" className={style.social}><i className="fab fa-google-plus-g"></i></a>
-              <a href="#" className={style.social}><i className="fab fa-linkedin-in"></i></a>
             </div>
             <span className={style.formSpan}>or use your email for registration</span>
             <div style={{ marginBottom: 16 }}>
@@ -172,11 +177,6 @@ export const LoginForm: React.FC = () => {
         <div className={style.formContainer + ' ' + style.signInContainer}>
           <form className={style.form} onSubmit={handleSubmit}>
             <h1 className={style.formTitle}>Sign in</h1>
-            <div className={style.socialContainer}>
-              <a href="#" className={style.social}><i className="fab fa-facebook-f"></i></a>
-              <a href="#" className={style.social}><i className="fab fa-google-plus-g"></i></a>
-              <a href="#" className={style.social}><i className="fab fa-linkedin-in"></i></a>
-            </div>
             <span className={style.formSpan}>or use your account</span>
             <input
               className={style.formInput}
