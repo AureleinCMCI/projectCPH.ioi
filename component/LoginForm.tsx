@@ -52,7 +52,7 @@ export const LoginForm: React.FC = () => {
     } catch (err: unknown) {
       if (err instanceof Error) {
         setMessage(err.message);
-      } else {
+      } else {  
         setMessage('Erreur lors de la connexion');
       }
       setMessage('Erreur lors de la connexion');
