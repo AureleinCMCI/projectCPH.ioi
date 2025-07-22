@@ -114,14 +114,14 @@ export default function Commande() {
       
       // Créer le scanner HTML5-QRCode
       const html5QrcodeScanner = new Html5QrcodeScanner(
-        "qr-reader",
+        "qr-reader", // ID du conteneur
         { 
           fps: 10,
           qrbox: { width: 250, height: 250 },
           aspectRatio: 1.0,
           supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
         },
-        false
+        false // verbose
       );
 
       // Démarrer le scanner
