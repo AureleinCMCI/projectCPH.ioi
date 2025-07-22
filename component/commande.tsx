@@ -102,8 +102,39 @@ export default function Commande() {
     setScannerReady(!!node);
   }, []);
 
+  // Fonction pour demander les permissions de caméra sur Android
+  const requestCameraPermission = async () => {
+    try {
+      // Demander explicitement l'accès à la caméra
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+          facingMode: 'environment', // Caméra arrière
+          width: { ideal: 1280 },
+          height: { ideal: 720 }
+        } 
+      });
+      
+      // Arrêter le stream de test
+      stream.getTracks().forEach(track => track.stop());
+      console.log('Permission caméra accordée');
+      return true;
+    } catch (error) {
+      console.error('Erreur permission caméra:', error);
+      alert('Permission caméra requise pour scanner. Veuillez autoriser l\'accès à la caméra.');
+      return false;
+    }
+  };
+
   useEffect(() => {
     if (popoverOpened && scannerReady && scannerRef.current) {
+      // Vérifier HTTPS pour Android
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      if (isMobile && window.location.protocol !== 'https:') {
+        alert('La caméra nécessite HTTPS sur mobile');
+        setPopoverOpened(false);
+        return;
+      }
+
       // Nettoyer le conteneur
       if (scannerRef.current) {
         scannerRef.current.innerHTML = '';
@@ -238,7 +269,19 @@ export default function Commande() {
         <div className={styles.headerRow}>
           <Title order={2} className={styles.title}>Liste des livres</Title>
           <div className={styles.actions}>
-            <Button color="blue" radius="xl" onClick={() => setPopoverOpened(true)} leftSection={<IconCamera size={18} />}>Scanner ISBN</Button>
+            <Button 
+              color="blue" 
+              radius="xl" 
+              onClick={async () => {
+                const hasPermission = await requestCameraPermission();
+                if (hasPermission) {
+                  setPopoverOpened(true);
+                }
+              }} 
+              leftSection={<IconCamera size={18} />}
+            >
+              Scanner ISBN
+            </Button>
             <Button onClick={() => setCommandeOpened(true)}>Commandes</Button>
           </div>
         </div>
