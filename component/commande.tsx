@@ -66,6 +66,37 @@ export default function Commande() {
   const [commandes, setCommandes] = useState<{ user_id: number; date_achat: string; title: string;quantite: number; vendeur?: string; user?: { name?: string };
   }[]>([]);
 
+  // Fonction pour demander les permissions de caméra
+  const requestCameraPermission = async () => {
+    try {
+      // Vérifier si l'API Permissions est supportée
+      if ('permissions' in navigator) {
+        const permission = await navigator.permissions.query({ name: 'camera' as PermissionName });
+        console.log('Statut permission caméra:', permission.state);
+        
+        if (permission.state === 'denied') {
+          alert('Permission caméra refusée. Veuillez l\'activer dans les paramètres de votre navigateur.');
+          return false;
+        }
+      }
+      
+      // Tester l'accès à la caméra
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment' } 
+      });
+      
+      // Arrêter le stream de test
+      stream.getTracks().forEach(track => track.stop());
+      console.log('Permission caméra accordée');
+      return true;
+      
+    } catch (error) {
+      console.error('Erreur permission caméra:', error);
+      alert('Impossible d\'accéder à la caméra. Vérifiez les permissions.');
+      return false;
+    }
+  };
+
 
   /* Téléchargement du fichier CSV */
   const downloadCSV = () => {
@@ -105,16 +136,41 @@ export default function Commande() {
 
   useEffect(() => {
     if (popoverOpened && scannerReady && scannerRef.current) {
-      Quagga.init({
-        inputStream: {
-          type: "LiveStream",
-          target: scannerRef.current,
-          constraints: { facingMode: "environment" },
+      // Vérifier si on est sur mobile
+      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+      
+      if (isMobile && window.location.protocol !== 'https:') {
+        alert('La caméra nécessite HTTPS sur mobile. Veuillez utiliser https://');
+        setPopoverOpened(false);
+        return;
+      }
+          Quagga.init({
+      inputStream: {
+        type: "LiveStream",
+        target: scannerRef.current,
+        constraints: { 
+          facingMode: "environment", // Caméra arrière Android
+          width: { min: 640, ideal: 1280, max: 1920 },
+          height: { min: 480, ideal: 720, max: 1080 }
         },
-        decoder: { readers: ["ean_reader"] },
-      }, (err) => {
-        if (!err) Quagga.start();
-      });
+      },
+      decoder: { readers: ["ean_reader"] }, // Scanner codes-barres ISBN
+      debug: {
+        drawBoundingBox: true,
+        showFrequency: true,
+        drawScanline: true,
+        showPattern: true
+      },
+      locate: true
+    }, (err) => {
+      if (!err) {
+        console.log('Scanner démarré avec succès');
+        Quagga.start();
+      } else {
+        console.error('Erreur scanner:', err);
+        alert('Erreur lors du démarrage de la caméra');
+      }
+    });
 
       const onDetected = (data: QuaggaJSResultObject) => {
         if (data?.codeResult?.code) {
@@ -232,7 +288,19 @@ export default function Commande() {
         <div className={styles.headerRow}>
           <Title order={2} className={styles.title}>Liste des livres</Title>
           <div className={styles.actions}>
-            <Button color="blue" radius="xl" onClick={() => setPopoverOpened(true)} leftSection={<IconCamera size={18} />}>Scanner ISBN</Button>
+            <Button 
+              color="blue" 
+              radius="xl" 
+              onClick={async () => {
+                const hasPermission = await requestCameraPermission();
+                if (hasPermission) {
+                  setPopoverOpened(true);
+                }
+              }} 
+              leftSection={<IconCamera size={18} />}
+            >
+              Scanner ISBN
+            </Button>
             <Button onClick={() => setCommandeOpened(true)}>Commandes</Button>
           </div>
         </div>
