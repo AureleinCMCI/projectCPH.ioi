@@ -2,7 +2,7 @@
 
 import { Badge, Button, Center, Checkbox, Loader, Modal, Paper, Table, Text, TextInput, Title } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5QrcodeScanner, Html5QrcodeScanType, Html5QrcodeScanType } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './style/ScannerResception.module.css';
@@ -103,24 +103,7 @@ export default function Commande() {
   }, []);
 
   // Fonction pour demander les permissions de caméra sur Android
-  const requestCameraPermission = async () => {
-    try {
-      // Demander l'accès à la caméra de manière simple
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          facingMode: 'environment' // Caméra arrière
-        } 
-      });
-      
-      // Arrêter le stream de test
-      stream.getTracks().forEach(track => track.stop());
-      return true;
-    } catch (error) {
-      console.error('Erreur permission caméra:', error);
-      alert('Permission caméra requise pour scanner.');
-      return false;
-    }
-  };
+
 
   useEffect(() => {
     if (popoverOpened && scannerReady && scannerRef.current) {
@@ -129,35 +112,32 @@ export default function Commande() {
         scannerRef.current.innerHTML = '';
       }
       
-      try {
-        // Configuration simple et fiable pour tous les téléphones
-        const html5QrcodeScanner = new Html5QrcodeScanner(
-          "qr-reader",
-          { 
-            fps: 10,
-            qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0
-          },
-          false
-        );
+      // Créer le scanner HTML5-QRCode
+      const html5QrcodeScanner = new Html5QrcodeScanner(
+        "qr-reader", // ID du conteneur
+        { 
+          fps: 10,
+          qrbox: { width: 250, height: 250 },
+          aspectRatio: 1.0,
+          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
+        },
+        false // verbose
+      );
 
-        // Démarrer le scanner
-        html5QrcodeScanner.render((decodedText: string) => {
-          console.log('ISBN détecté:', decodedText);
-          setResult(decodedText);
-          setIsbn(decodedText);
-        }, () => {
-          // Scan en cours
-        });
+      // Démarrer le scanner
+      html5QrcodeScanner.render((decodedText: string) => {
+        console.log('ISBN détecté (HTML5-QRCode):', decodedText);
+        setResult(decodedText);
+        setIsbn(decodedText);
+        // La modal reste ouverte pour que l'utilisateur puisse valider
+      }, (error: string) => {
+        // Erreur de scan (normal, pas besoin d'alerte)
+        console.log('Scan en cours...', error);
+      });
 
-        return () => {
-          html5QrcodeScanner.clear();
-        };
-      } catch (error) {
-        console.error('Erreur scanner:', error);
-        alert('Erreur caméra. Vérifiez les permissions.');
-        setPopoverOpened(false);
-      }
+      return () => {
+        html5QrcodeScanner.clear();
+      };
     }
   }, [popoverOpened, scannerReady]);
 
@@ -265,10 +245,7 @@ export default function Commande() {
               color="blue" 
               radius="xl" 
               onClick={async () => {
-                const hasPermission = await requestCameraPermission();
-                if (hasPermission) {
-                  setPopoverOpened(true);
-                }
+                setPopoverOpened(true);
               }} 
               leftSection={<IconCamera size={18} />}
             >
