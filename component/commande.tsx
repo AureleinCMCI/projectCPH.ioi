@@ -118,7 +118,7 @@ export default function Commande() {
         { 
           fps: 10,
           qrbox: { width: 250, height: 250 },
-          aspectRatio: 1.0,
+          aspectRatio: 1.0
         },
         false
       );
