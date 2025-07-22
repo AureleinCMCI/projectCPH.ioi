@@ -135,49 +135,59 @@ export default function Commande() {
         return;
       }
 
-      // Nettoyer le conteneur
+      // Nettoyer et préparer le conteneur
       if (scannerRef.current) {
         scannerRef.current.innerHTML = '';
         // Créer un div avec l'ID requis
         const scannerDiv = document.createElement('div');
         scannerDiv.id = 'qr-reader';
+        scannerDiv.style.width = '100%';
+        scannerDiv.style.height = '300px';
         scannerRef.current.appendChild(scannerDiv);
       }
       
       try {
-        // Créer le scanner HTML5-QRCode avec un ID unique
+        // Configuration simple et efficace
         const html5QrcodeScanner = new Html5QrcodeScanner(
-          "qr-reader", // ID unique du conteneur
+          "qr-reader",
           { 
-            fps: 10, // 10 FPS pour une détection rapide
-            qrbox: { width: 300, height: 300 }, // Zone de scan grande
+            fps: 10,
+            qrbox: { width: 250, height: 250 },
             aspectRatio: 1.0,
             supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
           },
-          false // verbose
+          false
         );
 
-        // Démarrer le scanner
+        // Démarrer le scanner avec feedback visuel
         html5QrcodeScanner.render((decodedText: string) => {
-          console.log('ISBN détecté (HTML5-QRCode):', decodedText);
+          console.log('✅ ISBN détecté:', decodedText);
           setResult(decodedText);
           setIsbn(decodedText);
-          // La modal reste ouverte pour que l'utilisateur puisse valider
-        }, (error: string) => {
-          // Erreur de scan (normal, pas besoin d'alerte)
-          console.log('Scan en cours...', error);
+          // Son de succès (optionnel)
+          if (typeof window !== 'undefined' && 'Audio' in window) {
+            try {
+              const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT');
+              audio.play();
+            } catch {
+              // Ignore les erreurs audio
+            }
+          }
+        }, () => {
+          // Pas d'alerte pour les erreurs normales de scan
+          console.log('Scan en cours...');
         });
 
         return () => {
           try {
             html5QrcodeScanner.clear();
-          } catch (error) {
-            console.log('Erreur lors du nettoyage du scanner:', error);
+          } catch {
+            console.log('Nettoyage scanner OK');
           }
         };
       } catch (error) {
-        console.error('Erreur lors de l\'initialisation du scanner:', error);
-        alert('Erreur lors du démarrage du scanner. Veuillez réessayer.');
+        console.error('❌ Erreur scanner:', error);
+        alert('Erreur caméra. Vérifiez les permissions et réessayez.');
         setPopoverOpened(false);
       }
     }
