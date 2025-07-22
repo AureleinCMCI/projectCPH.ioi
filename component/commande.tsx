@@ -2,7 +2,7 @@
 
 import { Badge, Button, Center, Checkbox, Loader, Modal, Paper, Table, Text, TextInput, Title } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
-import { Html5QrcodeScanner, Html5QrcodeScanType, Html5QrcodeScanType } from 'html5-qrcode';
+import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './style/ScannerResception.module.css';
@@ -114,14 +114,14 @@ export default function Commande() {
       
       // Créer le scanner HTML5-QRCode
       const html5QrcodeScanner = new Html5QrcodeScanner(
-        "qr-reader", // ID du conteneur
+        "qr-reader",
         { 
           fps: 10,
           qrbox: { width: 250, height: 250 },
           aspectRatio: 1.0,
           supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
         },
-        false // verbose
+        false
       );
 
       // Démarrer le scanner
@@ -244,9 +244,7 @@ export default function Commande() {
             <Button 
               color="blue" 
               radius="xl" 
-              onClick={async () => {
-                setPopoverOpened(true);
-              }} 
+              onClick={() => setPopoverOpened(true)} 
               leftSection={<IconCamera size={18} />}
             >
               Scanner ISBN
