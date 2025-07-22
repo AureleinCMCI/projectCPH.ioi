@@ -2,7 +2,7 @@
 
 import { Badge, Button, Center, Checkbox, Loader, Modal, Paper, Table, Text, TextInput, Title } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
-import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './style/ScannerResception.module.css';
@@ -105,89 +105,57 @@ export default function Commande() {
   // Fonction pour demander les permissions de caméra sur Android
   const requestCameraPermission = async () => {
     try {
-      // Demander explicitement l'accès à la caméra
+      // Demander l'accès à la caméra de manière simple
       const stream = await navigator.mediaDevices.getUserMedia({ 
         video: { 
-          facingMode: 'environment', // Caméra arrière
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
+          facingMode: 'environment' // Caméra arrière
         } 
       });
       
       // Arrêter le stream de test
       stream.getTracks().forEach(track => track.stop());
-      console.log('Permission caméra accordée');
       return true;
     } catch (error) {
       console.error('Erreur permission caméra:', error);
-      alert('Permission caméra requise pour scanner. Veuillez autoriser l\'accès à la caméra.');
+      alert('Permission caméra requise pour scanner.');
       return false;
     }
   };
 
   useEffect(() => {
     if (popoverOpened && scannerReady && scannerRef.current) {
-      // Vérifier HTTPS pour Android
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      if (isMobile && window.location.protocol !== 'https:') {
-        alert('La caméra nécessite HTTPS sur mobile');
-        setPopoverOpened(false);
-        return;
-      }
-
-      // Nettoyer et préparer le conteneur
+      // Nettoyer le conteneur
       if (scannerRef.current) {
         scannerRef.current.innerHTML = '';
-        // Créer un div avec l'ID requis
-        const scannerDiv = document.createElement('div');
-        scannerDiv.id = 'qr-reader';
-        scannerDiv.style.width = '100%';
-        scannerDiv.style.height = '300px';
-        scannerRef.current.appendChild(scannerDiv);
       }
       
       try {
-        // Configuration simple et efficace
+        // Configuration simple et fiable pour tous les téléphones
         const html5QrcodeScanner = new Html5QrcodeScanner(
           "qr-reader",
           { 
             fps: 10,
             qrbox: { width: 250, height: 250 },
-            aspectRatio: 1.0,
-            supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
+            aspectRatio: 1.0
           },
           false
         );
 
-        // Démarrer le scanner avec feedback visuel
+        // Démarrer le scanner
         html5QrcodeScanner.render((decodedText: string) => {
-          console.log('✅ ISBN détecté:', decodedText);
+          console.log('ISBN détecté:', decodedText);
           setResult(decodedText);
           setIsbn(decodedText);
-          // Son de succès (optionnel)
-          if (typeof window !== 'undefined' && 'Audio' in window) {
-            try {
-              const audio = new Audio('data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBSuBzvLZiTYIG2m98OScTgwOUarm7blmGgU7k9n1unEiBC13yO/eizEIHWq+8+OWT');
-              audio.play();
-            } catch {
-              // Ignore les erreurs audio
-            }
-          }
         }, () => {
-          // Pas d'alerte pour les erreurs normales de scan
-          console.log('Scan en cours...');
+          // Scan en cours
         });
 
         return () => {
-          try {
-            html5QrcodeScanner.clear();
-          } catch {
-            console.log('Nettoyage scanner OK');
-          }
+          html5QrcodeScanner.clear();
         };
       } catch (error) {
-        console.error('❌ Erreur scanner:', error);
-        alert('Erreur caméra. Vérifiez les permissions et réessayez.');
+        console.error('Erreur scanner:', error);
+        alert('Erreur caméra. Vérifiez les permissions.');
         setPopoverOpened(false);
       }
     }
