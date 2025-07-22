@@ -102,37 +102,72 @@ export default function Commande() {
     setScannerReady(!!node);
   }, []);
 
+  // Fonction pour sélectionner la meilleure caméra disponible
+  const getBestCamera = async () => {
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      
+      // Priorité : caméra arrière > caméra avec haute résolution > première caméra
+      const backCamera = videoDevices.find(device => 
+        device.label.toLowerCase().includes('back') || 
+        device.label.toLowerCase().includes('arrière') ||
+        device.label.toLowerCase().includes('rear')
+      );
+      
+      if (backCamera) {
+        return backCamera.deviceId;
+      }
+      
+      // Sinon, prendre la première caméra disponible
+      return videoDevices[0]?.deviceId || undefined;
+    } catch (error) {
+      console.error('Erreur lors de la sélection de la caméra:', error);
+      return undefined;
+    }
+  };
+
   useEffect(() => {
     if (popoverOpened && scannerReady && scannerRef.current) {
       const reader = new BrowserMultiFormatReader();
       
-      // Créer un élément vidéo pour le scanner
+      // Créer un élément vidéo pour le scanner avec haute qualité
       const videoElement = document.createElement('video');
       videoElement.style.width = '100%';
-      videoElement.style.height = '250px';
+      videoElement.style.height = '300px';
       videoElement.style.borderRadius = '8px';
+      videoElement.style.objectFit = 'cover';
+      videoElement.autoplay = true;
+      videoElement.muted = true;
+      videoElement.playsInline = true;
       
       if (scannerRef.current) {
         scannerRef.current.innerHTML = '';
         scannerRef.current.appendChild(videoElement);
       }
       
-      // Configuration optimisée pour Android
-      reader.decodeFromVideoDevice(
-        undefined, // Caméra arrière Android
-        videoElement,
-        (result, err) => {
-                      if (result) {
+      // Démarrer le scanner avec la meilleure caméra
+      const startScanner = async () => {
+        const bestCamera = await getBestCamera();
+        
+        reader.decodeFromVideoDevice(
+          bestCamera, // Meilleure caméra disponible
+          videoElement,
+          (result, err) => {
+            if (result) {
               console.log('ISBN détecté (ZXing):', result.getText());
               setResult(result.getText());
               setIsbn(result.getText());
               // La modal reste ouverte pour que l'utilisateur puisse valider
             }
-          if (err && err.name !== 'NotFoundException') {
-            console.error('Erreur scanner ZXing:', err);
+            if (err && err.name !== 'NotFoundException') {
+              console.error('Erreur scanner ZXing:', err);
+            }
           }
-        }
-      );
+        );
+      };
+      
+      startScanner();
 
       return () => {
         // Nettoyage automatique quand le composant se démonte
