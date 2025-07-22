@@ -138,6 +138,10 @@ export default function Commande() {
       // Nettoyer le conteneur
       if (scannerRef.current) {
         scannerRef.current.innerHTML = '';
+        // Créer un div avec l'ID requis
+        const scannerDiv = document.createElement('div');
+        scannerDiv.id = 'qr-reader';
+        scannerRef.current.appendChild(scannerDiv);
       }
       
       try {
