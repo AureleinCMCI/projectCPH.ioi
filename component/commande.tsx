@@ -2,9 +2,9 @@
 
 import { Badge, Button, Center, Checkbox, Loader, Modal, Paper, Table, Text, TextInput, Title } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
-import { BrowserMultiFormatReader } from '@zxing/browser';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
+import QrScanner from 'react-qr-scanner';
 import styles from './style/ScannerResception.module.css';
 
 type InventaireItem = {
@@ -64,7 +64,62 @@ export default function Commande() {
   const [commandeOpened, setCommandeOpened] = useState(false);
   const [commandes, setCommandes] = useState<{ user_id: number; date_achat: string; title: string;quantite: number; vendeur?: string; user?: { name?: string };
   }[]>([]);
+  const [isMobile, setIsMobile] = useState(false); // Détection mobile
 
+  // Détection automatique du type d'appareil
+  useEffect(() => {
+    const detectMobile = () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isAndroid = /android/.test(userAgent);
+      const isIOS = /iphone|ipad|ipod/.test(userAgent);
+      setIsMobile(isAndroid || isIOS);
+    };
+    
+    detectMobile();
+  }, []);
+
+  // Fonction de diagnostic pour vérifier la compatibilité
+  const checkCompatibility = async () => {
+    console.log('=== Diagnostic Scanner ===');
+    console.log('User Agent:', navigator.userAgent);
+    console.log('Est mobile:', isMobile);
+    
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      console.log('Appareils vidéo disponibles:', videoDevices);
+      
+      if (videoDevices.length === 0) {
+        console.warn('Aucun appareil vidéo détecté');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la détection des appareils:', error);
+    }
+  };
+
+  // Gestionnaires pour react-qr-scanner
+  const handleScan = (data: string | null) => {
+    if (data) {
+      console.log('Code détecté:', data);
+      setResult(data);
+      setIsbn(data);
+    }
+  };
+
+  const handleError = (err: Error) => {
+    console.error('Erreur de scan:', err);
+    if (err.name === 'NotAllowedError') {
+      alert('Permission caméra refusée. Veuillez autoriser l\'accès à la caméra.');
+    } else if (err.name === 'NotFoundError') {
+      alert('Aucune caméra trouvée sur cet appareil.');
+    } else if (err.name === 'NotSupportedError') {
+      alert('Votre navigateur ne supporte pas le scan de codes-barres.');
+    } else if (err.name === 'NotReadableError') {
+      alert('La caméra est déjà utilisée par une autre application.');
+    } else {
+      alert('Erreur lors du scan: ' + err.message);
+    }
+  };
 
   /* Téléchargement du fichier CSV */
   const downloadCSV = () => {
@@ -87,6 +142,19 @@ export default function Commande() {
     setTimeout(() => window.URL.revokeObjectURL(url), 100);
   };
 
+  if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+    navigator.mediaDevices.enumerateDevices()
+    .then((devices) => {
+      devices.forEach((device) => {
+        console.log(`Appareil Id: ${device.deviceId}, Type: ${device.kind}, Label: ${device.label}`);
+      });
+    })
+    .catch((error) => {
+      console.error('Erreur lors de la récupération des appareils médias :', error);
+    });
+  } else {
+    console.warn("navigator.mediaDevices ou enumerateDevices non disponible");
+  }
 
   useEffect(() => {
     const fetchCommandes = async () => {
@@ -102,45 +170,27 @@ export default function Commande() {
     setScannerReady(!!node);
   }, []);
 
-  // Fonction pour demander les permissions de caméra sur Android
-
-
   useEffect(() => {
     if (popoverOpened && scannerReady && scannerRef.current) {
-      const reader = new BrowserMultiFormatReader();
-      
-      // Créer un élément vidéo pour le scanner
-      const videoElement = document.createElement('video');
-      videoElement.style.width = '100%';
-      videoElement.style.height = '300px';
-      videoElement.style.borderRadius = '8px';
-      
-      if (scannerRef.current) {
-        scannerRef.current.innerHTML = '';
-        scannerRef.current.appendChild(videoElement);
-      }
-      
-      // Démarrer le scanner
-      reader.decodeFromVideoDevice(
-        undefined, // Caméra par défaut
-        videoElement,
-        (result, err) => {
-          if (result) {
-            console.log('ISBN détecté (ZXing):', result.getText());
-            setResult(result.getText());
-            setIsbn(result.getText());
-          }
-          if (err && err.name !== 'NotFoundException') {
-            console.error('Erreur scanner ZXing:', err);
-          }
-        }
-      );
-
-      return () => {
-        // Nettoyage automatique
-      };
+      // Le scanner sera rendu directement dans le JSX
+      console.log('Scanner prêt à être utilisé');
     }
   }, [popoverOpened, scannerReady]);
+
+  // Nettoyage quand le modal se ferme
+  useEffect(() => {
+    if (!popoverOpened && scannerRef.current) {
+      console.log('Modal fermé, nettoyage des ressources...');
+      scannerRef.current.innerHTML = '';
+    }
+  }, [popoverOpened]);
+
+  // Diagnostic quand le modal s'ouvre
+  useEffect(() => {
+    if (popoverOpened) {
+      checkCompatibility();
+    }
+  }, [popoverOpened]);
 
   useEffect(() => {
     async function fetchInventaire() {
@@ -235,6 +285,11 @@ export default function Commande() {
       alert("Erreur lors de l'ajout de la commande");
     }
   };
+
+  // Supprimer la fonction getBestVideoConstraints qui n'est plus utilisée
+  // const getBestVideoConstraints = async (deviceId?: string) => { ... };
+
+  
 
   return (
     <div className={styles.bgGradient}>
@@ -343,10 +398,42 @@ export default function Commande() {
       {/* Scanner ISBN */}
       {popoverOpened && (
         <Modal opened={popoverOpened} onClose={() => setPopoverOpened(false)} title="Scanner ISBN" centered size="md">
-          <div ref={setScannerNode} style={{ width: '100%', maxWidth: 350, height: 250, margin: '0 auto', borderRadius: 8, overflow: 'hidden', background: '#000' }} />
+          <div style={{ marginBottom: '1rem' }}>
+            <Text size="sm" color="dimmed" mt="xs">
+              {isMobile 
+                ? "Appareil mobile détecté - react-qr-scanner recommandé"
+                : "react-qr-scanner fonctionne mieux sur tous les appareils"
+              }
+            </Text>
+          </div>
+          <div ref={setScannerNode} style={{ width: '100%', maxWidth: 350, height: 250, margin: '0 auto', borderRadius: 8, overflow: 'hidden', background: '#000' }}>
+            {popoverOpened && (
+              <QrScanner
+                delay={300}
+                onError={handleError}
+                onScan={handleScan}
+                style={{ width: '100%', height: '100%' }}
+                constraints={{
+                  video: {
+                    facingMode: 'environment',
+                    width: { min: 640, ideal: 1280, max: 1920 },
+                    height: { min: 480, ideal: 720, max: 1080 }
+                  }
+                }}
+              />
+            )}
+          </div>
           <Text mt="sm" color="blue">
             {result ? `ISBN détecté : ${result}` : 'Scanne un code-barres ISBN de livre'}
           </Text>
+          <Text size="sm" color="dimmed" mt="xs">
+            Astuce : Si l&apos;image est floue, nettoyez la lentille et rapprochez doucement le code-barres jusqu&apos;à ce qu&apos;il soit net.
+          </Text>
+          {isMobile && (
+            <Text size="xs" color="blue" mt="xs">
+              💡 Conseil mobile : Maintenez l&apos;appareil stable et bien éclairé pour une meilleure détection
+            </Text>
+          )}
           <TextInput label="ISBN" name="isbn" value={isbn} onChange={e => setIsbn(e.target.value)} placeholder="Scanné ou à saisir manuellement" mt="md" />
           <Center>
             <Button onClick={() => {

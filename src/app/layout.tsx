@@ -2,9 +2,9 @@
 
 import { MantineProvider } from '@mantine/core';
 import '@mantine/core/styles.css';
+import { usePathname } from 'next/navigation';
 import { ReactNode } from 'react';
 import { NavbarSearch } from '../../component/navbar';
-import { usePathname } from 'next/navigation';
 
 type RootLayoutProps = {
   children: ReactNode;

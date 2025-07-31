@@ -6,9 +6,6 @@ import Webcam from "react-webcam";
 import style from './style/login.module.css';
 
 
-
-
-
 export const LoginForm: React.FC = () => {
   // États pour le formulaire de connexion
   const [name, setName] = useState<string>('');
