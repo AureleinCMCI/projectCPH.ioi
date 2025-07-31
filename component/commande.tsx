@@ -2,9 +2,9 @@
 
 import { Badge, Button, Center, Checkbox, Loader, Modal, Paper, Table, Text, TextInput, Title } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import QrScanner from 'react-qr-scanner';
 import styles from './style/ScannerResception.module.css';
 
 type InventaireItem = {
@@ -65,6 +65,7 @@ export default function Commande() {
   const [commandes, setCommandes] = useState<{ user_id: number; date_achat: string; title: string;quantite: number; vendeur?: string; user?: { name?: string };
   }[]>([]);
   const [isMobile, setIsMobile] = useState(false); // Détection mobile
+  const [scanner, setScanner] = useState<Html5QrcodeScanner | null>(null);
 
   // Détection automatique du type d'appareil
   useEffect(() => {
@@ -97,29 +98,7 @@ export default function Commande() {
     }
   };
 
-  // Gestionnaires pour react-qr-scanner
-  const handleScan = (data: string | null) => {
-    if (data) {
-      console.log('Code détecté:', data);
-      setResult(data);
-      setIsbn(data);
-    }
-  };
 
-  const handleError = (err: Error) => {
-    console.error('Erreur de scan:', err);
-    if (err.name === 'NotAllowedError') {
-      alert('Permission caméra refusée. Veuillez autoriser l\'accès à la caméra.');
-    } else if (err.name === 'NotFoundError') {
-      alert('Aucune caméra trouvée sur cet appareil.');
-    } else if (err.name === 'NotSupportedError') {
-      alert('Votre navigateur ne supporte pas le scan de codes-barres.');
-    } else if (err.name === 'NotReadableError') {
-      alert('La caméra est déjà utilisée par une autre application.');
-    } else {
-      alert('Erreur lors du scan: ' + err.message);
-    }
-  };
 
   /* Téléchargement du fichier CSV */
   const downloadCSV = () => {
@@ -170,24 +149,63 @@ export default function Commande() {
     setScannerReady(!!node);
   }, []);
 
+  // Gestionnaires pour html5-qrcode
+  const handleScan = (decodedText: string) => {
+    if (decodedText) {
+      console.log('Code détecté:', decodedText);
+      setResult(decodedText);
+      setIsbn(decodedText);
+    }
+  };
+
+  const handleError = (errorMessage: string) => {
+    console.error('Erreur de scan:', errorMessage);
+    // Ne pas afficher d'alerte pour les erreurs de scan continues
+  };
+
+  // Initialisation html5-qrcode
   useEffect(() => {
     if (popoverOpened && scannerReady && scannerRef.current) {
-      // Le scanner sera rendu directement dans le JSX
       console.log('Scanner prêt à être utilisé');
+      
+      // Initialiser html5-qrcode scanner
+      const html5QrcodeScanner = new Html5QrcodeScanner(
+        "reader",
+        { 
+          fps: 10, 
+          qrbox: undefined, // Pas de zone de scan fixe
+          aspectRatio: 1.0,
+          videoConstraints: {
+            facingMode: 'environment' // Caméra arrière
+          }
+        },
+        false
+      );
+
+      html5QrcodeScanner.render(handleScan, handleError);
+      setScanner(html5QrcodeScanner);
+
+      return () => {
+        if (html5QrcodeScanner) {
+          html5QrcodeScanner.clear();
+        }
+      };
     }
   }, [popoverOpened, scannerReady]);
 
   // Nettoyage quand le modal se ferme
   useEffect(() => {
-    if (!popoverOpened && scannerRef.current) {
+    if (!popoverOpened && scanner) {
       console.log('Modal fermé, nettoyage des ressources...');
-      scannerRef.current.innerHTML = '';
+      scanner.clear();
+      setScanner(null);
     }
-  }, [popoverOpened]);
+  }, [popoverOpened, scanner]);
 
   // Diagnostic quand le modal s'ouvre
   useEffect(() => {
     if (popoverOpened) {
+      console.log('🎯 Modal scanner ouvert - diagnostic en cours...');
       checkCompatibility();
     }
   }, [popoverOpened]);
@@ -308,7 +326,92 @@ export default function Commande() {
             <Button onClick={() => setCommandeOpened(true)}>Commandes</Button>
           </div>
         </div>
-          <Modal opened={commandeOpened} onClose={() => setCommandeOpened(false)} title="Commandes"  centered  size="xxl" >
+
+        {/* Scanner intégré directement dans la page */}
+        {popoverOpened && (
+          <div style={{ 
+            marginBottom: '20px', 
+            padding: '20px', 
+            background: '#f8f9fa', 
+            borderRadius: '8px',
+            border: '2px solid #e9ecef'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <Text size="lg" fw={600}>Scanner ISBN</Text>
+              <Button 
+                size="xs" 
+                color="red" 
+                variant="light" 
+                onClick={() => setPopoverOpened(false)}
+              >
+                Fermer
+              </Button>
+            </div>
+            
+            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
+              {/* Scanner */}
+              <div 
+                ref={setScannerNode} 
+                style={{ 
+                  width: '400px', 
+                  height: '300px', 
+                  borderRadius: 8, 
+                  overflow: 'hidden', 
+                  background: '#000',
+                  position: 'relative',
+                  flexShrink: 0
+                }}
+              >
+                <div id="reader" style={{ width: '100%', height: '100%' }}></div>
+              </div>
+
+              {/* Informations et contrôles */}
+              <div style={{ flex: 1 }}>
+                <Text size="lg" color="blue" fw={600} style={{ marginBottom: '10px' }}>
+                  {result ? `ISBN détecté : ${result}` : 'Scanne un code-barres ISBN de livre'}
+                </Text>
+                
+                <TextInput 
+                  label="ISBN" 
+                  name="isbn" 
+                  value={isbn} 
+                  onChange={e => setIsbn(e.target.value)} 
+                  placeholder="Scanné ou à saisir manuellement" 
+                  style={{ marginBottom: '10px' }}
+                />
+                
+                <Button 
+                  onClick={() => {
+                    setPopoverOpened(false);
+                    setFormOpened(true);
+                  }} 
+                  disabled={!isbn}
+                  size="md"
+                  style={{ marginBottom: '10px' }}
+                >
+                  Valider
+                </Button>
+
+                <div style={{ marginTop: '10px' }}>
+                  <Text size="sm" color="dimmed" fw={600}>
+                    💡 Conseils pour une meilleure détection :
+                  </Text>
+                  <Text size="xs" color="dimmed">
+                    • Rapprochez le code-barres de la caméra
+                  </Text>
+                  <Text size="xs" color="dimmed">
+                    • Assurez-vous d&apos;avoir un bon éclairage
+                  </Text>
+                  <Text size="xs" color="dimmed">
+                    • Maintenez l&apos;appareil stable
+                  </Text>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        <Modal opened={commandeOpened} onClose={() => setCommandeOpened(false)} title="Commandes"  centered  size="xxl" >
           <Button onClick={downloadCSV}>Télécharger en CSV</Button>
             <div className={styles.tableContainer}>
               <Table.ScrollContainer minWidth={900} type="native">
@@ -394,57 +497,6 @@ export default function Commande() {
           </div>
         )}
       </Paper>
-
-      {/* Scanner ISBN */}
-      {popoverOpened && (
-        <Modal opened={popoverOpened} onClose={() => setPopoverOpened(false)} title="Scanner ISBN" centered size="md">
-          <div style={{ marginBottom: '1rem' }}>
-            <Text size="sm" color="dimmed" mt="xs">
-              {isMobile 
-                ? "Appareil mobile détecté - react-qr-scanner recommandé"
-                : "react-qr-scanner fonctionne mieux sur tous les appareils"
-              }
-            </Text>
-          </div>
-          <div ref={setScannerNode} style={{ width: '100%', maxWidth: 350, height: 250, margin: '0 auto', borderRadius: 8, overflow: 'hidden', background: '#000' }}>
-            {popoverOpened && (
-              <QrScanner
-                delay={300}
-                onError={handleError}
-                onScan={handleScan}
-                style={{ width: '100%', height: '100%' }}
-                constraints={{
-                  video: {
-                    facingMode: 'environment',
-                    width: { min: 640, ideal: 1280, max: 1920 },
-                    height: { min: 480, ideal: 720, max: 1080 }
-                  }
-                }}
-              />
-            )}
-          </div>
-          <Text mt="sm" color="blue">
-            {result ? `ISBN détecté : ${result}` : 'Scanne un code-barres ISBN de livre'}
-          </Text>
-          <Text size="sm" color="dimmed" mt="xs">
-            Astuce : Si l&apos;image est floue, nettoyez la lentille et rapprochez doucement le code-barres jusqu&apos;à ce qu&apos;il soit net.
-          </Text>
-          {isMobile && (
-            <Text size="xs" color="blue" mt="xs">
-              💡 Conseil mobile : Maintenez l&apos;appareil stable et bien éclairé pour une meilleure détection
-            </Text>
-          )}
-          <TextInput label="ISBN" name="isbn" value={isbn} onChange={e => setIsbn(e.target.value)} placeholder="Scanné ou à saisir manuellement" mt="md" />
-          <Center>
-            <Button onClick={() => {
-              setPopoverOpened(false);
-              setFormOpened(true);
-            }} disabled={!isbn}>
-              Valider
-            </Button>
-          </Center>
-        </Modal>
-      )}
 
       {/* Affichage du tableau des commandes ici */}
       {/* Infos du livre scanné */}
