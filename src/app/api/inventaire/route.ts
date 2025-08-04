@@ -11,6 +11,7 @@ type Inventaire = {
   isbn: number;
 };
 // affiche les infos 
+
 export async function GET() {
   const supabase = createClient();
 
@@ -25,6 +26,9 @@ export async function GET() {
 
   return Response.json({ data });
 }
+
+
+
 // insert dans inventaire
 export async function POST(request: NextRequest) {
   try {

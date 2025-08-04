@@ -3,10 +3,16 @@ declare module 'react-qr-scanner' {
 
   interface QrScannerProps {
     delay?: number;
-    onError?: (error: Error) => void;
-    onScan?: (data: string | null) => void;
+    onError?: (error: unknown) => void;
+    onScan?: (data: { text: string } | null) => void;
     style?: React.CSSProperties;
-    constraints?: MediaStreamConstraints;
+    constraints?: {
+      video?: {
+        facingMode?: string;
+        width?: { min?: number; ideal?: number; max?: number };
+        height?: { min?: number; ideal?: number; max?: number };
+      };
+    };
   }
 
   export default class QrScanner extends Component<QrScannerProps> {}

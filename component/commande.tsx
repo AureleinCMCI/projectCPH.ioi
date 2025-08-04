@@ -1,11 +1,12 @@
 'use client';
 
-import { Badge, Button, Center, Checkbox, Loader, Modal, Paper, Table, Text, TextInput, Title } from '@mantine/core';
+import { Button, Center, Checkbox, Loader, Modal, Table, Text, TextInput } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5QrcodeScanner, Html5QrcodeScanType, Html5QrcodeSupportedFormats } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './style/ScannerResception.module.css';
+import commandeStyles from './style/commande.module.css';
 
 type InventaireItem = {
   id: number;
@@ -176,8 +177,20 @@ export default function Commande() {
           qrbox: undefined, // Pas de zone de scan fixe
           aspectRatio: 1.0,
           videoConstraints: {
-            facingMode: 'environment' // Caméra arrière
-          }
+            facingMode: 'environment',// Force la caméra arrière
+            width: { min: 640, ideal: 1280, max: 1920 },
+            height: { min: 480, ideal: 720, max: 1080 }
+          },
+          rememberLastUsedCamera: true,
+          showTorchButtonIfSupported: true,
+          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+          formatsToSupport: [
+            Html5QrcodeSupportedFormats.EAN_13,
+            Html5QrcodeSupportedFormats.EAN_8,
+            Html5QrcodeSupportedFormats.CODE_128,
+            Html5QrcodeSupportedFormats.UPC_A,
+            Html5QrcodeSupportedFormats.UPC_E
+          ]
         },
         false
       );
@@ -310,101 +323,95 @@ export default function Commande() {
   
 
   return (
-    <div className={styles.bgGradient}>
-      <Paper shadow="xl" radius="lg" p="xl" withBorder className={styles.cardTable}>
-        <div className={styles.headerRow}>
-          <Title order={2} className={styles.title}>Liste des livres</Title>
-          <div className={styles.actions}>
+    <div className={commandeStyles.pageContainer}>
+      <div className={commandeStyles.mainCard}>
+        {/* Header de la page */}
+        <div className={commandeStyles.pageHeader}>
+          <h1 className={commandeStyles.pageTitle}>📚 Livres</h1>
+          <div className={commandeStyles.actionButtons}>
             <Button 
-              color="blue" 
-              radius="xl" 
+              className={commandeStyles.actionButton}
               onClick={() => setPopoverOpened(true)} 
               leftSection={<IconCamera size={18} />}
             >
-              Scanner ISBN
+              📱 Scanner
             </Button>
-            <Button onClick={() => setCommandeOpened(true)}>Commandes</Button>
+            <Button 
+              className={commandeStyles.actionButton}
+              onClick={() => setCommandeOpened(true)}
+            >
+              📋 Commandes
+            </Button>
           </div>
         </div>
 
         {/* Scanner intégré directement dans la page */}
         {popoverOpened && (
-          <div style={{ 
-            marginBottom: '20px', 
-            padding: '20px', 
-            background: '#f8f9fa', 
-            borderRadius: '8px',
-            border: '2px solid #e9ecef'
-          }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
-              <Text size="lg" fw={600}>Scanner ISBN</Text>
+          <div className={commandeStyles.scannerContainer}>
+            {/* Header avec bouton fermer */}
+            <div className={commandeStyles.scannerHeader}>
+              <div className={commandeStyles.scannerTitle}>
+                📱 Scanner ISBN
+              </div>
               <Button 
-                size="xs" 
-                color="red" 
-                variant="light" 
+                className={commandeStyles.closeButton}
                 onClick={() => setPopoverOpened(false)}
               >
-                Fermer
+                ✕ Fermer
               </Button>
             </div>
             
-            <div style={{ display: 'flex', gap: '20px', alignItems: 'flex-start' }}>
-              {/* Scanner */}
+            {/* Layout mobile-first */}
+            <div className={commandeStyles.scannerLayout}>
+              {/* Scanner - Centré et responsive */}
               <div 
                 ref={setScannerNode} 
-                style={{ 
-                  width: '400px', 
-                  height: '300px', 
-                  borderRadius: 8, 
-                  overflow: 'hidden', 
-                  background: '#000',
-                  position: 'relative',
-                  flexShrink: 0
-                }}
+                className={commandeStyles.cameraContainer}
               >
-                <div id="reader" style={{ width: '100%', height: '100%' }}></div>
+                <div id="reader" className={commandeStyles.reader}></div>
               </div>
 
-              {/* Informations et contrôles */}
-              <div style={{ flex: 1 }}>
-                <Text size="lg" color="blue" fw={600} style={{ marginBottom: '10px' }}>
-                  {result ? `ISBN détecté : ${result}` : 'Scanne un code-barres ISBN de livre'}
-                </Text>
+              {/* Informations sous la caméra */}
+              <div className={commandeStyles.infoPanel}>
+                {/* Status de détection */}
+                <div className={`${commandeStyles.statusBadge} ${result ? commandeStyles.statusBadgeSuccess : commandeStyles.statusBadgeWaiting}`}>
+                  {result ? `📚 ISBN détecté : ${result}` : '🔍 Scannez un code-barres ISBN'}
+                </div>
                 
-                <TextInput 
-                  label="ISBN" 
-                  name="isbn" 
-                  value={isbn} 
-                  onChange={e => setIsbn(e.target.value)} 
-                  placeholder="Scanné ou à saisir manuellement" 
-                  style={{ marginBottom: '10px' }}
-                />
+                {/* Champ ISBN */}
+                <div className={commandeStyles.isbnInput}>
+                  <TextInput 
+                    label="📖 ISBN" 
+                    name="isbn" 
+                    value={isbn} 
+                    onChange={e => setIsbn(e.target.value)} 
+                    placeholder="Scanné ou saisie manuelle" 
+                  />
+                </div>
                 
+                {/* Bouton Valider */}
                 <Button 
                   onClick={() => {
                     setPopoverOpened(false);
                     setFormOpened(true);
                   }} 
                   disabled={!isbn}
-                  size="md"
-                  style={{ marginBottom: '10px' }}
+                  className={`${commandeStyles.validateButton} ${isbn ? commandeStyles.validateButtonActive : commandeStyles.validateButtonInactive}`}
                 >
-                  Valider
+                  {isbn ? '✅ Valider et continuer' : '⏳ En attente du scan...'}
                 </Button>
 
-                <div style={{ marginTop: '10px' }}>
-                  <Text size="sm" color="dimmed" fw={600}>
+                {/* Conseils */}
+                <div className={commandeStyles.tipsPanel}>
+                  <div className={commandeStyles.tipsTitle}>
                     💡 Conseils pour une meilleure détection :
-                  </Text>
-                  <Text size="xs" color="dimmed">
-                    • Rapprochez le code-barres de la caméra
-                  </Text>
-                  <Text size="xs" color="dimmed">
-                    • Assurez-vous d&apos;avoir un bon éclairage
-                  </Text>
-                  <Text size="xs" color="dimmed">
-                    • Maintenez l&apos;appareil stable
-                  </Text>
+                  </div>
+                  <div className={commandeStyles.tipsList}>
+                    <div>📏 Rapprochez le code-barres (5-10 cm)</div>
+                    <div>💡 Assurez-vous d&apos;avoir un bon éclairage</div>
+                    <div>🤚 Maintenez l&apos;appareil stable</div>
+                    <div>📱 Utilisez la caméra arrière</div>
+                  </div>
                 </div>
               </div>
             </div>
@@ -440,63 +447,68 @@ export default function Commande() {
               </Table.ScrollContainer>
             </div>
           </Modal>
-        <TextInput
-          className={styles.searchInput}
-          placeholder="Rechercher par titre ou auteur..."
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-          leftSection={<IconCamera size={18} />}
-          mb="md"
-        />
-
-        {loading ? (
-          <Center>
-            <Loader />
-          </Center>
-        ) : (
-          <div className={styles.tableContainer}>
-            <Table.ScrollContainer minWidth={900} type="native">
-              <Table className={styles.tableModern}>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Sélectionner</Table.Th>
-                    <Table.Th>Titre</Table.Th>
-                    <Table.Th>ID Livre</Table.Th>
-                    <Table.Th>Auteur</Table.Th>
-                    <Table.Th>Quantité</Table.Th>
-                    <Table.Th>Prix</Table.Th>
-                    <Table.Th>ISBN</Table.Th>
-                    <Table.Th>État</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {filteredInventaire.map((item) => (
-                    <Table.Tr key={item.id}>
-                      <Table.Td>
-                        <Checkbox
-                          checked={selected.includes(item.id)}
-                          onChange={() => setSelected((prev) => prev.includes(item.id) ? prev.filter((i) => i !== item.id) : [...prev, item.id])}
-                        />
-                      </Table.Td>
-                      <Table.Td>{item.title}</Table.Td>
-                      <Table.Td>{item.livre_id}</Table.Td>
-                      <Table.Td>{item.author}</Table.Td>
-                      <Table.Td>{item.quantite}</Table.Td>
-                      <Table.Td>{item.price} €</Table.Td>
-                      <Table.Td>{item.isbn}</Table.Td>
-                      <Table.Td>
-                        <Badge color={item.quantite > 5 ? 'green' : item.quantite > 0 ? 'yellow' : 'red'} variant="light" radius="sm">
-                          {item.quantite > 5 ? 'En stock' : item.quantite > 0 ? 'Faible' : 'Rupture'}
-                        </Badge>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </Table.ScrollContainer>
+        {/* Section de contenu */}
+        <div className={commandeStyles.contentSection}>
+          <div className={commandeStyles.sectionTitle}>
+            🔍 Rechercher
           </div>
-        )}
-      </Paper>
+          
+          <div className={commandeStyles.searchInput}>
+            <TextInput
+              placeholder="Rechercher par titre ou auteur..."
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+              leftSection={<IconCamera size={18} />}
+            />
+          </div>
+
+          {loading ? (
+            <Center>
+              <Loader />
+            </Center>
+          ) : (
+            <div className={commandeStyles.itemsList}>
+              {filteredInventaire.map((item) => (
+                <div key={item.id} className={commandeStyles.itemCard}>
+                  <div className={commandeStyles.itemHeader}>
+                    <h3 className={commandeStyles.itemTitle}>{item.title}</h3>
+                    <div className={`${commandeStyles.itemStatus} ${
+                      item.quantite > 5 ? commandeStyles.statusStock : 
+                      item.quantite > 0 ? commandeStyles.statusLow : 
+                      commandeStyles.statusOut
+                    }`}>
+                      {item.quantite > 5 ? 'En stock' : item.quantite > 0 ? 'Faible' : 'Rupture'}
+                    </div>
+                  </div>
+                  
+                  <div className={commandeStyles.itemDetails}>
+                    <div className={commandeStyles.itemMeta}>
+                      👤 {item.author}
+                    </div>
+                    <div className={commandeStyles.itemMeta}>
+                      🏷️ ID: {item.livre_id}
+                    </div>
+                    <div className={commandeStyles.itemMeta}>
+                      📖 ISBN: {item.isbn}
+                    </div>
+                    <div className={commandeStyles.itemMeta}>
+                      📦 Qty: <span className={commandeStyles.itemQuantity}>{item.quantite}</span>
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                    <div className={commandeStyles.itemPrice}>{item.price} €</div>
+                    <Checkbox
+                      checked={selected.includes(item.id)}
+                      onChange={() => setSelected((prev) => prev.includes(item.id) ? prev.filter((i) => i !== item.id) : [...prev, item.id])}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* Affichage du tableau des commandes ici */}
       {/* Infos du livre scanné */}

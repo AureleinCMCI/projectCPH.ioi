@@ -1,136 +1,44 @@
-import { ActionIcon, Avatar, Box, Code, Group, Menu, Text, TextInput, Tooltip, UnstyledButton } from '@mantine/core';
-import { IconBulb, IconMenu2, IconPlus, IconSearch, IconX } from '@tabler/icons-react';
-import { jwtDecode } from 'jwt-decode';
-import Link from 'next/link';
-import { useEffect, useState } from 'react';
-import classes from './style/nav.module.css';
-import { Burger } from '@mantine/core';
+"use client";
+import { Group, Stack, Text } from "@mantine/core";
+import { IconChartPie2, IconHome2, IconSettings, IconWallet } from "@tabler/icons-react";
+import Link from "next/link";
+import { usePathname } from "next/navigation";
 
-// Typage du payload du JWT (adapte selon ta structure réelle)
-type JwtPayload = {
-  id: string;
-  name: string;
-  avatar?: string;
-  [key: string]: unknown;
-};
-
-const links = [
-  { icon: IconBulb, label: 'inventaire', href: '/inventaire' },
-  { icon: IconBulb, label: 'acceuil', href: '/acceuil' },
-  { icon: IconBulb, label: 'commande', href: '/commande' },
+const tabs = [
+  { label: "Home", icon: IconHome2, href: "/acceuil" },
+  { label: "commande", icon: IconWallet, href: "/commande" },
+  { label: "monCompte", icon: IconChartPie2, href: "/monCompte" },
+  { label: "inventaire", icon: IconSettings, href: "/inventaire" }
 ];
 
-const mainLinks = links.map((link) => (
-  <Link key={link.label} href={link.href} passHref legacyBehavior>
-    <UnstyledButton className={classes.mainLink} component="a">
-      <div className={classes.mainLinkInner}>
-        <link.icon size={20} className={classes.mainLinkIcon} stroke={1.5} />
-        <span className={classes.a}>{link.label}</span>
-      </div>
-    </UnstyledButton>
-  </Link>
-));
-
-
-export function UserMenu() {
-  const [user, setUser] = useState<JwtPayload | null>(null);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-
-  useEffect(() => {
-    const token = typeof window !== 'undefined' ? localStorage.getItem('jwt') : null;
-    if (token) {
-      try {
-        const decoded = jwtDecode<JwtPayload>(token);
-        setUser(decoded);
-      } catch {
-        setUser(null);
-      }
-    }
-  }, []);
-
-  const userId = user?.id;
-  const fetchAvatar = async () => {
-    if (!userId) return;
-    try {
-      const response = await fetch(`/api/acount?id=${userId}`, { method: 'GET' });
-      const result = await response.json();
-      if (result.data && result.data.photo) {
-        setAvatarPreview(result.data.photo);
-      }
-    } catch {
-      console.error('Erreur lors de la récupération de la photo', userId);
-    }
-  };
-
-  useEffect(() => {
-    if (userId) {
-      fetchAvatar();
-    }
-  }, [userId]);
-
-  if (!user) return null;
-
+export function BottomNavBar() {
+  const pathname = usePathname();
   return (
-    <Menu shadow="md" width={200} position="bottom-end">
-      <Menu.Target>
-        <UnstyledButton>
-          <Group gap="sm">
-            <Avatar src={(avatarPreview ?? user?.photo ?? '/img/avatar.png') as string} radius="xl" />
-            <div style={{ lineHeight: 1 }}>
-              <Text size="sm" fw={500}>{user.name}</Text>
-            </div>
-          </Group>
-        </UnstyledButton>
-      </Menu.Target>
-      <Menu.Dropdown>
-        <Menu.Item component="a" href="/compte">Mon compte</Menu.Item>
-        <Menu.Item  component="a" href="/" color="red">Déconnexion</Menu.Item>
-      </Menu.Dropdown>
-    </Menu>
-  );
-}
-
-export function NavbarSearch() {
-  const [opened, setOpened] = useState(false);
-
-  return (
-    <>
-      {/* Burger visible sur mobile */}
-      <Burger opened={opened} onClick={() => setOpened((o) => !o)} aria-label="Ouvrir le menu"size="md"  // tu peux ajuster la taille selon besoin  className={classes.burgerMenu}  // Pour garder ton stylage CSS
-       />
-       <nav className={`${classes.navbar} ${opened ? classes.open : ''}`}>
-        <div className={classes.section}>
-        </div>
-        <Box p="md">
-          <UserMenu />
-        </Box>
-        <TextInput
-          placeholder="Search"
-          size="xs"
-          leftSection={<IconSearch size={12} stroke={1.5} />}
-          rightSectionWidth={70}
-          rightSection={<Code className={classes.searchCode}>Ctrl + K</Code>}
-          styles={{ section: { pointerEvents: 'none' } }}
-          mb="sm"
-        />
-
-        <div className={classes.section}>
-          <div className={classes.mainLinks}>{mainLinks}</div>
-        </div>
-
-        <div className={classes.section}>
-          <Group className={classes.collectionsHeader} justify="space-between">
-            <Text size="xs" fw={500} c="dimmed">
-              Collections
-            </Text>
-            <Tooltip label="Create collection" withArrow position="right">
-              <ActionIcon variant="default" size={18}>
-                <IconPlus size={12} stroke={1.5} />
-              </ActionIcon>
-            </Tooltip>
-          </Group>
-        </div>
-      </nav>
-    </>
+    <div style={{ 
+      position: 'fixed', 
+      bottom: 0, 
+      left: 0, 
+      right: 0, 
+      background: "#fff", 
+      borderTop: "1px solid #e0e0e0",
+      borderTopLeftRadius: 18, 
+      borderTopRightRadius: 18,
+      padding: "12px 0",
+      zIndex: 1000
+    }}>
+      <Group grow>
+        {tabs.map(({ label, icon: Icon, href }) => {
+          const active = pathname === href;
+          return (
+            <Link key={label} href={href} style={{ textDecoration: "none" }}>
+              <Stack align="center" justify="center" gap={0} style={{ color: active ? "#a259ff" : "#999", padding: "6px 0" }}>
+                <Icon size={28} color={active ? "#a259ff" : "#999"} />
+                <Text size="xs" fw={active ? 700 : 400}>{label}</Text>
+              </Stack>
+            </Link>
+          );
+        })}
+      </Group>
+    </div>
   );
 }

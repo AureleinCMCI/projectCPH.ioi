@@ -4,7 +4,7 @@ import { MantineProvider } from '@mantine/core';
 import '@mantine/core/styles.css';
 import { usePathname } from 'next/navigation';
 import { ReactNode } from 'react';
-import { NavbarSearch } from '../../component/navbar';
+import { BottomNavBar } from '../../component/navbar';
 
 type RootLayoutProps = {
   children: ReactNode;
@@ -20,7 +20,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body>
         <MantineProvider>
           <div style={{ display: 'flex', minHeight: '100vh' }}>
-            {!hideNavbar && <NavbarSearch />}
+            {!hideNavbar && <BottomNavBar />}
             <main style={{ flex: 1, padding: '24px' }}>
               {children}
             </main>

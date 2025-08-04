@@ -1,16 +1,15 @@
 'use client';
 
-import { Badge, Button, Center, Checkbox, Group, Loader, Modal, Paper, Table, Text, Textarea, TextInput, Title } from '@mantine/core';
-import { useCallback, useEffect, useRef, useState } from 'react';
-
-
 import Quagga, { QuaggaJSResultObject } from '@ericblade/quagga2';
+import { Button, Center, Checkbox, Group, Loader, Modal, Paper, Text, Textarea, TextInput } from '@mantine/core';
 import { IconCamera, IconEdit } from '@tabler/icons-react';
 import { jwtDecode } from 'jwt-decode';
-import styles from './style/ScannerResception.module.css';
+import { useCallback, useEffect, useRef, useState } from 'react';
+import commandeStyles from './style/commande.module.css';
+
 type InventaireItem = { id: number; livre_id: number; title: string; author: string; quantite: number; price: number; isbn: number; livre?: { image?: string };};
 
-export default function   Resception() {
+export default function Resception() {
   // États pour le formulaire d'ajout
   const [formOpened, setFormOpened] = useState(false);
   const [result, setResult] = useState('');
@@ -24,11 +23,8 @@ export default function   Resception() {
   const [loading, setLoading] = useState<boolean>(true);
 
   const [selected, setSelected] = useState<number[]>([]);
-
   const [detailsOpened, setDetailsOpened] = useState(false);
-
   const [ajouts, setAjouts] = useState<{ [id: number]: number }>({});
-
   const [editedBooks, setEditedBooks] = useState<InventaireItem[]>([]);
 
   const setScannerNode = useCallback((node: HTMLDivElement | null) => {
@@ -190,14 +186,9 @@ export default function   Resception() {
 
   const handleSubmit = (element: React.FormEvent) => {
     element.preventDefault();
-    // Récupère les livres sélectionnés
     const books = filteredInventaire.filter(item => selected.includes(item.id));
-    //setSelectedBooks(books);
-
-    // Copie pour édition locale de l'ISBN
     setEditedBooks(books.map(book => ({ ...book })));
 
-    // Réinitialise les ajouts à 0 pour chaque livre sélectionné
     const initialAjouts: { [id: number]: number } = {};
     books.forEach(book => {
       initialAjouts[book.id] = 0;
@@ -208,7 +199,6 @@ export default function   Resception() {
     setSelected([]);
   };
 
-  // Gestion du changement de la quantité à ajouter
   const handleAjoutChange = (id: number, value: string) => {
     setAjouts(prev => ({
       ...prev,
@@ -216,7 +206,6 @@ export default function   Resception() {
     }));
   };
 
-  // Gestion du changement de l'ISBN
   const handleIsbnChange = (id: number, newIsbn: string) => {
     setEditedBooks(prev =>
       prev.map(book =>
@@ -225,7 +214,6 @@ export default function   Resception() {
     );
   };
 
-  // Fonction pour incrémenter la quantité (utilise editedBooks pour l'ISBN modifié)
   const incrementInventaire = async (livre: InventaireItem, ajout: number) => {
     if (!ajout || ajout === 0) {
       alert("Veuillez saisir une quantité à ajouter supérieure à 0.");
@@ -252,13 +240,11 @@ export default function   Resception() {
           quantite: ajout,
           name_user: user?.name || 'Inconnu',
           livre_id: livre.livre_id,
-          livre_title: livre.title, // ici, on s'assure que c'est bien envoyé
-          info: 0 // ou une info pertinente
+          livre_title: livre.title,
+          info: 0
         }),
       });
 
-
-      // Rafraîchir l'inventaire
       const response = await fetch('/api/inventaire', { method: 'GET' });
       const result = await response.json();
       setInventaire(result.data || []);
@@ -270,6 +256,7 @@ export default function   Resception() {
       alert('Erreur lors de l\'incrémentation');
     }
   };
+
   const updateIsbn = async (id: number, livre_id: number, newIsbn: number, oldIsbn: number) => {
     try {
       const res = await fetch('/api/ScannerResception', {
@@ -284,7 +271,7 @@ export default function   Resception() {
       alert('Erreur lors de la mise à jour de l\'ISBN');
     }
   };
-  // Filtrage de l'inventaire selon la recherche
+
   const filteredInventaire = inventaire.filter((item) =>
     (item.title ?? '').toLowerCase().includes(search.toLowerCase()) ||
     (item.author ?? '').toLowerCase().includes(search.toLowerCase())
@@ -295,14 +282,12 @@ export default function   Resception() {
   const [capturedImage, setCapturedImage] = useState('');
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
 
-  // Ajoute la logique pour démarrer la caméra
   useEffect(() => {
     if (showCamera && videoRef.current) {
       navigator.mediaDevices.getUserMedia({ video: { facingMode } }).then(stream => {
         if (videoRef.current) videoRef.current.srcObject = stream;
       });
     }
-    // Copie la référence dans une variable locale
     const localVideo = videoRef.current;
     return () => {
       if (localVideo && localVideo.srcObject) {
@@ -322,113 +307,155 @@ export default function   Resception() {
     setCapturedImage(dataUrl);
     setFormData(prev => ({ ...prev, image: dataUrl }));
     setShowCamera(false);
-    // Arrêter la caméra
     if (video.srcObject) {
       (video.srcObject as MediaStream).getTracks().forEach(track => track.stop());
     }
   };
-  /* User connecté*/
 
-let user: { id: string; name: string; avatar?: string } | null = null;
-if (typeof window !== 'undefined') {
-  const token = localStorage.getItem('jwt');
-  if (token) {
-    try {
-      user = jwtDecode<{ id: string; name: string; avatar?: string }>(token);
-    } catch {}
+  let user: { id: string; name: string; avatar?: string } | null = null;
+  if (typeof window !== 'undefined') {
+    const token = localStorage.getItem('jwt');
+    if (token) {
+      try {
+        user = jwtDecode<{ id: string; name: string; avatar?: string }>(token);
+      } catch {}
+    }
   }
-}
-
 
   return (
-    <div className={styles.bgGradient}>
-      <Paper shadow="xl" radius="lg" p="xl" withBorder className={styles.cardTable}>
-        <div className={styles.headerRow}>
-          <Title order={2} className={styles.title}>Liste des livres</Title>
-          <div className={styles.actions}>
-            <Button color="violet" radius="xl" onClick={() => setPopoverOpened(true)}>+ Ajouter un livre</Button>
-            <Button variant="outline" color="gray" radius="xl">Exporter</Button>
+    <div className={commandeStyles.pageContainer}>
+      <div className={commandeStyles.mainCard}>
+        {/* Header de la page */}
+        <div className={commandeStyles.pageHeader}>
+          <h1 className={commandeStyles.pageTitle}>📚 Scanner Réception</h1>
+          <div className={commandeStyles.actionButtons}>
+            <Button 
+              className={commandeStyles.actionButton}
+              onClick={() => setPopoverOpened(true)} 
+              leftSection={<IconCamera size={18} />}
+            >
+              📱 Scanner ISBN
+            </Button>
+            <Button 
+              className={commandeStyles.actionButton}
+              onClick={() => setFormOpened(true)}
+            >
+              ➕ Ajouter livre
+            </Button>
           </div>
         </div>
-        <TextInput  className={styles.searchInput}  placeholder="Rechercher par titre ou auteur..."  value={search}  onChange={(e) => setSearch(e.currentTarget.value)}      leftSection={<IconCamera size={18} />}       mb="md"    />
-        {loading ? (
-          <Center>
-            <Loader />
-          </Center>
-        ) : (
-          <>
-          <div className={styles.tableContainer}>
-            <Table.ScrollContainer minWidth={900} type="native">
-              <Table striped highlightOnHover withColumnBorders className={styles.tableModern}>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Sélectionner</Table.Th>
-                    <Table.Th>Image</Table.Th>
-                    <Table.Th>Titre</Table.Th>
-                    <Table.Th>Auteur</Table.Th>
-                    <Table.Th>Quantité</Table.Th>
-                    <Table.Th>Prix</Table.Th>
-                    <Table.Th>ISBN</Table.Th>
-                    <Table.Th>Statut</Table.Th>
-                    <Table.Th>Actions</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {filteredInventaire.map((item) => (
-                    <Table.Tr key={item.id}>
-                      <Table.Td>
-                        <Checkbox
-                          checked={selected.includes(item.id)}
-                          onChange={() => handleCheckbox(item.id)}
-                        />
-                      </Table.Td>
-                      <Table.Td>
-                        {item.livre?.image ? (
-                          <img src={item.livre.image} alt="Livre" style={{ width: 40, height: 56, objectFit: 'cover', borderRadius: 6, boxShadow: '0 2px 8px #0001' }} />
-                        ) : (
-                          <span style={{ color: '#aaa', fontSize: 12 }}>Aucune</span>
-                        )}
-                      </Table.Td>
-                      <Table.Td>{item.title}</Table.Td>
-                      <Table.Td>{item.author}</Table.Td>
-                      <Table.Td>
-                        <Badge color={item.quantite > 5 ? 'green' : item.quantite > 0 ? 'yellow' : 'red'} variant="light" radius="sm">
-                          {item.quantite}
-                        </Badge>
-                      </Table.Td>
-                      <Table.Td>{item.price} €</Table.Td>
-                      <Table.Td>{item.isbn}</Table.Td>
-                      <Table.Td>
-                        <Badge color={item.quantite > 5 ? 'green' : item.quantite > 0 ? 'yellow' : 'red'} variant="light" radius="sm">
-                          {item.quantite > 5 ? 'En stock' : item.quantite > 0 ? 'Faible' : 'Rupture'}
-                        </Badge>
-                      </Table.Td>
-                      <Table.Td>
-                        <Button variant="subtle" color="gray" radius="xl" size="xs" onClick={() => setSelected([item.id])}>...</Button>
-                      </Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </Table.ScrollContainer>
-            </div>
-            {selected.length > 0 && (
-              <Text mt="md" color="teal">
-                Livres sélectionnés : {selected.join(', ')}
-              </Text>
-            )}
 
-            <Group justify="center" mt="md">
-              <Button type="button" disabled={selected.length === 0} onClick={handleSubmit}>
-                Valider la sélection
+        {/* Section de contenu */}
+        <div className={commandeStyles.contentSection}>
+          <div className={commandeStyles.sectionTitle}>
+            🔍 Rechercher
+          </div>
+          
+          <div className={commandeStyles.searchInput}>
+            <TextInput
+              placeholder="Rechercher par titre ou auteur..."
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+              leftSection={<IconCamera size={18} />}
+            />
+          </div>
+
+          {loading ? (
+            <Center>
+              <Loader />
+            </Center>
+          ) : (
+            <div className={commandeStyles.itemsList}>
+              {filteredInventaire.map((item) => (
+                <div key={item.id} className={commandeStyles.itemCard}>
+                  <div className={commandeStyles.itemHeader}>
+                    <h3 className={commandeStyles.itemTitle}>{item.title}</h3>
+                    <div className={`${commandeStyles.itemStatus} ${
+                      item.quantite > 5 ? commandeStyles.statusStock : 
+                      item.quantite > 0 ? commandeStyles.statusLow : 
+                      commandeStyles.statusOut
+                    }`}>
+                      {item.quantite > 5 ? 'En stock' : item.quantite > 0 ? 'Faible' : 'Rupture'}
+                    </div>
+                  </div>
+                  
+                  <div className={commandeStyles.itemDetails}>
+                    <div className={commandeStyles.itemMeta}>
+                      👤 {item.author}
+                    </div>
+                    <div className={commandeStyles.itemMeta}>
+                      🏷️ ID: {item.livre_id}
+                    </div>
+                    <div className={commandeStyles.itemMeta}>
+                      📖 ISBN: {item.isbn}
+                    </div>
+                    <div className={commandeStyles.itemMeta}>
+                      📦 Qty: <span className={commandeStyles.itemQuantity}>{item.quantite}</span>
+                    </div>
+                  </div>
+                  
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
+                    <div className={commandeStyles.itemPrice}>{item.price} €</div>
+                    <Checkbox
+                      checked={selected.includes(item.id)}
+                      onChange={() => handleCheckbox(item.id)}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {selected.length > 0 && (
+            <div style={{ marginTop: '20px', textAlign: 'center' }}>
+              <Button onClick={handleSubmit} size="lg">
+                Valider la sélection ({selected.length} livre{selected.length > 1 ? 's' : ''})
               </Button>
-            </Group>
-          </>
-        )}
-      </Paper>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Scanner Modal */}
       {popoverOpened && (
         <Modal opened={popoverOpened} onClose={() => setPopoverOpened(false)} title="Scanner ISBN" centered size="md">
-          <div ref={setScannerNode} style={{ width: '100%', maxWidth: 350, height: 250, margin: '0 auto', borderRadius: 8, overflow: 'hidden', background: '#000' }} />
+          <div ref={setScannerNode} style={{ width: '100%', maxWidth: 350, height: 250, margin: '0 auto', borderRadius: 8, overflow: 'hidden', background: '#000', position: 'relative' }}>
+            {/* Popup qui apparaît seulement si le scan réussit */}
+            {result && (
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                background: 'rgba(0, 0, 0, 0.9)',
+                color: 'white',
+                padding: '20px',
+                borderRadius: '12px',
+                textAlign: 'center',
+                zIndex: 1000,
+                minWidth: '250px',
+                boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
+              }}>
+                <div style={{ fontSize: '24px', marginBottom: '10px' }}>📚</div>
+                <div style={{ fontSize: '16px', marginBottom: '8px' }}>ISBN détecté :</div>
+                <div style={{ 
+                  fontSize: '20px', 
+                  color: '#4CAF50', 
+                  fontFamily: 'monospace',
+                  fontWeight: 'bold'
+                }}>
+                  {result}
+                </div>
+                <div style={{ 
+                  fontSize: '14px', 
+                  marginTop: '10px',
+                  color: '#4CAF50'
+                }}>
+                  ✅ Scan réussi !
+                </div>
+              </div>
+            )}
+          </div>
           <Text mt="sm" color="blue">
             {result ? `ISBN détecté : ${result}` : 'Scanne un code-barres ISBN de livre'}
           </Text>
@@ -446,14 +473,16 @@ if (typeof window !== 'undefined') {
           </Center>
         </Modal>
       )}
-      <Modal opened={formOpened} onClose={() => setFormOpened(false)}  title="Ajouter ou incrémenter un livre" centered  size="xl" >
+
+      {/* Formulaire d'ajout */}
+      <Modal opened={formOpened} onClose={() => setFormOpened(false)} title="Ajouter ou incrémenter un livre" centered size="xl">
         <form onSubmit={handleFormSubmit} style={{ width: '600px', maxWidth: '90vw', margin: '0 auto' }}>
           <TextInput label="ISBN" name="isbn" value={formData.isbn} onChange={handleFormChange} required mb="md"/>
-          <TextInput label="Titre du livre" name="title"  value={formData.title} onChange={handleFormChange}  required  mb="md" />
-          <TextInput label="Auteur" name="author" value={formData.author}  onChange={handleFormChange} required mb="md" />
-          <Textarea label="Description" name="description"  value={formData.description} onChange={handleFormChange}  minRows={2}  mb="md"  />
-          <TextInput  label="Prix"  name="price"  value={formData.price}  onChange={handleFormChange}  required  mb="md"  />
-          <TextInput  label="Quantité"  name="quantite"  value={formData.quantite}  onChange={handleFormChange}  required  mb="md"/>
+          <TextInput label="Titre du livre" name="title" value={formData.title} onChange={handleFormChange} required mb="md" />
+          <TextInput label="Auteur" name="author" value={formData.author} onChange={handleFormChange} required mb="md" />
+          <Textarea label="Description" name="description" value={formData.description} onChange={handleFormChange} minRows={2} mb="md" />
+          <TextInput label="Prix" name="price" value={formData.price} onChange={handleFormChange} required mb="md" />
+          <TextInput label="Quantité" name="quantite" value={formData.quantite} onChange={handleFormChange} required mb="md"/>
           <Button mt="md" onClick={e => { e.preventDefault(); setShowCamera(true); }}>
             Prendre une photo
           </Button>
@@ -461,19 +490,18 @@ if (typeof window !== 'undefined') {
             <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <video ref={videoRef} autoPlay style={{ width: 320, height: 240, borderRadius: 12, background: '#000' }} />
               <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: 16, gap: 24 }}>
-                <Button variant="outline" color="gray"  radius="xl" size="md" style={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { e.preventDefault(); setFacingMode(facingMode === 'user' ? 'environment' : 'user'); }}  title="Retourner la caméra" >
+                <Button variant="outline" color="gray" radius="xl" size="md" style={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { e.preventDefault(); setFacingMode(facingMode === 'user' ? 'environment' : 'user'); }} title="Retourner la caméra" >
                   {facingMode === 'user' ? '🔄 Arrière' : '🔄 Avant'}
                 </Button>
-                <Button   color="teal" radius="xl" size="xl"  style={{ width: 64, height: 64, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, boxShadow: '0 2px 8px #0002' }} onClick={e => { e.preventDefault(); handleCapture(); }}  title="Prendre la photo"  >
+                <Button color="teal" radius="xl" size="xl" style={{ width: 64, height: 64, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, boxShadow: '0 2px 8px #0002' }} onClick={e => { e.preventDefault(); handleCapture(); }} title="Prendre la photo" >
                   📸
                 </Button>
-                <Button color="red"radius="xl"   size="md"  style={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { e.preventDefault(); setShowCamera(false); }}   title="Annuler"   >
+                <Button color="red" radius="xl" size="md" style={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { e.preventDefault(); setShowCamera(false); }} title="Annuler" >
                   ✖
                 </Button>
               </div>
             </div>
           )}
-          {/* Aperçu de la photo capturée */}
           {capturedImage && (
             <div style={{ marginTop: 10 }}>
               <Text size="sm" color="dimmed" mb="xs">Aperçu de la photo :</Text>
@@ -485,24 +513,26 @@ if (typeof window !== 'undefined') {
           </Center>
         </form>
       </Modal>
-      <Modal   opened={detailsOpened}  onClose={() => setDetailsOpened(false)}   title="Informations du ou des livres sélectionnés"  size="xl"  centered >
+
+      {/* Modal détails des livres sélectionnés */}
+      <Modal opened={detailsOpened} onClose={() => setDetailsOpened(false)} title="Informations du ou des livres sélectionnés" size="xl" centered>
         {editedBooks.length === 0 ? (
           <Text>Aucun livre sélectionné.</Text>
         ) : (
           editedBooks.map(book => (
             <Paper key={book.id} shadow="xs" p="md" mb="md" withBorder>
-              <TextInput label="Titre" value={book.title}   readOnly mb="md" />
+              <TextInput label="Titre" value={book.title} readOnly mb="md" />
               <TextInput label="Auteur" value={book.author} readOnly mb="md" />
-             <Group gap="xs" mb="md">
-                <TextInput  label="ISBN"  value={book.isbn.toString()}  onChange={e => handleIsbnChange(book.id, e.target.value)} style={{ flex: 1 }} />
-                <Button variant="subtle" color="blue" onClick={() => updateIsbn(book.id, book.livre_id, Number(book.isbn), book.isbn)}title="Mettre à jour l'ISBN" px={6} >
+              <Group gap="xs" mb="md">
+                <TextInput label="ISBN" value={book.isbn.toString()} onChange={e => handleIsbnChange(book.id, e.target.value)} style={{ flex: 1 }} />
+                <Button variant="subtle" color="blue" onClick={() => updateIsbn(book.id, book.livre_id, Number(book.isbn), book.isbn)} title="Mettre à jour l'ISBN" px={6}>
                   <IconEdit size={20} />
                 </Button>
               </Group>
               <TextInput label="Quantité" value={book.quantite} readOnly mb="md" />
               <TextInput label="Prix" value={book.price.toString()} readOnly mb="md" />
-              <TextInput label="Quantité à ajouter" type="number"value={ajouts[book.id] ?? ''}onChange={e => handleAjoutChange(book.id, e.target.value)} mb="md"min={1} />
-              <Button  mt="md"onClick={() => incrementInventaire(book, ajouts[book.id] || 0)}>
+              <TextInput label="Quantité à ajouter" type="number" value={ajouts[book.id] ?? ''} onChange={e => handleAjoutChange(book.id, e.target.value)} mb="md" min={1} />
+              <Button mt="md" onClick={() => incrementInventaire(book, ajouts[book.id] || 0)}>
                 Valider (incrémenter la quantité)
               </Button>
             </Paper>
