@@ -2,7 +2,7 @@
 
 import { Button, Center, Checkbox, Loader, Modal, Table, Text, TextInput } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
-import { Html5QrcodeScanner, Html5QrcodeScanType, Html5QrcodeSupportedFormats } from 'html5-qrcode';
+import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './style/ScannerResception.module.css';
@@ -183,14 +183,7 @@ export default function Commande() {
           },
           rememberLastUsedCamera: true,
           showTorchButtonIfSupported: true,
-          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-          formatsToSupport: [
-            Html5QrcodeSupportedFormats.EAN_13,
-            Html5QrcodeSupportedFormats.EAN_8,
-            Html5QrcodeSupportedFormats.CODE_128,
-            Html5QrcodeSupportedFormats.UPC_A,
-            Html5QrcodeSupportedFormats.UPC_E
-          ]
+          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
         },
         false
       );
