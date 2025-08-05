@@ -417,26 +417,10 @@ export default function Commande() {
 
         {/* Scanner en DIV plein écran - AUCUNE compression */}
         {scannerOpened && (
-          <div style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            width: '500px',
-            height: '500px',
-            backgroundColor: '#000',
-            zIndex: 9999,
-            display: 'flex',
-            flexDirection: 'column'
-          }}>
+          <div className={styles.scannerFullScreen}>
             {/* Header avec bouton fermer */}
-            <div syle={{position: 'absolute',  top: '20px',   left: '20px',
-              right: '20px',
-              zIndex: 10000,
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}>
-              <Text style={{ color: 'white', fontSize: '18px', fontWeight: 'bold' }}>
+            <div className={styles.scannerHeader}>
+              <Text className={styles.scannerTitle}>
                 📱 Scanner ISBN
               </Text>
               <Button 
@@ -448,53 +432,24 @@ export default function Commande() {
                 ✕ Fermer
               </Button>
             </div>
-            <div 
-              ref={setScannerNode} 
-              style={{ 
-                width: '100vw',
-                height: '100vh',
-                position: 'relative'
-              }}
-            >
-              <div id="reader" style={{ 
-                width: '100%', 
-                height: '100%',
-                position: 'absolute',
-                top: 0,
-                left: 0
-              }}></div>
+            <div ref={setScannerNode} className={styles.cameraContainer}>
+              <div id="reader" className={styles.reader}></div>
             </div>
             
             {/* Panneau d'informations en bas */}
-            <div style={{ 
-              position: 'absolute',
-              bottom: 0,
-              left: 0,
-              right: 0,
-              padding: '20px', 
-              backgroundColor: 'rgba(0,0,0,0.8)', 
-              color: 'white'
-            }}>
-              <div style={{ textAlign: 'center', marginBottom: '15px' }}>
-                <div style={{ 
-                  padding: '10px 20px', 
-                  borderRadius: '25px', 
-                  backgroundColor: result ? '#28a745' : '#ffc107',
-                  color: result ? 'white' : '#000',
-                  fontSize: '16px',
-                  fontWeight: 'bold',
-                  display: 'inline-block'
-                }}>
+            <div className={styles.infoPanel}>
+              <div className={styles.statusContainer}>
+                <div className={`${styles.statusBadge} ${result ? styles.statusBadgeSuccess : ''}`}>
                   {result ? `📚 ISBN: ${result}` : '🔍 Visez le code-barres'}
                 </div>
               </div>
               
-              <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+              <div className={styles.controlsContainer}>
                 <TextInput
                   placeholder="ISBN manuel"
                   value={isbn}
                   onChange={(e) => setIsbn(e.target.value)}
-                  style={{ flex: 1 }}
+                  className={styles.isbnInput}
                   styles={{
                     input: { backgroundColor: 'white', color: 'black' }
                   }}
