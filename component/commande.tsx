@@ -1,8 +1,10 @@
 'use client';
 
+
+import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
 import { Button, Center, Checkbox, Loader, Modal, Table, Text, TextInput } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
-import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './style/ScannerResception.module.css';
@@ -51,7 +53,7 @@ function formatDateTimeParis(dateString: string) {
 }
 
 export default function Commande() {
-  const [popoverOpened, setPopoverOpened] = useState(false);
+  const [scannerOpened, setScannerOpened] = useState(false);
   const [scannerReady, setScannerReady] = useState(false);
   const scannerRef = useRef<HTMLDivElement | null>(null);
   const [search, setSearch] = useState('');
@@ -66,18 +68,29 @@ export default function Commande() {
   const [commandes, setCommandes] = useState<{ user_id: number; date_achat: string; title: string;quantite: number; vendeur?: string; user?: { name?: string };
   }[]>([]);
   const [isMobile, setIsMobile] = useState(false); // Détection mobile
-  const [scanner, setScanner] = useState<Html5QrcodeScanner | null>(null);
+  const [scanner, setScanner] = useState<Html5QrcodeScanner | boolean | null>(null);
+  const [scannerType, setScannerType] = useState<'html5' | 'quagga'>('html5');
 
-  // Détection automatique du type d'appareil
+  // Détection automatique du type d'appareil et choix du scanner
   useEffect(() => {
-    const detectMobile = () => {
+    const detectMobileAndScanner = () => {
       const userAgent = navigator.userAgent.toLowerCase();
       const isAndroid = /android/.test(userAgent);
       const isIOS = /iphone|ipad|ipod/.test(userAgent);
+      
       setIsMobile(isAndroid || isIOS);
+      
+      // Choix du scanner selon l'OS
+      if (isIOS) {
+        setScannerType('quagga'); // QuaggaJS pour iOS
+        console.log('📱 iOS détecté → Scanner QuaggaJS sélectionné');
+      } else {
+        setScannerType('html5'); // html5-qrcode pour Android/Desktop
+        console.log('🤖 Android/Desktop détecté → Scanner html5-qrcode sélectionné');
+      }
     };
     
-    detectMobile();
+    detectMobileAndScanner();
   }, []);
 
   // Fonction de diagnostic pour vérifier la compatibilité
@@ -153,9 +166,15 @@ export default function Commande() {
   // Gestionnaires pour html5-qrcode
   const handleScan = (decodedText: string) => {
     if (decodedText) {
-      console.log('Code détecté:', decodedText);
+      console.log('✅ Code scanné:', decodedText);
       setResult(decodedText);
       setIsbn(decodedText);
+      
+      // Fermer le scanner et ouvrir le formulaire
+      setScannerOpened(false);
+      setTimeout(() => {
+        setFormOpened(true);
+      }, 500);
     }
   };
 
@@ -164,57 +183,115 @@ export default function Commande() {
     // Ne pas afficher d'alerte pour les erreurs de scan continues
   };
 
-  // Initialisation html5-qrcode
+  // Initialisation scanner adaptatif (html5-qrcode OU QuaggaJS)
   useEffect(() => {
-    if (popoverOpened && scannerReady && scannerRef.current) {
-      console.log('Scanner prêt à être utilisé');
+    if (scannerOpened && scannerReady && scannerRef.current) {
+      console.log(`Scanner ${scannerType} prêt à être utilisé`);
       
-      // Initialiser html5-qrcode scanner
-      const html5QrcodeScanner = new Html5QrcodeScanner(
-        "reader",
-        { 
-          fps: 10, 
-          qrbox: undefined, // Pas de zone de scan fixe
-          aspectRatio: 1.0,
-          videoConstraints: {
-            facingMode: 'environment',// Force la caméra arrière
-            width: { min: 640, ideal: 1280, max: 1920 },
-            height: { min: 480, ideal: 720, max: 1080 }
+      if (scannerType === 'html5') {
+        // ANDROID/DESKTOP : html5-qrcode
+        const html5QrcodeScanner = new Html5QrcodeScanner(
+          "reader",
+          { 
+            fps: 10, 
+            aspectRatio: 2.5,
+            videoConstraints: {
+              facingMode: 'environment'
+            }
           },
-          rememberLastUsedCamera: true,
-          showTorchButtonIfSupported: true,
-          supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA]
-        },
-        false
-      );
+          false
+        );
 
-      html5QrcodeScanner.render(handleScan, handleError);
-      setScanner(html5QrcodeScanner);
+        html5QrcodeScanner.render(handleScan, handleError);
+        setScanner(html5QrcodeScanner);
 
-      return () => {
-        if (html5QrcodeScanner) {
-          html5QrcodeScanner.clear();
-        }
-      };
+        return () => {
+          if (html5QrcodeScanner) {
+            html5QrcodeScanner.clear();
+          }
+        };
+      } else {
+        // IOS : QuaggaJS
+        Quagga.init({
+          inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: document.getElementById('reader') as HTMLElement,
+            constraints: {
+              width: { min: 640, ideal: 1280 },
+              height: { min: 480, ideal: 720 },
+              facingMode: "environment"
+            }
+          },
+          decoder: {
+            readers: [
+              "ean_reader",      // ISBN-13
+              "ean_8_reader",    // ISBN-8
+              "code_128_reader"  // CODE_128
+            ]
+          },
+          locate: true,
+          locator: {
+            patchSize: "large",
+            halfSample: false
+          },
+          numOfWorkers: 2,
+          frequency: 10
+        }, (err) => {
+          if (err) {
+            console.error('Erreur initialisation Quagga:', err);
+            handleError(err.message);
+            return;
+          }
+          console.log("✅ QuaggaJS initialisé avec succès");
+          Quagga.start();
+          setScanner(true);
+        });
+
+        // Gestionnaire de détection QuaggaJS
+        const onDetected = (result: QuaggaJSResultObject) => {  
+          const code = result.codeResult.code;
+          console.log('Code détecté par Quagga:', code);
+          if (code) {
+            handleScan(code);
+            Quagga.stop();
+          }
+        };
+
+        Quagga.onDetected(onDetected);
+
+        return () => {
+          console.log('Nettoyage QuaggaJS...');
+          Quagga.offDetected(onDetected as QuaggaJSResultCallbackFunction);
+          Quagga.stop();
+          setScanner(null);
+        };
+      }
     }
-  }, [popoverOpened, scannerReady]);
+  }, [scannerOpened, scannerReady, scannerType]);
 
-  // Nettoyage quand le modal se ferme
+  // Nettoyage quand le scanner se ferme
   useEffect(() => {
-    if (!popoverOpened && scanner) {
-      console.log('Modal fermé, nettoyage des ressources...');
-      scanner.clear();
+    if (!scannerOpened && scanner) {
+      console.log('Scanner fermé, nettoyage des ressources...');
+      
+      if (scannerType === 'html5') {
+        (scanner as Html5QrcodeScanner).clear();
+      } else {
+        Quagga.stop();
+      }
+      
       setScanner(null);
     }
-  }, [popoverOpened, scanner]);
+  }, [scannerOpened, scanner, scannerType]);
 
-  // Diagnostic quand le modal s'ouvre
+  // Diagnostic quand le scanner s'ouvre
   useEffect(() => {
-    if (popoverOpened) {
-      console.log('🎯 Modal scanner ouvert - diagnostic en cours...');
+    if (scannerOpened) {
+      console.log('🎯 Scanner ouvert - diagnostic en cours...');
       checkCompatibility();
     }
-  }, [popoverOpened]);
+  }, [scannerOpened]);
 
   useEffect(() => {
     async function fetchInventaire() {
@@ -324,7 +401,7 @@ export default function Commande() {
           <div className={commandeStyles.actionButtons}>
             <Button 
               className={commandeStyles.actionButton}
-              onClick={() => setPopoverOpened(true)} 
+              onClick={() => setScannerOpened(true)} 
               leftSection={<IconCamera size={18} />}
             >
               📱 Scanner
@@ -338,74 +415,101 @@ export default function Commande() {
           </div>
         </div>
 
-        {/* Scanner intégré directement dans la page */}
-        {popoverOpened && (
-          <div className={commandeStyles.scannerContainer}>
+        {/* Scanner en DIV plein écran - AUCUNE compression */}
+        {scannerOpened && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '500px',
+            height: '500px',
+            backgroundColor: '#000',
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
             {/* Header avec bouton fermer */}
-            <div className={commandeStyles.scannerHeader}>
-              <div className={commandeStyles.scannerTitle}>
+            <div syle={{position: 'absolute',  top: '20px',   left: '20px',
+              right: '20px',
+              zIndex: 10000,
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center'
+            }}>
+              <Text style={{ color: 'white', fontSize: '18px', fontWeight: 'bold' }}>
                 📱 Scanner ISBN
-              </div>
+              </Text>
               <Button 
-                className={commandeStyles.closeButton}
-                onClick={() => setPopoverOpened(false)}
+                onClick={() => setScannerOpened(false)}
+                variant="filled"
+                color="red"
+                size="sm"
               >
                 ✕ Fermer
               </Button>
             </div>
+            <div 
+              ref={setScannerNode} 
+              style={{ 
+                width: '100vw',
+                height: '100vh',
+                position: 'relative'
+              }}
+            >
+              <div id="reader" style={{ 
+                width: '100%', 
+                height: '100%',
+                position: 'absolute',
+                top: 0,
+                left: 0
+              }}></div>
+            </div>
             
-            {/* Layout mobile-first */}
-            <div className={commandeStyles.scannerLayout}>
-              {/* Scanner - Centré et responsive */}
-              <div 
-                ref={setScannerNode} 
-                className={commandeStyles.cameraContainer}
-              >
-                <div id="reader" className={commandeStyles.reader}></div>
+            {/* Panneau d'informations en bas */}
+            <div style={{ 
+              position: 'absolute',
+              bottom: 0,
+              left: 0,
+              right: 0,
+              padding: '20px', 
+              backgroundColor: 'rgba(0,0,0,0.8)', 
+              color: 'white'
+            }}>
+              <div style={{ textAlign: 'center', marginBottom: '15px' }}>
+                <div style={{ 
+                  padding: '10px 20px', 
+                  borderRadius: '25px', 
+                  backgroundColor: result ? '#28a745' : '#ffc107',
+                  color: result ? 'white' : '#000',
+                  fontSize: '16px',
+                  fontWeight: 'bold',
+                  display: 'inline-block'
+                }}>
+                  {result ? `📚 ISBN: ${result}` : '🔍 Visez le code-barres'}
+                </div>
               </div>
-
-              {/* Informations sous la caméra */}
-              <div className={commandeStyles.infoPanel}>
-                {/* Status de détection */}
-                <div className={`${commandeStyles.statusBadge} ${result ? commandeStyles.statusBadgeSuccess : commandeStyles.statusBadgeWaiting}`}>
-                  {result ? `📚 ISBN détecté : ${result}` : '🔍 Scannez un code-barres ISBN'}
-                </div>
-                
-                {/* Champ ISBN */}
-                <div className={commandeStyles.isbnInput}>
-                  <TextInput 
-                    label="📖 ISBN" 
-                    name="isbn" 
-                    value={isbn} 
-                    onChange={e => setIsbn(e.target.value)} 
-                    placeholder="Scanné ou saisie manuelle" 
-                  />
-                </div>
-                
-                {/* Bouton Valider */}
+              
+              <div style={{ display: 'flex', gap: '15px', alignItems: 'center' }}>
+                <TextInput
+                  placeholder="ISBN manuel"
+                  value={isbn}
+                  onChange={(e) => setIsbn(e.target.value)}
+                  style={{ flex: 1 }}
+                  styles={{
+                    input: { backgroundColor: 'white', color: 'black' }
+                  }}
+                />
                 <Button 
                   onClick={() => {
-                    setPopoverOpened(false);
+                    setScannerOpened(false);
                     setFormOpened(true);
                   }} 
                   disabled={!isbn}
-                  className={`${commandeStyles.validateButton} ${isbn ? commandeStyles.validateButtonActive : commandeStyles.validateButtonInactive}`}
+                  color="green"
+                  size="md"
                 >
-                  {isbn ? '✅ Valider et continuer' : '⏳ En attente du scan...'}
+                  ✓ Valider
                 </Button>
-
-                {/* Conseils */}
-                <div className={commandeStyles.tipsPanel}>
-                  <div className={commandeStyles.tipsTitle}>
-                    💡 Conseils pour une meilleure détection :
-                  </div>
-                  <div className={commandeStyles.tipsList}>
-                    <div>📏 Rapprochez le code-barres (5-10 cm)</div>
-                    <div>💡 Assurez-vous d&apos;avoir un bon éclairage</div>
-                    <div>🤚 Maintenez l&apos;appareil stable</div>
-                    <div>📱 Utilisez la caméra arrière</div>
-                  </div>
-                </div>
               </div>
             </div>
           </div>
