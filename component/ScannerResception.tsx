@@ -162,28 +162,29 @@ export default function Resception() {
             type: "LiveStream",
             target: document.getElementById('reader') as HTMLElement,
             constraints: {
-              width: { min: 640, ideal: 1280 },
-              height: { min: 480, ideal: 720 },
-              facingMode: "environment"
+              width: { min: 1280, ideal: 1920 }, // ⚡ Résolution plus haute
+              height: { min: 720, ideal: 1080 },
+              facingMode: "environment",
+              aspectRatio: 1.777778 // ⚡ Ratio 16:9 pour meilleure performance
             }
           },
           decoder: {
             readers: [
-              "ean_reader",
-              "ean_8_reader",
-              "code_128_reader",
-              "code_39_reader",
-              "codabar_reader",
-              "i2of5_reader"
-            ]
+              "ean_reader",     // ⚡ Limiter aux lecteurs nécessaires
+              "ean_8_reader"    // pour les ISBN
+            ],
+            multiple: false,    // ⚡ Un seul code à la fois
+            debug: false,       // ⚡ Désactiver le debug
+            tryHarder: true    // ⚡ Mode agressif de détection
           },
-          locate: false,
+          locate: true,        // ⚡ Activer la localisation précise
           locator: {
-            patchSize: "large",
-            halfSample: true
+            patchSize: "medium",  // ⚡ Taille moyenne pour balance vitesse/précision
+            halfSample: true,     // ⚡ Optimisation performance
+            debug: false          // ⚡ Désactiver le debug
           },
-          numOfWorkers: 2,
-          frequency: 10
+          numOfWorkers: 4,     // ⚡ Plus de workers pour parallélisation
+          frequency: 5         // ⚡ Scan plus fréquent (toutes les 5ms)
         }, (err) => {
           if (err) {
             console.error('Erreur initialisation Quagga:', err);

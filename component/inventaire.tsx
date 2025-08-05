@@ -1,7 +1,7 @@
 'use client';
 
 import { Button, Center, Loader, Modal, Table, TextInput } from '@mantine/core';
-import { IconBook, IconCamera, IconListDetails } from '@tabler/icons-react';
+import { IconCamera, IconListDetails } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
 import styles from './style/commande.module.css';

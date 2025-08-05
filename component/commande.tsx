@@ -73,7 +73,7 @@ export default function Commande() {
   const [showCodesList, setShowCodesList] = useState(false);
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
   const [showPopover, setShowPopover] = useState(false);
-  const [scannedIsbn, setScannedIsbn] = useState('');
+  const [scannedIsbn] = useState('');
 
   // Détection automatique du type d'appareil et choix du scanner
   useEffect(() => {
