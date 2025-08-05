@@ -1,8 +1,8 @@
 'use client';
 
 import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
-import { Button, Center, Checkbox, Group, Loader, Modal, Paper, Text, Textarea, TextInput } from '@mantine/core';
-import { IconCamera, IconEdit } from '@tabler/icons-react';
+import { Button, Center, Group, Loader, Modal, Paper, Text, Textarea, TextInput } from '@mantine/core';
+import { IconBook, IconCamera, IconEdit } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -318,11 +318,7 @@ export default function Resception() {
     }
   };
 
-  const handleCheckbox = (id: number) => {
-    setSelected((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
-  };
+
 
   const handleSubmit = (element: React.FormEvent) => {
     element.preventDefault();
@@ -536,10 +532,15 @@ export default function Resception() {
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
                     <div className={commandeStyles.itemPrice}>{item.price} €</div>
-                    <Checkbox
-                      checked={selected.includes(item.id)}
-                      onChange={() => handleCheckbox(item.id)}
-                    />
+                    <Button onClick={() => {
+  // Préparer les données du livre sélectionné
+                        setEditedBooks([item]);
+                        setAjouts({ [item.id]: 0 });
+                        setDetailsOpened(true);
+                      }}>
+  ajoute au stock
+  <IconBook size={18} /> 
+</Button>
                   </div>
                 </div>
               ))}

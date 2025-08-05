@@ -1,6 +1,6 @@
 'use client';
 
-import { Button, Group, Text, Title } from '@mantine/core';
+import { Button, Center, Group, Text, Title } from '@mantine/core';
 import Link from 'next/link';
 import styles from './style/hom.module.css';
 
@@ -17,9 +17,11 @@ export default function Hom() {
       </Text>
       <Group className={styles.group}  mt="md" mb="md">
         <Link href="/commande">
+        <Center>  
           <Button size="md" color="indigo" radius="xl">
               Vente de livre
           </Button>
+          </Center>
         </Link>
         <Link href="/inventaire">
           <Button size="md" variant="outline" color="indigo" radius="xl">
