@@ -1,11 +1,13 @@
 'use client';
 
-import Quagga, { QuaggaJSResultObject } from '@ericblade/quagga2';
+import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
 import { Button, Center, Checkbox, Group, Loader, Modal, Paper, Text, Textarea, TextInput } from '@mantine/core';
 import { IconCamera, IconEdit } from '@tabler/icons-react';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import commandeStyles from './style/commande.module.css';
+import styles from './style/ScannerResception.module.css';
 
 type InventaireItem = { id: number; livre_id: number; title: string; author: string; quantite: number; price: number; isbn: number; livre?: { image?: string };};
 
@@ -13,10 +15,15 @@ export default function Resception() {
   // États pour le formulaire d'ajout
   const [formOpened, setFormOpened] = useState(false);
   const [result, setResult] = useState('');
-  const [popoverOpened, setPopoverOpened] = useState(false);
+  const [scannerOpened, setScannerOpened] = useState(false);
   const [scannerReady, setScannerReady] = useState(false);
   const scannerRef = useRef<HTMLDivElement | null>(null);
   const [search, setSearch] = useState('');
+  
+  // États pour la détection des plateformes
+  const [isMobile, setIsMobile] = useState(false);
+  const [scanner, setScanner] = useState<Html5QrcodeScanner | boolean | null>(null);
+  const [scannerType, setScannerType] = useState<'html5' | 'quagga'>('html5');
 
   const [formData, setFormData] = useState({title: '',author: '', price: '', quantite: '', isbn: '', description: '', image: '', livre_id: '', livre_title: '',  name_user: '',   info: '',  user_id: '', date_reception: '',});
   const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
@@ -27,42 +34,175 @@ export default function Resception() {
   const [ajouts, setAjouts] = useState<{ [id: number]: number }>({});
   const [editedBooks, setEditedBooks] = useState<InventaireItem[]>([]);
 
+  const [isbn, setIsbn] = useState('');
+  const [showPopover, setShowPopover] = useState(false);
+
   const setScannerNode = useCallback((node: HTMLDivElement | null) => {
     scannerRef.current = node;
     setScannerReady(!!node);
   }, []);
 
-  // Initialisation Quagga seulement quand le conteneur est prêt
+  // Détection automatique du type d'appareil et choix du scanner
   useEffect(() => {
-    if (popoverOpened && scannerReady && scannerRef.current) {
-      Quagga.init({
-        inputStream: {
-          type: "LiveStream",
-          target: scannerRef.current,
-          constraints: { facingMode: "environment" },
-        },
-        decoder: { readers: ["ean_reader"] },
-      }, (err) => {
-        if (!err) Quagga.start();
-      });
+    const detectMobileAndScanner = () => {
+      const userAgent = navigator.userAgent.toLowerCase();
+      const isAndroid = /android/.test(userAgent);
+      const isIOS = /iphone|ipad|ipod/.test(userAgent);
+      
+      setIsMobile(isAndroid || isIOS);
+      
+      // Choix du scanner selon l'OS
+      if (isIOS) {
+        setScannerType('quagga'); // QuaggaJS pour iOS
+        console.log('📱 iOS détecté → Scanner QuaggaJS sélectionné');
+      } else {
+        setScannerType('html5'); // html5-qrcode pour Android/Desktop
+        console.log('🤖 Android/Desktop détecté → Scanner html5-qrcode sélectionné');
+      }
+    };
+    
+    detectMobileAndScanner();
+  }, []);
 
-      const onDetected = (data: QuaggaJSResultObject) => {
-        if (data?.codeResult?.code) {
-          setResult(data.codeResult.code);
-          setFormData((prev) => ({
-            ...prev,
-            isbn: data.codeResult.code ?? '',
-          }));
-        }
-      };
-      Quagga.onDetected(onDetected);
-
-      return () => {
-        Quagga.stop();
-        Quagga.offDetected(onDetected);
-      };
+  // Gestionnaires pour html5-qrcode
+  const handleScan = async (decodedText: string) => {
+    if (decodedText) {
+      console.log('✅ Code scanné:', decodedText);
+      //setResult(decodedText);
+      setIsbn(decodedText);
+      
+      // Vérifier si l'ISBN existe en stock
+      const livre = inventaire.find(item => item.isbn.toString() === decodedText.trim());
+      
+      if (livre) {
+        alert(`ISBN ${decodedText} - isbn existant !`);
+        
+        // Préparer les données pour le formulaire d'incrémentation
+        setEditedBooks([livre]);
+        setAjouts({ [livre.id]: 0 });
+        
+        setScannerOpened(false);
+        setTimeout(() => {
+          setDetailsOpened(true); // ← Ouvre le formulaire avec "Valider (incrémenter la quantité)"
+        }, 500);
+        
+      } else {
+        alert(`ISBN ${decodedText} - Livre pas en stock !`);
+        /* si le livre n'est pas en stock, ouvre le formulaire d'ajout */
+        console.log('Livre non trouvé dans la base de données');
+        
+        // Fermer le scanner et ouvrir le formulaire d'ajout
+        setScannerOpened(false);
+        setTimeout(() => {
+          setFormOpened(true); // ← Ouvre le formulaire d'ajout nouveau livre
+        }, 500);
+      }
     }
-  }, [popoverOpened, scannerReady]);
+  };
+
+  const handleError = (errorMessage: string) => {
+    console.error('Erreur de scan:', errorMessage);
+  };
+
+  // Initialisation scanner adaptatif (html5-qrcode OU QuaggaJS)
+  useEffect(() => {
+    if (scannerOpened && scannerReady && scannerRef.current) {
+      console.log(`Scanner ${scannerType} prêt à être utilisé`);
+      
+      if (scannerType === 'html5') {
+        // ANDROID/DESKTOP : html5-qrcode
+        const html5QrcodeScanner = new Html5QrcodeScanner(
+          "reader",
+          { 
+            fps: 10, 
+            aspectRatio: 2.5,
+            videoConstraints: {
+              facingMode: 'environment'
+            }
+          },
+          false
+        );
+
+        html5QrcodeScanner.render(handleScan, handleError);
+        setScanner(html5QrcodeScanner);
+
+        return () => {
+          if (html5QrcodeScanner) {
+            html5QrcodeScanner.clear();
+          }
+        };
+      } else {
+        // IOS : QuaggaJS
+        Quagga.init({
+          inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: document.getElementById('reader') as HTMLElement,
+            constraints: {
+              width: { min: 640, ideal: 1280 },
+              height: { min: 480, ideal: 720 },
+              facingMode: "environment"
+            }
+          },
+          decoder: {
+            readers: [
+              "ean_reader",
+            ]
+          },
+          locate: false,
+          locator: {
+            patchSize: "large",
+            halfSample: true
+          },
+          numOfWorkers: 2,
+          frequency: 10
+        }, (err) => {
+          if (err) {
+            console.error('Erreur initialisation Quagga:', err);
+            handleError(err.message);
+            return;
+          }
+          console.log("✅ QuaggaJS initialisé avec succès");
+          Quagga.start();
+          setScanner(true);
+        });
+
+        // Gestionnaire de détection QuaggaJS
+        const onDetected = (result: QuaggaJSResultObject) => {  
+          const code = result.codeResult.code;
+          console.log('Code détecté par Quagga:', code);
+          if (code) {
+            handleScan(code);
+            Quagga.stop();
+          }
+        };
+
+        Quagga.onDetected(onDetected);
+
+        return () => {
+          console.log('Nettoyage QuaggaJS...');
+          Quagga.offDetected(onDetected as QuaggaJSResultCallbackFunction);
+          Quagga.stop();
+          setScanner(null);
+        };
+      }
+    }
+  }, [scannerOpened, scannerReady, scannerType]);
+
+  // Nettoyage quand le scanner se ferme
+  useEffect(() => {
+    if (!scannerOpened && scanner) {
+      console.log('Scanner fermé, nettoyage des ressources...');
+      
+      if (scannerType === 'html5') {
+        (scanner as Html5QrcodeScanner).clear();
+      } else {
+        Quagga.stop();
+      }
+      
+      setScanner(null);
+    }
+  }, [scannerOpened, scanner, scannerType]);
 
   // Récupération de l'inventaire au chargement
   useEffect(() => {
@@ -331,7 +471,7 @@ export default function Resception() {
           <div className={commandeStyles.actionButtons}>
             <Button 
               className={commandeStyles.actionButton}
-              onClick={() => setPopoverOpened(true)} 
+              onClick={() => setScannerOpened(true)} 
               leftSection={<IconCamera size={18} />}
             >
               📱 Scanner ISBN
@@ -416,74 +556,159 @@ export default function Resception() {
         </div>
       </div>
 
-      {/* Scanner Modal */}
-      {popoverOpened && (
-        <Modal opened={popoverOpened} onClose={() => setPopoverOpened(false)} title="Scanner ISBN" centered size="md">
-          <div ref={setScannerNode} style={{ width: '100%', maxWidth: 350, height: 250, margin: '0 auto', borderRadius: 8, overflow: 'hidden', background: '#000', position: 'relative' }}>
-            {/* Popup qui apparaît seulement si le scan réussit */}
-            {result && (
-              <div style={{
-                position: 'absolute',
-                top: '50%',
-                left: '50%',
-                transform: 'translate(-50%, -50%)',
-                background: 'rgba(0, 0, 0, 0.9)',
-                color: 'white',
-                padding: '20px',
-                borderRadius: '12px',
-                textAlign: 'center',
-                zIndex: 1000,
-                minWidth: '250px',
-                boxShadow: '0 4px 20px rgba(0,0,0,0.5)'
-              }}>
+      {/* Scanner en DIV plein écran - AUCUNE compression */}
+      {scannerOpened && (
+          <div className={styles.scannerFullScreen}>
+            {/* Header avec bouton fermer */}
+            <div className={styles.scannerHeader}>
+              <Text className={styles.scannerTitle}>
+                📱 Scanner ISBN
+              </Text>
+              <Button onClick={() => setScannerOpened(false)}  variant="filled"   color="red"size="sm"  >
+                ✕ Fermer
+              </Button>
+            </div>
+            
+            {/* Modal de confirmation ISBN */}
+            {showPopover && (
+                             <div className={styles.popover}>
                 <div style={{ fontSize: '24px', marginBottom: '10px' }}>📚</div>
                 <div style={{ fontSize: '16px', marginBottom: '8px' }}>ISBN détecté :</div>
                 <div style={{ 
                   fontSize: '20px', 
                   color: '#4CAF50', 
                   fontFamily: 'monospace',
-                  fontWeight: 'bold'
+                  fontWeight: 'bold',
+                  marginBottom: '15px'
                 }}>
                   {result}
                 </div>
-                <div style={{ 
-                  fontSize: '14px', 
-                  marginTop: '10px',
-                  color: '#4CAF50'
-                }}>
-                  ✅ Scan réussi !
+                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
+                  <Button 
+                    onClick={() => {
+                      setShowPopover(false);
+                      setScannerOpened(false);
+                      setFormOpened(true);
+                    }}
+                    color="green"
+                    size="sm"
+                  >
+                    ✓ Valider
+                  </Button>
+                  <Button 
+                    onClick={() => setShowPopover(false)}
+                    color="gray"
+                    size="sm"
+                  >
+                    ✕ Annuler
+                  </Button>
                 </div>
               </div>
             )}
+            <div ref={setScannerNode} className={styles.cameraContainer}>
+              <div id="reader" className={styles.reader}></div>
+            </div>
+            
+            {/* Panneau d'informations en bas */}
+            <div className={styles.infoPanel}>
+              {/* <div className={styles.statusContainer}>
+                <div className={`${styles.statusBadge} ${result ? styles.statusBadgeSuccess : ''}`}>
+                  {result ? `📚 ISBN: ${result}` : '🔍 Visez le code-barres'}
+                </div> */}
+              {/* </div> */}
+              
+              <div className={styles.controlsContainer}>
+                <TextInput
+                  placeholder="ISBN manuel"
+                  value={isbn}
+                  onChange={(e) => setIsbn(e.target.value)}
+                  className={styles.isbnInput}
+                  styles={{
+                    input: { backgroundColor: 'white', color: 'black' }
+                  }}
+                />
+                <Button 
+                  onClick={() => {setScannerOpened(false);setFormOpened(true);}} disabled={!isbn}color="green"size="md">
+                  ✓ Valider
+                </Button>
+              </div>
+              
+            </div>
           </div>
-          <Text mt="sm" color="blue">
-            {result ? `ISBN détecté : ${result}` : 'Scanne un code-barres ISBN de livre'}
-          </Text>
-          <TextInput label="ISBN" name="isbn" value={formData.isbn} onChange={handleFormChange} placeholder="Scanné ou à saisir manuellement" mt="md" />
-          <Center>
-            <Button
-              onClick={() => {
-                setPopoverOpened(false);
-                setFormOpened(true);
-              }}
-              disabled={!formData.isbn}
-            >
-              Valider
-            </Button>
-          </Center>
-        </Modal>
       )}
 
       {/* Formulaire d'ajout */}
-      <Modal opened={formOpened} onClose={() => setFormOpened(false)} title="Ajouter ou incrémenter un livre" centered size="xl">
-        <form onSubmit={handleFormSubmit} style={{ width: '600px', maxWidth: '90vw', margin: '0 auto' }}>
-          <TextInput label="ISBN" name="isbn" value={formData.isbn} onChange={handleFormChange} required mb="md"/>
-          <TextInput label="Titre du livre" name="title" value={formData.title} onChange={handleFormChange} required mb="md" />
-          <TextInput label="Auteur" name="author" value={formData.author} onChange={handleFormChange} required mb="md" />
-          <Textarea label="Description" name="description" value={formData.description} onChange={handleFormChange} minRows={2} mb="md" />
-          <TextInput label="Prix" name="price" value={formData.price} onChange={handleFormChange} required mb="md" />
-          <TextInput label="Quantité" name="quantite" value={formData.quantite} onChange={handleFormChange} required mb="md"/>
-          <Button mt="md" onClick={e => { e.preventDefault(); setShowCamera(true); }}>
+      <Modal 
+        opened={formOpened} 
+        onClose={() => setFormOpened(false)} 
+        title="Ajouter ou incrémenter un livre" 
+        centered 
+        size={isMobile ? "xs" : "xl"}
+      >
+        <form onSubmit={handleFormSubmit} style={{ 
+          width: isMobile ? '100%' : '600px', 
+          maxWidth: '90vw', 
+          margin: '0 auto' 
+        }} className={isMobile ? commandeStyles.iosModalContent : ''}>
+          <TextInput 
+            label="ISBN" 
+            name="isbn" 
+            value={formData.isbn} 
+            onChange={handleFormChange} 
+            required 
+            mb="sm"
+            classNames={isMobile ? { input: commandeStyles.iosModalInput } : undefined}
+          />
+          <TextInput 
+            label="Titre du livre" 
+            name="title" 
+            value={formData.title} 
+            onChange={handleFormChange} 
+            required 
+            mb="sm" 
+            classNames={isMobile ? { input: commandeStyles.iosModalInput } : undefined}
+          />
+          <TextInput 
+            label="Auteur" 
+            name="author" 
+            value={formData.author} 
+            onChange={handleFormChange} 
+            required 
+            mb="sm" 
+            classNames={isMobile ? { input: commandeStyles.iosModalInput } : undefined}
+          />
+          <Textarea 
+            label="Description" 
+            name="description" 
+            value={formData.description} 
+            onChange={handleFormChange} 
+            minRows={1} 
+            mb="sm" 
+            classNames={isMobile ? { input: commandeStyles.iosModalInput } : undefined}
+          />
+          <TextInput 
+            label="Prix" 
+            name="price" 
+            value={formData.price} 
+            onChange={handleFormChange} 
+            required 
+            mb="sm" 
+            classNames={isMobile ? { input: commandeStyles.iosModalInput } : undefined}
+          />
+          <TextInput 
+            label="Quantité" 
+            name="quantite" 
+            value={formData.quantite} 
+            onChange={handleFormChange} 
+            required 
+            mb="sm"
+            classNames={isMobile ? { input: commandeStyles.iosModalInput } : undefined}
+          />
+          <Button 
+            mt="sm" 
+            onClick={e => { e.preventDefault(); setShowCamera(true); }}
+            className={isMobile ? commandeStyles.iosModalButton : ''}
+          >
             Prendre une photo
           </Button>
           {showCamera && (
@@ -509,7 +734,13 @@ export default function Resception() {
             </div>
           )}
           <Center h={100}>
-            <Button mt="md" type="submit">Ajouter / Incrémenter</Button>
+            <Button 
+              mt="sm" 
+              type="submit"
+              className={isMobile ? commandeStyles.iosModalButton : ''}
+            >
+              Ajouter / Incrémenter
+            </Button>
           </Center>
         </form>
       </Modal>

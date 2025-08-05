@@ -9,6 +9,19 @@ type livre = {
   image?: string;
 };
 
+export async function GET(request: NextRequest) {
+  const supabase = createClient();
+  const { searchParams } = new URL(request.url);
+  const isbn = searchParams.get('isbn');
+  const { data, error } = await supabase.from('livre').select('*').eq('isbn', isbn).maybeSingle();
+  
+  console.log("Résultat Supabase :", data, error);
+  if (error) {
+    return Response.json({ error: error.message }, { status: 400 });
+  }
+  return Response.json({ data });
+
+}
 
 export async function POST(request: NextRequest) {
   try {
