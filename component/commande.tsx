@@ -59,7 +59,7 @@ export default function Commande() {
   const [search, setSearch] = useState('');
   const [formOpened, setFormOpened] = useState(false);
   const [isbn, setIsbn] = useState('');
-  //const [result, setResult] = useState(''); //resultat du scan
+  const [result, setResult] = useState('');
   const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [selected, setSelected] = useState<number[]>([]);
@@ -70,6 +70,10 @@ export default function Commande() {
   const [isMobile, setIsMobile] = useState(false); // Détection mobile
   const [scanner, setScanner] = useState<Html5QrcodeScanner | boolean | null>(null);
   const [scannerType, setScannerType] = useState<'html5' | 'quagga'>('html5');
+  const [showCodesList, setShowCodesList] = useState(false);
+  const [scannedCodes, setScannedCodes] = useState<string[]>([]);
+  const [showPopover, setShowPopover] = useState(false);
+  const [scannedIsbn, setScannedIsbn] = useState('');
 
   // Détection automatique du type d'appareil et choix du scanner
   useEffect(() => {
@@ -163,30 +167,39 @@ export default function Commande() {
     setScannerReady(!!node);
   }, []);
   
-  const [showPopover, setShowPopover] = useState(false);
-  const [scannedIsbn, setScannedIsbn] = useState('');
+
 
   const handleScan = (decodedText: string) => {
     if (decodedText) {
       console.log('✅ Code scanné:', decodedText);
-      //setResult(decodedText);
+      setResult(decodedText);
       setIsbn(decodedText);
-      setScannedIsbn(decodedText);
       
-      // Vérifier si l'ISBN existe en stock
+      // Ajouter le code à la liste s'il n'y est pas déjà
+      setScannedCodes(prev => {
+        if (!prev.includes(decodedText)) {
+          const newCodes = [...prev, decodedText];
+          console.log('📋 Codes scannés:', newCodes);
+          setShowCodesList(true);
+          return newCodes;
+        }
+        return prev;
+      });
+
+      // Vérifier si l'ISBN existe en stock SANS fermer le scanner
       const livre = inventaire.find(item => item.isbn.toString() === decodedText.trim());
       
       if (livre) {
-        // ISBN trouvé - afficher popover avec bouton valider
-        setShowPopover(true);
+        // ISBN trouvé - juste afficher un message
+        console.log(`✅ ISBN trouvé : ${livre.title}`);
       } else {
-        // ISBN non trouvé - afficher message "pas en stock"
-        alert(`ISBN ${decodedText} - Livre pas en stock !`);
+        // ISBN non trouvé - juste afficher un message
+        console.log(`❌ ISBN non trouvé : ${decodedText}`);
       }
-      /*si le livre n'est pas en stocke, réactive le scanner */
-      if (!livre) {
-        setScannerOpened(true);
-      }
+      
+      // ❌ SUPPRIMER ces lignes qui fermaient le scanner :
+      // setScannerOpened(false);
+      // setFormOpened(true);
     }
   };
 
@@ -224,17 +237,19 @@ export default function Commande() {
             name: "Live",
             type: "LiveStream",
             target: document.getElementById('reader') as HTMLElement,
-            constraints:
-            {
+            constraints: {
               width: { min: 640, ideal: 1280 },
               height: { min: 480, ideal: 720 },
               facingMode: "environment"
             }
           },
           decoder: {
-            readers:
-            [
-              "ean_reader"
+            readers: [
+              "ean_reader",
+              "ean_8_reader",
+              "code_128_reader",
+              "code_39_reader",
+              "codabar_reader"
             ]
           },
           locate: false,
@@ -254,12 +269,14 @@ export default function Commande() {
           Quagga.start();
           setScanner(true);
         });
+
         const onDetected = (result: QuaggaJSResultObject) => {  
           const code = result.codeResult.code;
           console.log('Code détecté par Quagga:', code);
           if (code) {
             handleScan(code);
-            Quagga.stop();
+            // ❌ SUPPRIMER cette ligne qui arrêtait Quagga :
+            // Quagga.stop();
           }
         };
         Quagga.onDetected(onDetected);
@@ -392,7 +409,41 @@ export default function Commande() {
 
   // Supprimer la fonction getBestVideoConstraints qui n'est plus utilisée
   // const getBestVideoConstraints = async (deviceId?: string) => { ... };
-
+  const validateAllScannedCodes = () => {
+    console.log('🔍 Vérification de tous les codes scannés...', scannedCodes);
+    
+    // Chercher si AU MOINS UN ISBN existe dans la base de données
+    let livreFound = null;
+    
+    for (const code of scannedCodes) {
+      const livre = inventaire.find(item => item.isbn.toString() === code.trim());
+      
+      if (livre) {
+        livreFound = livre;
+        break; // Arrêter dès qu'on trouve un match
+      }
+    }
+    
+    // Fermer le scanner
+    if (scannerType === 'quagga') {
+      Quagga.stop();
+    }
+    setScannerOpened(false);
+    setShowCodesList(false);
+    setScannedCodes([]);
+    
+    // Décider automatiquement
+    if (livreFound) {
+      // ✅ ISBN trouvé : ouvrir le formulaire de décrémentation
+      alert(`✅ Livre trouvé : ${livreFound.title}`);
+      setIsbn(livreFound.isbn.toString());
+      setSupprimer(1); // Initialiser la quantité à décrémenter
+      setTimeout(() => setFormOpened(true), 500); // Ouvre le formulaire de décrémentation
+    } else {
+      // ❌ ISBN non trouvé
+      alert(`❌ Aucun livre trouvé en stock`);
+    }
+  };
   
 
   return (
@@ -426,14 +477,14 @@ export default function Commande() {
               <Text className={styles.scannerTitle}>
                 📱 Scanner ISBN
               </Text>
-              <Button onClick={() => setScannerOpened(false)}  variant="filled"   color="red"size="sm"  >
+              <Button onClick={() => setScannerOpened(false)} variant="filled" color="red" size="sm">
                 ✕ Fermer
               </Button>
             </div>
             
             {/* Modal de confirmation ISBN */}
             {showPopover && (
-                             <div className={styles.popover}>
+              <div className={styles.popover}>
                 <div style={{ fontSize: '24px', marginBottom: '10px' }}>📚</div>
                 <div style={{ fontSize: '16px', marginBottom: '8px' }}>ISBN détecté :</div>
                 <div style={{ 
@@ -467,17 +518,68 @@ export default function Commande() {
                 </div>
               </div>
             )}
+
+            {/* Container caméra avec liste transparente en overlay */}
             <div ref={setScannerNode} className={styles.cameraContainer}>
               <div id="reader" className={styles.reader}></div>
+              
+              {/* 📱 LISTE TRANSPARENTE EN TEMPS RÉEL - OVERLAY SUR LA CAMÉRA */}
+              {showCodesList && scannedCodes.length > 0 && (
+                <div className={styles.liveCodesList}>
+                  <div className={styles.liveCodesHeader}>
+                    <Text size="sm" c="white" fw={600}>
+                      📋 {scannedCodes.length} code
+                      {scannedCodes.length > 1 ? "s" : ""} détecté
+                      {scannedCodes.length > 1 ? "s" : ""}
+                    </Text>
+                  </div>
+
+                  <div className={styles.liveCodesContainer}>
+                    {scannedCodes.map((code, index) => (
+                      <div key={index} className={styles.liveCodeItem}>
+                        <Text size="xs" c="white" className={styles.liveCodeText}>
+                          📚 {code}
+                        </Text>
+                      </div>
+                    ))}
+                  </div>
+                  <div className={styles.liveCodesFooter}>
+                    <Button
+                      size="sm"
+                      color="blue"
+                      onClick={validateAllScannedCodes} // ← Utiliser la fonction qui vérifie TOUS les codes
+                      style={{
+                        marginBottom: "8px",
+                        width: "100%",
+                        fontWeight: "bold",
+                      }}
+                    >
+                      ✅ VALIDER TOUS LES CODES
+                    </Button>
+
+                    <Button
+                      size="xs"
+                      variant="outline"
+                      color="white"
+                      onClick={() => {
+                        setScannedCodes([]);
+                        setShowCodesList(false);
+                      }}
+                    >
+                      🗑️ Vider
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
-            
+
             {/* Panneau d'informations en bas */}
             <div className={styles.infoPanel}>
-              {/* <div className={styles.statusContainer}>
+              <div className={styles.statusContainer}>
                 <div className={`${styles.statusBadge} ${result ? styles.statusBadgeSuccess : ''}`}>
                   {result ? `📚 ISBN: ${result}` : '🔍 Visez le code-barres'}
-                </div> */}
-              {/* </div> */}
+                </div>
+              </div>
               
               <div className={styles.controlsContainer}>
                 <TextInput
@@ -617,6 +719,13 @@ export default function Commande() {
                   classNames={isMobile ? { input: styles.iosModalInput } : undefined}
                 />
                 <TextInput 
+                  label="Titre du livre" 
+                  value={livre.title} 
+                  readOnly 
+                  mb="sm" 
+                  classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+                />
+                <TextInput 
                   label="Prix" 
                   value={livre.price} 
                   readOnly 
@@ -627,7 +736,7 @@ export default function Commande() {
                   label="Quantité en stock" 
                   value={livre.quantite} 
                   readOnly 
-                  mb="sm" 
+                  mb="md" 
                   classNames={isMobile ? { input: styles.iosModalInput } : undefined}
                 />
                 <TextInput
@@ -641,7 +750,7 @@ export default function Commande() {
                   classNames={isMobile ? { input: styles.iosModalInput } : undefined}
                 />
                 <Button
-                  mt="sm"
+                  mt="md"
                   onClick={async () => {
                     await decrementInventaire(livre, supprimer);
                     await ajouterCommande(livre, supprimer);

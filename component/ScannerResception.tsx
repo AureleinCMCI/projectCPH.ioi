@@ -37,6 +37,10 @@ export default function Resception() {
   const [isbn, setIsbn] = useState('');
   const [showPopover, setShowPopover] = useState(false);
 
+  // Ajouter un nouvel état pour la liste des codes scannés
+  const [scannedCodes, setScannedCodes] = useState<string[]>([]);
+  const [showCodesList, setShowCodesList] = useState(false);
+
   const setScannerNode = useCallback((node: HTMLDivElement | null) => {
     scannerRef.current = node;
     setScannerReady(!!node);
@@ -68,40 +72,60 @@ export default function Resception() {
   const handleScan = async (decodedText: string) => {
     if (decodedText) {
       console.log('✅ Code scanné:', decodedText);
-      //setResult(decodedText);
-      setIsbn(decodedText);
       
-      // Vérifier si l'ISBN existe en stock
-      const livre = inventaire.find(item => item.isbn.toString() === decodedText.trim());
+      // Ajouter le code à la liste s'il n'y est pas déjà
+      setScannedCodes(prev => {
+        if (!prev.includes(decodedText)) {
+          const newCodes = [...prev, decodedText];
+          console.log('📋 Codes scannés:', newCodes);
+          setShowCodesList(true); // Afficher immédiatement
+          return newCodes;
+        }
+        return prev;
+      });
       
-      if (livre) {
-        alert(`ISBN ${decodedText} - isbn existant !`);
-        
-        // Préparer les données pour le formulaire d'incrémentation
-        setEditedBooks([livre]);
-        setAjouts({ [livre.id]: 0 });
-        
-        setScannerOpened(false);
-        setTimeout(() => {
-          setDetailsOpened(true); // ← Ouvre le formulaire avec "Valider (incrémenter la quantité)"
-        }, 500);
-        
-      } else {
-        alert(`ISBN ${decodedText} - Livre pas en stock !`);
-        /* si le livre n'est pas en stock, ouvre le formulaire d'ajout */
-        console.log('Livre non trouvé dans la base de données');
-        
-        // Fermer le scanner et ouvrir le formulaire d'ajout
-        setScannerOpened(false);
-        setTimeout(() => {
-          setFormOpened(true); // ← Ouvre le formulaire d'ajout nouveau livre
-        }, 500);
-      }
+      // ❌ NE PAS fermer le scanner ici !
+      // Le scanner continue à tourner
     }
   };
 
   const handleError = (errorMessage: string) => {
     console.error('Erreur de scan:', errorMessage);
+  };
+
+  // Fonction pour valider un code choisi
+  const validateSelectedCode = (selectedCode: string) => {
+    console.log('🎯 Code sélectionné:', selectedCode);
+    
+    // Arrêter le scanner maintenant
+    if (scannerType === 'quagga' || scannerType === 'html5') {
+
+      Quagga.stop();
+    }
+    
+    // Vérifier si l'ISBN existe en stock
+    const livre = inventaire.find(item => item.isbn.toString() === selectedCode.trim());
+    
+    if (livre) {
+      alert(`ISBN ${selectedCode} - ISBN existant !`);
+      setEditedBooks([livre]);
+      setAjouts({ [livre.id]: 0 });
+      
+      setScannerOpened(false);
+      setShowCodesList(false);
+      setScannedCodes([]);
+      
+      setTimeout(() => setDetailsOpened(true), 500);
+    } else {
+      alert(`ISBN ${selectedCode} - Livre pas en stock !`);
+      setFormData(prev => ({ ...prev, isbn: selectedCode }));
+      
+      setScannerOpened(false);
+      setShowCodesList(false);
+      setScannedCodes([]);
+      
+      setTimeout(() => setFormOpened(true), 500);
+    }
   };
 
   // Initialisation scanner adaptatif (html5-qrcode OU QuaggaJS)
@@ -132,7 +156,6 @@ export default function Resception() {
           }
         };
       } else {
-        // IOS : QuaggaJS
         Quagga.init({
           inputStream: {
             name: "Live",
@@ -147,6 +170,11 @@ export default function Resception() {
           decoder: {
             readers: [
               "ean_reader",
+              "ean_8_reader",
+              "code_128_reader",
+              "code_39_reader",
+              "codabar_reader",
+              "i2of5_reader"
             ]
           },
           locate: false,
@@ -166,19 +194,14 @@ export default function Resception() {
           Quagga.start();
           setScanner(true);
         });
-
-        // Gestionnaire de détection QuaggaJS
         const onDetected = (result: QuaggaJSResultObject) => {  
           const code = result.codeResult.code;
           console.log('Code détecté par Quagga:', code);
           if (code) {
             handleScan(code);
-            Quagga.stop();
           }
         };
-
         Quagga.onDetected(onDetected);
-
         return () => {
           console.log('Nettoyage QuaggaJS...');
           Quagga.offDetected(onDetected as QuaggaJSResultCallbackFunction);
@@ -188,8 +211,6 @@ export default function Resception() {
       }
     }
   }, [scannerOpened, scannerReady, scannerType]);
-
-  // Nettoyage quand le scanner se ferme
   useEffect(() => {
     if (!scannerOpened && scanner) {
       console.log('Scanner fermé, nettoyage des ressources...');
@@ -458,6 +479,43 @@ export default function Resception() {
     }
   }
 
+  // Ajouter cette fonction pour valider tous les codes
+  const validateAllScannedCodes = () => {
+    console.log('🔍 Vérification de tous les codes scannés...', scannedCodes);
+    
+    // Chercher si AU MOINS UN ISBN existe dans la base de données
+    let livreFound = null;
+    
+    for (const code of scannedCodes) {
+      const livre = inventaire.find(item => item.isbn.toString() === code.trim());
+      
+      if (livre) {
+        livreFound = livre;
+        break; // Arrêter dès qu'on trouve un match
+      }
+    }
+    
+    // Fermer le scanner
+    if (scannerType === 'quagga') {
+      Quagga.stop();
+    }
+    setScannerOpened(false);
+    setShowCodesList(false);
+    setScannedCodes([]);
+    
+    // Décider automatiquement
+    if (livreFound) {
+      alert(`✅ Livre trouvé : ${livreFound.title}`);
+      setEditedBooks([livreFound]);
+      setAjouts({ [livreFound.id]: 0 });
+      setTimeout(() => setDetailsOpened(true), 500);
+    } else {
+      alert(`❌ Aucun livre trouvé en stock`);
+      setFormData(prev => ({ ...prev, isbn: scannedCodes[0] || '' }));
+      setTimeout(() => setFormOpened(true), 500);
+    }
+  };
+
   return (
     <div className={commandeStyles.pageContainer}>
       <div className={commandeStyles.mainCard}>
@@ -608,6 +666,53 @@ export default function Resception() {
             )}
             <div ref={setScannerNode} className={styles.cameraContainer}>
               <div id="reader" className={styles.reader}></div>
+              
+              {/* 📱 LISTE TRANSPARENTE EN TEMPS RÉEL - OVERLAY SUR LA CAMÉRA */}
+              {showCodesList && scannedCodes.length > 0 && (
+                <div className={styles.liveCodesList}>
+                  <div className={styles.liveCodesHeader}>
+                    <Text size="sm" c="white" fw={600}>
+                      📋 {scannedCodes.length} code{scannedCodes.length > 1 ? 's' : ''} détecté{scannedCodes.length > 1 ? 's' : ''}
+                    </Text>
+                  </div>
+                  
+                  <div className={styles.liveCodesContainer}>
+                    {scannedCodes.map((code, index) => (
+                      <div key={index} className={styles.liveCodeItem}>
+                        <Text size="xs" c="white" className={styles.liveCodeText}>
+                          📚 {code}
+                        </Text>
+                      </div>
+                    ))}
+                  </div>
+                  <div className={styles.liveCodesFooter}>
+                    <Button 
+                      size="sm"
+                      color="blue"
+                      onClick={validateAllScannedCodes} // ← Utiliser la fonction qui vérifie TOUS les codes
+                      style={{ 
+                        marginBottom: '8px', 
+                        width: '100%',
+                        fontWeight: 'bold'
+                      }}
+                    >
+                      ✅ VALIDER TOUS LES CODES
+                    </Button>
+                    
+                    <Button 
+                      size="xs"
+                      variant="outline"
+                      color="white"
+                      onClick={() => {
+                        setScannedCodes([]);
+                        setShowCodesList(false);
+                      }}
+                    >
+                      🗑️ Vider
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
             
             {/* Panneau d'informations en bas */}
@@ -771,6 +876,56 @@ export default function Resception() {
           ))
         )}
       </Modal>
+
+      {/* Liste des codes détectés */}
+      {showCodesList && scannedCodes.length > 0 && (
+        <div className={styles.codesListPanel}>
+          <div className={styles.codesListHeader}>
+            <Text size="lg" fw={600}>📋 Codes détectés ({scannedCodes.length})</Text>
+            <Button 
+              size="xs" 
+              color="gray" 
+              onClick={() => {
+                setScannedCodes([]);
+                setShowCodesList(false);
+              }}
+            >
+              🗑️ Vider
+            </Button>
+          </div>
+          
+          <div className={styles.codesList}>
+            {scannedCodes.map((code, index) => (
+              <div key={index} className={styles.codeItem}>
+                <Text size="sm" className={styles.codeText}>
+                  📚 {code}
+                </Text>
+                <Button 
+                  size="xs" 
+                  color="green"
+                  onClick={() => validateSelectedCode(code)}
+                >
+                  ✓ Choisir
+                </Button>
+              </div>
+            ))}
+          </div>
+          
+          <div className={styles.codesListFooter}>
+            <Button 
+              size="sm"
+              color="blue"
+              onClick={() => {
+                setScannerOpened(false);
+                setShowCodesList(false);
+                setScannedCodes([]);
+              }}
+            >
+              🔄 Terminer le scan
+            </Button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

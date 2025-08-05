@@ -305,3 +305,150 @@
   min-width: 250px;
   box-shadow: 0 4px 20px rgba(0,0,0,0.5);
 }
+
+.codesListPanel {
+  position: absolute;
+  bottom: 20px;
+  left: 20px;
+  right: 20px;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 12px;
+  padding: 16px;
+  max-height: 300px;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+}
+
+.codesListHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 8px;
+}
+
+.codesList {
+  max-height: 180px;
+  overflow-y: auto;
+  margin-bottom: 12px;
+}
+
+.codeItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  margin-bottom: 4px;
+  background: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid #dee2e6;
+}
+
+.codeText {
+  font-family: monospace;
+  font-weight: 500;
+  flex: 1;
+}
+
+.codesListFooter {
+  text-align: center;
+  padding-top: 8px;
+  border-top: 1px solid #eee;
+}
+
+/* Liste en temps réel transparente sur la caméra */
+.liveCodesList {
+  position: absolute;
+  top: 80px;
+  right: 20px;
+  width: 250px;
+  max-height: 400px;
+  background: rgba(0, 0, 0, 0.7); /* Noir transparent */
+  backdrop-filter: blur(10px); /* Effet de flou */
+  border-radius: 12px;
+  padding: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  z-index: 1000;
+  animation: slideInRight 0.3s ease-out;
+}
+
+@keyframes slideInRight {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.liveCodesHeader {
+  text-align: center;
+  margin-bottom: 8px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.liveCodesContainer {
+  max-height: 280px;
+  overflow-y: auto;
+  margin-bottom: 8px;
+}
+
+.liveCodeItem {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 6px 8px;
+  margin-bottom: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  animation: fadeInUp 0.4s ease-out;
+}
+
+@keyframes fadeInUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.liveCodeText {
+  font-family: monospace;
+  font-weight: 500;
+  flex: 1;
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
+}
+
+.liveCodeButton {
+  min-width: 28px;
+  height: 24px;
+  padding: 0;
+  margin-left: 8px;
+}
+
+.liveCodesFooter {
+  text-align: center;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Responsive pour mobile */
+@media (max-width: 768px) {
+  .liveCodesList {
+    right: 10px;
+    width: 200px;
+    max-height: 300px;
+  }
+  
+  .liveCodeText {
+    font-size: 10px;
+  }
+}
