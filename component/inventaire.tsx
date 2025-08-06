@@ -1,10 +1,9 @@
 'use client';
 
 import { Button, Center, Loader, Modal, Table, TextInput } from '@mantine/core';
-import { IconCamera, IconListDetails } from '@tabler/icons-react';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import styles from './style/commande.module.css';
+import styles from './style/monCompte.module.css';
 
 type InventaireItem = {
   id: number;
@@ -118,102 +117,77 @@ export default function Inventaire() {
   );
 
   return (
-    <div className={styles.pageContainer}>
-      <div className={styles.mainCard}>
-        {/* Header de la page */}
-        <div className={styles.pageHeader}>
-          <h1 className={styles.pageTitle}>📚 Inventaire</h1>
-          <div className={styles.actionButtons}>
-            {user?.admin === true && (
+    <div className={styles.revolutStyle}>
+      {/* Section montant principal */}
+      <div className={styles.revolutAmount}>
+        <div className={styles.revolutLabel}>Inventaire</div>
+        <div className={styles.revolutValue}>{inventaire.length}</div>
+        <div className={styles.revolutQuickActions}>
+          {user?.admin === true && (
+            <div className={styles.quickAction}>
               <Link href="/inventaire/ScannerResception" passHref legacyBehavior>
-                <Button className={styles.actionButton} leftSection={<IconListDetails size={18} />}>
-                  ➕ Ajouter livre
-                </Button>
-              </Link>
-            )}
-            <Button 
-              className={styles.actionButton}
-              onClick={() => setOpened(true)}
-              leftSection={<IconListDetails size={18} />}
-            >
-              📋 Historique
-            </Button>
-          </div>
-          {/* nombre de livre en stock  */}
-        </div>
-
-        {/* nombre de livre en stock  */}
-        <div className={styles.contentSection}>
-          {/* Section de contenu */}
-
-          <div className={styles.sectionTitle}>
-            🔍 Rechercher
-          </div>
-          
-          <div className={styles.searchInput}>
-            <TextInput
-              placeholder="Rechercher par titre ou auteur..."
-              value={search}
-              onChange={(e) => setSearch(e.currentTarget.value)}
-              leftSection={<IconCamera size={18} />}
-            />
-          </div>
-
-          {loading ? (
-            <Center>
-              <Loader />
-            </Center>
-          ) : (
-            <div className={styles.itemsList}>
-              {filteredInventaire.map((item) => (
-                <div key={item.id} className={styles.itemCard}>
-                  <div className={styles.itemHeader}>
-                    <h3 className={styles.itemTitle}>{item.title}</h3>
-                    <div className={`${styles.itemStatus} ${
-                      item.quantite > 5 ? styles.statusStock : 
-                      item.quantite > 0 ? styles.statusLow : 
-                      styles.statusOut
-                    }`}>
-                      {item.quantite > 5 ? 'En stock' : item.quantite > 0 ? 'Faible' : 'Rupture'}
-                    </div>
-                  </div>
-                  
-                  <div className={styles.itemDetails}>
-                    <div className={styles.itemMeta}>
-                      👤 {item.author}
-                    </div>
-                    <div className={styles.itemMeta}>
-                      🏷️ ID: {item.id}
-                    </div>
-                    <div className={styles.itemMeta}>
-                      📖 ISBN: {item.isbn}
-                    </div>
-                    <div className={styles.itemMeta}>
-                      📦 Qty: <span className={styles.itemQuantity}>{item.quantite}</span>
-                    </div>
-                  </div>
-                  
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-                    <div className={styles.itemPrice}>{item.price} €</div>
-                    <div className={styles.itemActions}>
-                      <Button size="xs" variant="subtle" color="blue">
-                        📝 Détails
-                      </Button>
-                    </div>
-                  </div>
+                <div className={styles.revolutdiv}>
+                  <span>➕</span>
+                  <div className={styles.quickActionLabel}>Ajouter</div>
                 </div>
-              ))}
+              </Link>
             </div>
           )}
+
+          <div className={styles.quickAction}>
+            <div onClick={() => setOpened(true)} className={styles.revolutButton}>
+              <span>📋</span>
+              <div className={styles.quickActionLabel}>Historique</div>
+            </div>
+          </div>
         </div>
+      </div>
+
+      {/* Barre de recherche */}
+      <div style={{ padding: '0 20px', marginBottom: '20px' }}>
+        <TextInput
+          placeholder="Rechercher un livre..."
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          className={styles.searchInput}
+        />
+      </div>
+
+      {/* Liste des livres */}
+      <div className={styles.transactionsList}>
+        {loading ? (
+          <Center>
+            <Loader />
+          </Center>
+        ) : (
+          filteredInventaire.map((item) => (
+            <div key={item.id} className={styles.transaction}>
+              <div className={styles.transactionIcon}>📚</div>
+              <div className={styles.transactionInfo}>
+                <div className={styles.transactionTitle}>{item.title}</div>
+                <div className={styles.transactionTime}>
+                  👤 {item.author} | 📖 ISBN: {item.isbn}
+                </div>
+              </div>
+              <div className={styles.transactionAmount}>
+                <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                  {item.quantite}x
+                </div>
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  {item.price}€
+                </div>
+              </div>
+            </div>
+          ))
+        )}
       </div>
 
       {/* Modal Historique */}
       <Modal opened={opened} onClose={() => setOpened(false)} title="Historique des réceptions" centered size="xxl">
         <Button onClick={downloadCSV} mb="md">Télécharger en CSV</Button>
-        <div className={styles.tableContainer}>
+        <div style={{ overflow: 'auto' }}>
           <Table.ScrollContainer minWidth={900} type="native">
-            <Table striped highlightOnHover withColumnBorders className={styles.tableModern}>
+            <Table striped highlightOnHover withColumnBorders>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Date</Table.Th>

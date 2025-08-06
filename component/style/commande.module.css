@@ -463,7 +463,9 @@
   padding: 18px;
   border: 1px solid rgba(0, 0, 0, 0.05);
 }
-
+.scannerCloseButton{
+  margin-top: 20px !important;
+}
 .tipsTitle {
   font-weight: 600 !important;
   color: #666 !important;

@@ -313,6 +313,7 @@ const listeCommandesUtilisateur = async () => {
                </p>
              </div>
            </div>
+
            <div className={stylesCompte.moncomptedetail}>
              <h4 className={stylesCompte.moncomptedetailh4}>Détails du compte</h4>
              <div className={stylesCompte.moncomptedetaildiv}>

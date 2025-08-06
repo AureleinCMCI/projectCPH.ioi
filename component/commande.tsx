@@ -1,15 +1,12 @@
 'use client';
 
-
 import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
-import { Button, Center, Checkbox, Loader, Modal, Table, Text, TextInput } from '@mantine/core';
-import { IconCamera } from '@tabler/icons-react';
+import { Button, Center, Loader, Modal, Table, Text, TextInput } from '@mantine/core';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './style/ScannerResception.module.css';
-import commandeStyles from './style/commande.module.css';
-
+import stylesCompte from './style/monCompte.module.css';
 
 type InventaireItem = {
   id: number;
@@ -21,6 +18,7 @@ type InventaireItem = {
   isbn: number;
   livre?: { image?: string };
 };
+
 /*Récupération des informations de l'utilisateur , verifié qui est connecté via jeto*/
 let user: { id: string; name: string; avatar?: string } | null = null;
 if (typeof window !== 'undefined') {
@@ -33,7 +31,6 @@ if (typeof window !== 'undefined') {
 }
 
 // Composant affichant les commandes
-
 
 function formatDateTimeParis(dateString: string) {
   const date = new Date(dateString);
@@ -54,9 +51,6 @@ function formatDateTimeParis(dateString: string) {
 }
 
 export default function Commande() {
-
-  const [,setUserName] = useState<string>('');
-
   useEffect(() => {
     const token = localStorage.getItem('jwt');
     if (!token) {
@@ -64,8 +58,7 @@ export default function Commande() {
       return;
     }
     try {
-      const userData = jwtDecode<{ id: string; name: string }>(token);
-      setUserName(userData.name);
+      jwtDecode<{ id: string; name: string }>(token);
     } catch {
       window.location.href = '/';
     }
@@ -77,10 +70,8 @@ export default function Commande() {
   const [search, setSearch] = useState('');
   const [formOpened, setFormOpened] = useState(false);
   const [isbn, setIsbn] = useState('');
-  const [result, setResult] = useState('');
   const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-  const [selected, setSelected] = useState<number[]>([]);
   const [supprimer, setSupprimer] = useState<number>(1);
   const [commandeOpened, setCommandeOpened] = useState(false);
   const [commandes, setCommandes] = useState<{ user_id: number; date_achat: string; title: string;quantite: number; vendeur?: string; user?: { name?: string };
@@ -90,9 +81,7 @@ export default function Commande() {
   const [scannerType, setScannerType] = useState<'html5' | 'quagga'>('html5');
   const [showCodesList, setShowCodesList] = useState(false);
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
-  const [showPopover, setShowPopover] = useState(false);
-  const [scannedIsbn] = useState('');
-
+  const [isbnList, setIsbnList] = useState<{ isbn: number; livre_id: number }[]>([]);
   // Détection automatique du type d'appareil et choix du scanner
   useEffect(() => {
     const detectMobileAndScanner = () => {
@@ -134,8 +123,6 @@ export default function Commande() {
     }
   };
 
-
-
   /* Téléchargement du fichier CSV */
   const downloadCSV = () => {
     const header = ["Date", "Utilisateur", "Titre", "Quantité"];
@@ -146,7 +133,6 @@ export default function Commande() {
       cmd.quantite
     ]);
     const csvContent = [header, ...rows].map(e => e.join(",")).join("\n");
-
 
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
@@ -184,13 +170,33 @@ export default function Commande() {
     scannerRef.current = node;
     setScannerReady(!!node);
   }, []);
+
+
+
+/* recupére les isbn selon livre id */
+useEffect(() => {
+  const recupereIsbnLivreId = async () => {
+    try {
+      // Récupérer tous les ISBN pour tous les livres
+      const response = await fetch('/api/isbn?livre_id=all', { 
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
+      const result = await response.json();
+      setIsbnList(result.data || []);
+      console.log('📚 ISBN récupérés:', result.data);
+    } catch (error) {
+      console.error('Erreur récupération ISBN:', error);
+    }
+  };
   
+  recupereIsbnLivreId();
+}, []);
 
 
   const handleScan = (decodedText: string) => {
     if (decodedText) {
       console.log('✅ Code scanné:', decodedText);
-      setResult(decodedText);
       setIsbn(decodedText);
       
       // Ajouter le code à la liste s'il n'y est pas déjà
@@ -204,20 +210,22 @@ export default function Commande() {
         return prev;
       });
 
-      // Vérifier si l'ISBN existe en stock SANS fermer le scanner
-      const livre = inventaire.find(item => item.isbn.toString() === decodedText.trim());
+      // Vérifier si l'ISBN existe dans la liste des ISBN
+      const isbnTrouve = isbnList.find(item => item.isbn.toString() === decodedText.trim());
       
-      if (livre) {
-        // ISBN trouvé - juste afficher un message
-        console.log(`✅ ISBN trouvé : ${livre.title}`);
+      if (isbnTrouve) {
+        // ISBN trouvé - chercher le livre correspondant dans l'inventaire
+        const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
+        
+        if (livre) {
+          console.log(`✅ ISBN trouvé : ${livre.title} (ISBN: ${isbnTrouve.isbn})`);
+        } else {
+          console.log(`✅ ISBN trouvé mais livre non en stock : ${isbnTrouve.isbn}`);
+        }
       } else {
-        // ISBN non trouvé - juste afficher un message
+        // ISBN non trouvé
         console.log(`❌ ISBN non trouvé : ${decodedText}`);
       }
-      
-      // ❌ SUPPRIMER ces lignes qui fermaient le scanner :
-      // setScannerOpened(false);
-      // setFormOpened(true);
     }
   };
 
@@ -293,8 +301,6 @@ export default function Commande() {
           console.log('Code détecté par Quagga:', code);
           if (code) {
             handleScan(code);
-            // ❌ SUPPRIMER cette ligne qui arrêtait Quagga :
-            // Quagga.stop();
           }
         };
         Quagga.onDetected(onDetected);
@@ -425,8 +431,6 @@ export default function Commande() {
     }
   };
 
-  // Supprimer la fonction getBestVideoConstraints qui n'est plus utilisée
-  // const getBestVideoConstraints = async (deviceId?: string) => { ... };
   const validateAllScannedCodes = () => {
     console.log('🔍 Vérification de tous les codes scannés...', scannedCodes);
     
@@ -434,11 +438,17 @@ export default function Commande() {
     let livreFound = null;
     
     for (const code of scannedCodes) {
-      const livre = inventaire.find(item => item.isbn.toString() === code.trim());
+      // Vérifier si l'ISBN existe dans la liste des ISBN
+      const isbnTrouve = isbnList.find(item => item.isbn.toString() === code.trim());
       
-      if (livre) {
-        livreFound = livre;
-        break; // Arrêter dès qu'on trouve un match
+      if (isbnTrouve) {
+        // ISBN trouvé - chercher le livre correspondant dans l'inventaire
+        const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
+        
+        if (livre) {
+          livreFound = livre;
+          break; // Arrêter dès qu'on trouve un match
+        }
       }
     }
     
@@ -462,265 +472,247 @@ export default function Commande() {
       alert(`❌ Aucun livre trouvé en stock`);
     }
   };
-  
 
   return (
-    <div className={commandeStyles.pageContainer}>
-      <div className={commandeStyles.mainCard}>
-        {/* Header de la page */}
-        <div className={commandeStyles.pageHeader}>
-          <h1 className={commandeStyles.pageTitle}>📚 Livres </h1>
-          <div className={commandeStyles.actionButtons}>
-            <Button 
-              className={commandeStyles.actionButton}
-              onClick={() => setScannerOpened(true)} 
-              leftSection={<IconCamera size={18} />}
-            >
-              📱 Scanner
-            </Button>
-            <Button 
-              className={commandeStyles.actionButton}
-              onClick={() => setCommandeOpened(true)}
-            >
-              📋 Commandes
-            </Button>
+    <div className={stylesCompte.revolutStyle}>
+      {/* Header avec icône livre */}
+
+
+      {/* Section montant principal */}
+      <div className={stylesCompte.revolutAmount}>
+        <div className={stylesCompte.revolutLabel}>Commandes</div>
+        <div className={stylesCompte.revolutValue}>{commandes.length}</div>
+        <div className={stylesCompte.revolutQuickActions}>
+          <div className={stylesCompte.quickAction}>
+            <div onClick={() => setScannerOpened(true)} className={stylesCompte.revolutdiv}>
+              <span>📱</span>
+              <div className={stylesCompte.quickActionLabel}>Scanner</div>
+            </div>
+          </div>
+
+          <div className={stylesCompte.quickAction}>
+          <div onClick={() => setScannerOpened(true)} className={stylesCompte.revolutdiv}>
+              <span>📋</span>
+              <div className={stylesCompte.quickActionLabel}>Commande</div>
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Scanner en DIV plein écran - AUCUNE compression */}
-        {scannerOpened && (
-          <div className={styles.scannerFullScreen}>
-            {/* Header avec bouton fermer */}
-            <div className={styles.scannerHeader}>
-              <Text className={styles.scannerTitle}>
-                📱 Scanner ISBN
-              </Text>
-              <Button onClick={() => setScannerOpened(false)} variant="filled" color="red" size="sm">
-                ✕ Fermer
-              </Button>
+      {/* Barre de recherche */}
+      <div style={{ padding: '0 20px', marginBottom: '20px' }}>
+        <TextInput
+          placeholder="Rechercher un livre..."
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          className={stylesCompte.searchInput}
+        />
+      </div>
+
+      {/* Liste des livres */}
+      <div className={stylesCompte.transactionsList}>
+        {loading ? (
+          <Center>
+            <Loader />
+          </Center>
+        ) : (
+          filteredInventaire.map((item) => (
+            <div key={item.id} className={stylesCompte.transaction}>
+              <div className={stylesCompte.transactionIcon}>📚</div>
+              <div className={stylesCompte.transactionInfo}>
+                <div className={stylesCompte.transactionTitle}>{item.title}</div>
+                <div className={stylesCompte.transactionTime}>
+                  👤 {item.author} | 📖 ISBN: {item.isbn}
+                </div>
+              </div>
+              <div className={stylesCompte.transactionAmount}>
+                <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                  {item.quantite}x
+                </div>
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  {item.price}€
+                </div>
+              </div>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Scanner en DIV plein écran */}
+      {scannerOpened && (
+        <div className={styles.scannerFullScreen}>
+          {/* Header avec bouton fermer */}
+          <div className={styles.scannerHeader}>
+            <Text className={styles.scannerTitle}>
+              📱 Scanner ISBN
+            </Text>
+            <div onClick={() => setScannerOpened(false)} className={styles.scannerCloseButton} style={{ marginTop: '100px' }}>
+              ✕ Fermer
+            </div>
+          </div>
+          
+          {/* Container caméra avec liste transparente en overlay */}
+          <div ref={setScannerNode} className={styles.cameraContainer}>
+            <div id="reader" className={styles.reader}></div>
+            
+            {/* 📝 CHAMP DE SAISIE MANUELLE ISBN */}
+            <div style={{ 
+              position: 'absolute', 
+              bottom: '20px', 
+              left: '20px', 
+              right: '20px',
+              background: 'rgba(0,0,0,0.8)',
+              padding: '15px',
+              borderRadius: '10px',
+              zIndex: 1000
+            }}>
+              <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
+                <TextInput
+                  placeholder="Saisir ISBN manuellement"
+                  value={isbn}
+                  onChange={(e) => setIsbn(e.currentTarget.value)}
+                  style={{ flex: 1 }}
+                  styles={{
+                    input: { 
+                      backgroundColor: 'white', 
+                      color: 'black',
+                      fontSize: '14px'
+                    }
+                  }}
+                />
+                <Button
+                  size="sm"
+                  color="green"
+                  onClick={async () => {
+                    if (isbn.trim()) {
+                      // Vérifier si l'ISBN existe dans la liste des ISBN
+                      const isbnTrouve = isbnList.find(item => item.isbn.toString() === isbn.trim());
+                      
+                      if (isbnTrouve) {
+                        // ISBN trouvé - chercher le livre correspondant dans l'inventaire
+                        const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
+                        
+                        if (livre) {
+                          alert(`✅ ISBN trouvé : ${livre.title} (ISBN: ${isbnTrouve.isbn}, Livre ID: ${isbnTrouve.livre_id})`);
+                          setIsbn(livre.isbn.toString());
+                          setSupprimer(1);
+                          setScannerOpened(false);
+                          setTimeout(() => setFormOpened(true), 500);
+                        } else {
+                          alert(`✅ ISBN trouvé mais livre non en stock : ${isbnTrouve.isbn} (Livre ID: ${isbnTrouve.livre_id})`);
+                        }
+                      } else {
+                        alert(`❌ ISBN non trouvé : ${isbn}`);
+                      }
+                    } else {
+                      alert("Veuillez saisir un ISBN");
+                    }
+                  }}
+                >
+                  ✅ Tester
+                </Button>
+              </div>
             </div>
             
-            {/* Modal de confirmation ISBN */}
-            {showPopover && (
-              <div className={styles.popover}>
-                <div style={{ fontSize: '24px', marginBottom: '10px' }}>📚</div>
-                <div style={{ fontSize: '16px', marginBottom: '8px' }}>ISBN détecté :</div>
-                <div style={{ 
-                  fontSize: '20px', 
-                  color: '#4CAF50', 
-                  fontFamily: 'monospace',
-                  fontWeight: 'bold',
-                  marginBottom: '15px'
-                }}>
-                  {scannedIsbn}
+            {/* 📱 LISTE TRANSPARENTE EN TEMPS RÉEL - OVERLAY SUR LA CAMÉRA */}
+            {showCodesList && scannedCodes.length > 0 && (
+              <div className={styles.liveCodesList}>
+                <div className={styles.liveCodesHeader}>
+                  <Text size="sm" c="white" fw={600}>
+                    📋 {scannedCodes.length} code
+                    {scannedCodes.length > 1 ? "s" : ""} détecté
+                    {scannedCodes.length > 1 ? "s" : ""}
+                  </Text>
                 </div>
-                <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                  <Button 
-                    onClick={() => {
-                      setShowPopover(false);
-                      setScannerOpened(false);
-                      setFormOpened(true);
+
+                <div className={styles.liveCodesContainer}>
+                  {scannedCodes.map((code, index) => (
+                    <div key={index} className={styles.liveCodeItem}>
+                      <Text size="xs" c="white" className={styles.liveCodeText}>
+                        📚 {code}
+                      </Text>
+                    </div>
+                  ))}
+                </div>
+                <div className={styles.liveCodesFooter}>
+                  <Button
+                    size="sm"
+                    color="blue"
+                    onClick={validateAllScannedCodes}
+                    style={{
+                      marginBottom: "8px",
+                      width: "100%",
+                      fontWeight: "bold",
                     }}
-                    color="green"
-                    size="sm"
                   >
-                    ✓ Valider
+                    ✅ VALIDER TOUS LES CODES
                   </Button>
-                  <Button 
-                    onClick={() => setShowPopover(false)}
-                    color="gray"
-                    size="sm"
+
+                  <Button
+                    size="xs"
+                    variant="outline"
+                    color="white"
+                    onClick={() => {
+                      setScannedCodes([]);
+                      setShowCodesList(false);
+                    }}
                   >
-                    ✕ Annuler
+                    🗑️ Vider
                   </Button>
                 </div>
               </div>
             )}
-
-            {/* Container caméra avec liste transparente en overlay */}
-            <div ref={setScannerNode} className={styles.cameraContainer}>
-              <div id="reader" className={styles.reader}></div>
-              
-              {/* 📱 LISTE TRANSPARENTE EN TEMPS RÉEL - OVERLAY SUR LA CAMÉRA */}
-              {showCodesList && scannedCodes.length > 0 && (
-                <div className={styles.liveCodesList}>
-                  <div className={styles.liveCodesHeader}>
-                    <Text size="sm" c="white" fw={600}>
-                      📋 {scannedCodes.length} code
-                      {scannedCodes.length > 1 ? "s" : ""} détecté
-                      {scannedCodes.length > 1 ? "s" : ""}
-                    </Text>
-                  </div>
-
-                  <div className={styles.liveCodesContainer}>
-                    {scannedCodes.map((code, index) => (
-                      <div key={index} className={styles.liveCodeItem}>
-                        <Text size="xs" c="white" className={styles.liveCodeText}>
-                          📚 {code}
-                        </Text>
-                      </div>
-                    ))}
-                  </div>
-                  <div className={styles.liveCodesFooter}>
-                    <Button
-                      size="sm"
-                      color="blue"
-                      onClick={validateAllScannedCodes} // ← Utiliser la fonction qui vérifie TOUS les codes
-                      style={{
-                        marginBottom: "8px",
-                        width: "100%",
-                        fontWeight: "bold",
-                      }}
-                    >
-                      ✅ VALIDER TOUS LES CODES
-                    </Button>
-
-                    <Button
-                      size="xs"
-                      variant="outline"
-                      color="white"
-                      onClick={() => {
-                        setScannedCodes([]);
-                        setShowCodesList(false);
-                      }}
-                    >
-                      🗑️ Vider
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-
-            {/* Panneau d'informations en bas */}
-            <div className={styles.infoPanel}>
-              <div className={styles.statusContainer}>
-                <div className={`${styles.statusBadge} ${result ? styles.statusBadgeSuccess : ''}`}>
-                  {result ? `📚 ISBN: ${result}` : '🔍 Visez le code-barres'}
-                </div>
-              </div>
-              
-              <div className={styles.controlsContainer}>
-                <TextInput
-                  placeholder="ISBN manuel"
-                  value={isbn}
-                  onChange={(e) => setIsbn(e.target.value)}
-                  className={styles.isbnInput}
-                  styles={{
-                    input: { backgroundColor: 'white', color: 'black' }
-                  }}
-                />
-                <Button 
-                  onClick={() => {setScannerOpened(false);setFormOpened(true);}} disabled={!isbn}color="green"size="md">
-                  ✓ Valider
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
-
-        <Modal opened={commandeOpened} onClose={() => setCommandeOpened(false)} title="Commandes"  centered  size="xxl" >
-          <Button onClick={downloadCSV}>Télécharger en CSV</Button>
-            <div className={styles.tableContainer}>
-              <Table.ScrollContainer minWidth={900} type="native">
-                <Table  striped  highlightOnHover  withColumnBorders  className={styles.tableModern} >
-                  <Table.Thead>
-                    <Table.Tr>
-                      <Table.Th>Date</Table.Th>
-                      <Table.Th>Utilisateur</Table.Th>
-                      <Table.Th>title</Table.Th>
-                      <Table.Th>Quantité</Table.Th>
-                    </Table.Tr>
-                  </Table.Thead>
-                  <Table.Tbody>
-                    {commandes.map((commande) => (
-                      <Table.Tr key={commande.user_id + '-' + commande.title}>
-                        <Table.Td>
-                          {commande.date_achat ? formatDateTimeParis(commande.date_achat) : ''}
-                        </Table.Td>
-                        <Table.Td>{commande.vendeur}</Table.Td>
-                        <Table.Td>{commande.title}</Table.Td>
-                        <Table.Td>{commande.quantite}</Table.Td>
-                      </Table.Tr>
-                    ))}
-                  </Table.Tbody>
-                </Table>
-              </Table.ScrollContainer>
-            </div>
-          </Modal>
-        {/* Section de contenu */}
-        <div className={commandeStyles.contentSection}>
-          <div className={commandeStyles.sectionTitle}>
-            🔍 Rechercher
-          </div>
-          
-          <div className={commandeStyles.searchInput}>
-            <TextInput
-              placeholder="Rechercher par titre ou auteur..."
-              value={search}
-              onChange={(e) => setSearch(e.currentTarget.value)}
-              leftSection={<IconCamera size={18} />}
-            />
           </div>
 
-          {loading ? (
-            <Center>
-              <Loader />
-            </Center>
-          ) : (
-            <div className={commandeStyles.itemsList}>
-              {filteredInventaire.map((item) => (
-                <div key={item.id} className={commandeStyles.itemCard}>
-                  <div className={commandeStyles.itemHeader}>
-                    <h3 className={commandeStyles.itemTitle}>{item.title}</h3>
-                    <div className={`${commandeStyles.itemStatus} ${
-                      item.quantite > 5 ? commandeStyles.statusStock : 
-                      item.quantite > 0 ? commandeStyles.statusLow : 
-                      commandeStyles.statusOut
-                    }`}>
-                      {item.quantite > 5 ? 'En stock' : item.quantite > 0 ? 'Faible' : 'Rupture'}
-                    </div>
-                  </div>
-                  
-                  <div className={commandeStyles.itemDetails}>
-                    <div className={commandeStyles.itemMeta}>
-                      👤 {item.author}
-                    </div>
-                    <div className={commandeStyles.itemMeta}>
-                      🏷️ ID: {item.livre_id}
-                    </div>
-                    <div className={commandeStyles.itemMeta}>
-                      📖 ISBN: {item.isbn}
-                    </div>
-                    <div className={commandeStyles.itemMeta}>
-                      📦 Qty: <span className={commandeStyles.itemQuantity}>{item.quantite}</span>
-                    </div>
-                  </div>
-                  
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-                    <div className={commandeStyles.itemPrice}>{item.price} €</div>
-                    <Checkbox
-                      checked={selected.includes(item.id)}
-                      onChange={() => setSelected((prev) => prev.includes(item.id) ? prev.filter((i) => i !== item.id) : [...prev, item.id])}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
+          {/* Panneau d'informations en bas */}
         </div>
-      </div>
+      )}
 
-      {/* Affichage du tableau des commandes ici */}
+      {/* Modal des commandes */}
+      <Modal opened={commandeOpened} onClose={() => setCommandeOpened(false)} title="Commandes" centered size="xxl">
+        <Button onClick={downloadCSV}>Télécharger en CSV</Button>
+        <div className={styles.tableContainer}>
+          <Table.ScrollContainer minWidth={900} type="native">
+            <Table striped highlightOnHover withColumnBorders className={styles.tableModern}>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>Date</Table.Th>
+                  <Table.Th>Utilisateur</Table.Th>
+                  <Table.Th>title</Table.Th>
+                  <Table.Th>Quantité</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {commandes.map((commande) => (
+                  <Table.Tr key={commande.user_id + '-' + commande.title}>
+                    <Table.Td>
+                      {commande.date_achat ? formatDateTimeParis(commande.date_achat) : ''}
+                    </Table.Td>
+                    <Table.Td>{commande.vendeur}</Table.Td>
+                    <Table.Td>{commande.title}</Table.Td>
+                    <Table.Td>{commande.quantite}</Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          </Table.ScrollContainer>
+        </div>
+      </Modal>
+
       {/* Infos du livre scanné */}
-      <Modal  opened={formOpened} onClose={() => { setFormOpened(false); setSupprimer(1); }} title="Informations du livre" centered size={isMobile ? "xs" : "md"}
-         classNames={isMobile ? {
-           header: styles.iosModalHeader,
-           body: styles.iosModalBody,
-           title: styles.iosModalTitle,
-           content: styles.iosModalContent
-         } : undefined}
-       >
-
+      <Modal 
+        opened={formOpened} 
+        onClose={() => { setFormOpened(false); setSupprimer(1); }} 
+        title="Informations du livre" 
+        centered 
+        size={isMobile ? "xs" : "md"}
+        classNames={isMobile ? {
+          header: styles.iosModalHeader,
+          body: styles.iosModalBody,
+          title: styles.iosModalTitle,
+          content: styles.iosModalContent
+        } : undefined}
+      >
         {(() => {
           const livre = inventaire.find(item => item.isbn.toString() === isbn.trim());
           if (isbn && !livre) {

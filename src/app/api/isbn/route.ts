@@ -1,6 +1,41 @@
 import { createClient } from '@/lib/supabase/clients';
 import { NextRequest } from 'next/server';
 
+
+
+
+
+/* recupére les isbn selon livre id */
+export async function GET(request: NextRequest) {
+  const supabase = createClient();
+  
+  try {
+    // Récupérer le livre_id depuis les paramètres de requête
+    const { searchParams } = new URL(request.url);
+    const livre_id = searchParams.get('livre_id');
+    
+    let query = supabase.from('isbn').select('*');
+    
+    // Si livre_id = 'all', récupérer tous les ISBN
+    // Sinon, filtrer par livre_id spécifique
+    if (livre_id && livre_id !== 'all') {
+      query = query.eq('livre_id', livre_id);
+    }
+    
+    const { data, error } = await query;
+      
+    if (error) {
+      return Response.json({ error: "Erreur lors de la récupération des ISBN" }, { status: 400 });
+    }
+    
+    console.log(`📚 ISBN récupérés pour livre_id ${livre_id}:`, data);
+    return Response.json({ data });
+  } catch (error) {
+    console.error('Erreur API ISBN:', error);
+    return Response.json({ error: "Erreur serveur" }, { status: 500 });
+  }
+} 
+
 export async function POST(request: NextRequest) {
     const supabase = createClient();  
     const { isbn, livre_id } = await request.json();

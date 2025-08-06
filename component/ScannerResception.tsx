@@ -2,12 +2,11 @@
 
 import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
 import { Button, Center, Loader, Modal, Paper, Text, Textarea, TextInput } from '@mantine/core';
-import { IconBook, IconCamera } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import commandeStyles from './style/commande.module.css';
-import styles from './style/ScannerResception.module.css';
+import styles from './style/monCompte.module.css';
+import scannerStyles from './style/ScannerResception.module.css';
 
 type InventaireItem = { id: number; livre_id: number; title: string; author: string; quantite: number; price: number; isbn: number; livre?: { image?: string };};
 
@@ -29,7 +28,6 @@ export default function Resception() {
   const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
-  const [selected, setSelected] = useState<number[]>([]);
   const [detailsOpened, setDetailsOpened] = useState(false);
   const [ajouts, setAjouts] = useState<{ [id: number]: number }>({});
   const [editedBooks, setEditedBooks] = useState<InventaireItem[]>([]);
@@ -340,20 +338,7 @@ export default function Resception() {
 
 
 
-  const handleSubmit = (element: React.FormEvent) => {
-    element.preventDefault();
-    const books = filteredInventaire.filter(item => selected.includes(item.id));
-    setEditedBooks(books.map(book => ({ ...book })));
 
-    const initialAjouts: { [id: number]: number } = {};
-    books.forEach(book => {
-      initialAjouts[book.id] = 0;
-    });
-    setAjouts(initialAjouts);
-
-    setDetailsOpened(true);
-    setSelected([]);
-  };
 
   const handleAjoutChange = (id: number, value: string) => {
     setAjouts(prev => ({
@@ -539,110 +524,73 @@ export default function Resception() {
   };
 
   return (
-    <div className={commandeStyles.pageContainer}>
-      <div className={commandeStyles.mainCard}>
-        {/* Header de la page */}
-        <div className={commandeStyles.pageHeader}>
-          <h1 className={commandeStyles.pageTitle}>📚 Scanner Réception</h1>
-          <div className={commandeStyles.actionButtons}>
-            <Button 
-              className={commandeStyles.actionButton}
-              onClick={() => setScannerOpened(true)} 
-              leftSection={<IconCamera size={18} />}
-            >
-              📱 Scanner ISBN
-            </Button>
-            <Button 
-              className={commandeStyles.actionButton}
-              onClick={() => setScannerOpened(true)}
-            >
-              ➕ Ajouter livre
-            </Button>
+    <div className={styles.revolutStyle}>
+      {/* Section montant principal */}
+      <div className={styles.revolutAmount}>
+        <div className={styles.revolutLabel}>Scanner Réception</div>
+        <div className={styles.revolutValue}>{inventaire.length}</div>
+        <div className={styles.revolutQuickActions}>
+          <div className={styles.quickAction}>
+            <div onClick={() => setScannerOpened(true)} className={styles.revolutdiv}>
+              <span>📱</span>
+              <div className={styles.quickActionLabel}>Scanner</div>
+            </div>
+          </div>
+
+          <div className={styles.quickAction}>
+            <div onClick={() => setFormOpened(true)} className={styles.revolutButton}>
+              <span>➕</span>
+              <div className={styles.quickActionLabel}>Ajouter</div>
+            </div>
           </div>
         </div>
+      </div>
 
-        {/* Section de contenu */}
-        <div className={commandeStyles.contentSection}>
-          <div className={commandeStyles.sectionTitle}>
-            🔍 Rechercher
-          </div>
-          
-          <div className={commandeStyles.searchInput}>
-            <TextInput
-              placeholder="Rechercher par titre ou auteur..."
-              value={search}
-              onChange={(e) => setSearch(e.currentTarget.value)}
-              leftSection={<IconCamera size={18} />}
-            />
-          </div>
+      {/* Barre de recherche */}
+      <div style={{ padding: '0 20px', marginBottom: '20px' }}>
+        <TextInput
+          placeholder="Rechercher un livre..."
+          value={search}
+          onChange={(e) => setSearch(e.currentTarget.value)}
+          className={styles.searchInput}
+        />
+      </div>
 
-          {loading ? (
-            <Center>
-              <Loader />
-            </Center>
-          ) : (
-            <div className={commandeStyles.itemsList}>
-              {filteredInventaire.map((item) => (
-                <div key={item.id} className={commandeStyles.itemCard}>
-                  <div className={commandeStyles.itemHeader}>
-                    <h3 className={commandeStyles.itemTitle}>{item.title}</h3>
-                    <div className={`${commandeStyles.itemStatus} ${
-                      item.quantite > 5 ? commandeStyles.statusStock : 
-                      item.quantite > 0 ? commandeStyles.statusLow : 
-                      commandeStyles.statusOut
-                    }`}>
-                      {item.quantite > 5 ? 'En stock' : item.quantite > 0 ? 'Faible' : 'Rupture'}
-                    </div>
-                  </div>
-                  
-                  <div className={commandeStyles.itemDetails}>
-                    <div className={commandeStyles.itemMeta}>
-                      👤 {item.author}
-                    </div>
-                    <div className={commandeStyles.itemMeta}>
-                      🏷️ ID: {item.livre_id}
-                    </div>
-                    <div className={commandeStyles.itemMeta}>
-                      📖 ISBN: {item.isbn}
-                    </div>
-                    <div className={commandeStyles.itemMeta}>
-                      📦 Qty: <span className={commandeStyles.itemQuantity}>{item.quantite}</span>
-                    </div>
-                  </div>
-                  
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '12px' }}>
-                    <div className={commandeStyles.itemPrice}>{item.price} €</div>
-                    <Button onClick={() => {
-  // Préparer les données du livre sélectionné
-                        setEditedBooks([item]);
-                        setAjouts({ [item.id]: 0 });
-                        setDetailsOpened(true);
-                      }}>
-  ajoute au stock
-  <IconBook size={18} /> 
-</Button>
-                  </div>
+      {/* Liste des livres */}
+      <div className={styles.transactionsList}>
+        {loading ? (
+          <Center>
+            <Loader />
+          </Center>
+        ) : (
+          filteredInventaire.map((item) => (
+            <div key={item.id} className={styles.transaction}>
+              <div className={styles.transactionIcon}>📚</div>
+              <div className={styles.transactionInfo}>
+                <div className={styles.transactionTitle}>{item.title}</div>
+                <div className={styles.transactionTime}>
+                  👤 {item.author} | 📖 ISBN: {item.isbn}
                 </div>
-              ))}
+              </div>
+              <div className={styles.transactionAmount}>
+                <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                  {item.quantite}x
+                </div>
+                <div style={{ fontSize: '12px', color: '#666' }}>
+                  {item.price}€
+                </div>
+              </div>
             </div>
-          )}
-
-          {selected.length > 0 && (
-            <div style={{ marginTop: '20px', textAlign: 'center' }}>
-              <Button onClick={handleSubmit} size="lg">
-                Valider la sélection ({selected.length} livre{selected.length > 1 ? 's' : ''})
-              </Button>
-            </div>
-          )}
-        </div>
+          ))
+        )}
       </div>
 
       {/* Scanner en DIV plein écran - AUCUNE compression */}
       {scannerOpened && (
-          <div className={styles.scannerFullScreen}>
+          <div className={scannerStyles.scannerFullScreen}>
             {/* Header avec bouton fermer */}
-            <div className={styles.scannerHeader}>
-              <Text className={styles.scannerTitle}>
+            <div className={scannerStyles.scannerHeader}>
+              <Text className={scannerStyles.scannerTitle}>
                 📱 Scanner ISBN
               </Text>
               <Button onClick={() => setScannerOpened(false)}  variant="filled"   color="red"size="sm"  >
@@ -652,7 +600,7 @@ export default function Resception() {
             
             {/* Modal de confirmation ISBN */}
             {showPopover && (
-                             <div className={styles.popover}>
+                             <div className={scannerStyles.popover}>
                 <div style={{ fontSize: '24px', marginBottom: '10px' }}>📚</div>
                 <div style={{ fontSize: '16px', marginBottom: '8px' }}>ISBN détecté :</div>
                 <div style={{ 
@@ -686,28 +634,28 @@ export default function Resception() {
                 </div>
               </div>
             )}
-            <div ref={setScannerNode} className={styles.cameraContainer}>
-              <div id="reader" className={styles.reader}></div>
+            <div ref={setScannerNode} className={scannerStyles.cameraContainer}>
+              <div id="reader" className={scannerStyles.reader}></div>
               
               {/* 📱 LISTE TRANSPARENTE EN TEMPS RÉEL - OVERLAY SUR LA CAMÉRA */}
               {showCodesList && scannedCodes.length > 0 && (
-                <div className={styles.liveCodesList}>
-                  <div className={styles.liveCodesHeader}>
+                <div className={scannerStyles.liveCodesList}>
+                  <div className={scannerStyles.liveCodesHeader}>
                     <Text size="sm" c="white" fw={600}>
                       📋 {scannedCodes.length} code{scannedCodes.length > 1 ? 's' : ''} détecté{scannedCodes.length > 1 ? 's' : ''}
                     </Text>
                   </div>
                   
-                  <div className={styles.liveCodesContainer}>
+                  <div className={scannerStyles.liveCodesContainer}>
                     {scannedCodes.map((code, index) => (
-                      <div key={index} className={styles.liveCodeItem}>
-                        <Text size="xs" c="white" className={styles.liveCodeText}>
+                      <div key={index} className={scannerStyles.liveCodeItem}>
+                        <Text size="xs" c="white" className={scannerStyles.liveCodeText}>
                           📚 {code}
                         </Text>
                       </div>
                     ))}
                   </div>
-                  <div className={styles.liveCodesFooter}>
+                  <div className={scannerStyles.liveCodesFooter}>
                     <Button 
                       size="sm"
                       color="blue"
@@ -738,19 +686,19 @@ export default function Resception() {
             </div>
             
             {/* Panneau d'informations en bas */}
-            <div className={styles.infoPanel}>
+            <div className={scannerStyles.infoPanel}>
               {/* <div className={styles.statusContainer}>
                 <div className={`${styles.statusBadge} ${result ? styles.statusBadgeSuccess : ''}`}>
                   {result ? `📚 ISBN: ${result}` : '🔍 Visez le code-barres'}
                 </div> */}
               {/* </div> */}
               
-              <div className={styles.controlsContainer}>
+              <div className={scannerStyles.controlsContainer}>
                 <TextInput
                   placeholder="ISBN manuel"
                   value={isbn}
                   onChange={(e) => setIsbn(e.target.value)}
-                  className={styles.isbnInput}
+                  className={scannerStyles.isbnInput}
                   styles={{
                     input: { backgroundColor: 'white', color: 'black' }
                   }}
@@ -777,7 +725,7 @@ export default function Resception() {
           width: isMobile ? '100%' : '600px', 
           maxWidth: '90vw', 
           margin: '0 auto' 
-        }} className={isMobile ? commandeStyles.iosModalContent : ''}>
+        }} className={isMobile ? styles.iosModalContent : ''}>
           <TextInput 
             label="ISBN" 
             name="isbn" 
@@ -785,7 +733,7 @@ export default function Resception() {
             onChange={handleFormChange} 
             required 
             mb="sm"
-            classNames={isMobile ? { input: commandeStyles.iosModalInput } : undefined}
+            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
           />
           <TextInput 
             label="Titre du livre" 
@@ -794,7 +742,7 @@ export default function Resception() {
             onChange={handleFormChange} 
             required 
             mb="sm" 
-            classNames={isMobile ? { input: commandeStyles.iosModalInput } : undefined}
+            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
           />
           <TextInput 
             label="Auteur" 
@@ -803,7 +751,7 @@ export default function Resception() {
             onChange={handleFormChange} 
             required 
             mb="sm" 
-            classNames={isMobile ? { input: commandeStyles.iosModalInput } : undefined}
+            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
           />
           <Textarea 
             label="Description" 
@@ -812,7 +760,7 @@ export default function Resception() {
             onChange={handleFormChange} 
             minRows={1} 
             mb="sm" 
-            classNames={isMobile ? { input: commandeStyles.iosModalInput } : undefined}
+            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
           />
           <TextInput 
             label="Prix" 
@@ -821,7 +769,7 @@ export default function Resception() {
             onChange={handleFormChange} 
             required 
             mb="sm" 
-            classNames={isMobile ? { input: commandeStyles.iosModalInput } : undefined}
+            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
           />
           <TextInput 
             label="Quantité" 
@@ -830,12 +778,12 @@ export default function Resception() {
             onChange={handleFormChange} 
             required 
             mb="sm"
-            classNames={isMobile ? { input: commandeStyles.iosModalInput } : undefined}
+            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
           />
           <Button 
             mt="sm" 
             onClick={e => { e.preventDefault(); setShowCamera(true); }}
-            className={isMobile ? commandeStyles.iosModalButton : ''}
+            className={isMobile ? styles.iosModalButton : ''}
           >
             Prendre une photo
           </Button>
@@ -865,7 +813,7 @@ export default function Resception() {
             <Button 
               mt="sm" 
               type="submit"
-              className={isMobile ? commandeStyles.iosModalButton : ''}
+              className={isMobile ? styles.iosModalButton : ''}
             >
               Ajouter / Incrémenter
             </Button>
@@ -901,8 +849,8 @@ export default function Resception() {
 
       {/* Liste des codes détectés */}
       {showCodesList && scannedCodes.length > 0 && (
-        <div className={styles.codesListPanel}>
-          <div className={styles.codesListHeader}>
+        <div className={scannerStyles.codesListPanel}>
+          <div className={scannerStyles.codesListHeader}>
             <Text size="lg" fw={600}>📋 Codes détectés ({scannedCodes.length})</Text>
             <Button 
               size="xs" 
@@ -916,10 +864,10 @@ export default function Resception() {
             </Button>
           </div>
           
-          <div className={styles.codesList}>
+          <div className={scannerStyles.codesList}>
             {scannedCodes.map((code, index) => (
-              <div key={index} className={styles.codeItem}>
-                <Text size="sm" className={styles.codeText}>
+              <div key={index} className={scannerStyles.codeItem}>
+                <Text size="sm" className={scannerStyles.codeText}>
                   📚 {code}
                 </Text>
                 <Button 
@@ -933,7 +881,7 @@ export default function Resception() {
             ))}
           </div>
           
-          <div className={styles.codesListFooter}>
+          <div className={scannerStyles.codesListFooter}>
             <Button 
               size="sm"
               color="blue"
