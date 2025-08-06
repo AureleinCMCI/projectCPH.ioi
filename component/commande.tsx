@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './style/ScannerResception.module.css';
 import commandeStyles from './style/commande.module.css';
 
+
 type InventaireItem = {
   id: number;
   livre_id: number;
@@ -20,7 +21,7 @@ type InventaireItem = {
   isbn: number;
   livre?: { image?: string };
 };
-
+/*Récupération des informations de l'utilisateur , verifié qui est connecté via jeto*/
 let user: { id: string; name: string; avatar?: string } | null = null;
 if (typeof window !== 'undefined') {
   const token = localStorage.getItem('jwt');
@@ -53,6 +54,23 @@ function formatDateTimeParis(dateString: string) {
 }
 
 export default function Commande() {
+
+  const [,setUserName] = useState<string>('');
+
+  useEffect(() => {
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      window.location.href = '/';
+      return;
+    }
+    try {
+      const userData = jwtDecode<{ id: string; name: string }>(token);
+      setUserName(userData.name);
+    } catch {
+      window.location.href = '/';
+    }
+  }, []);
+
   const [scannerOpened, setScannerOpened] = useState(false);
   const [scannerReady, setScannerReady] = useState(false);
   const scannerRef = useRef<HTMLDivElement | null>(null);
@@ -451,7 +469,7 @@ export default function Commande() {
       <div className={commandeStyles.mainCard}>
         {/* Header de la page */}
         <div className={commandeStyles.pageHeader}>
-          <h1 className={commandeStyles.pageTitle}>📚 Livres</h1>
+          <h1 className={commandeStyles.pageTitle}>📚 Livres </h1>
           <div className={commandeStyles.actionButtons}>
             <Button 
               className={commandeStyles.actionButton}

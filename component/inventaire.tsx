@@ -26,33 +26,27 @@ type HistoriqueItem = {
 };
 
 export default function Inventaire() {
+
   const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [opened, setOpened] = useState(false);
   const [historique, setHistorique] = useState<HistoriqueItem[]>([]);
   const [user, setUser] = useState<{ admin?: boolean } | null>(null);
+  /*Si l'utilisateur n'est pas connecté, il est redirigé vers la page de connexion*/
   const [search, setSearch] = useState('');
-
   useEffect(() => {
-    async function fetchInventaire() {
-      const response = await fetch('/api/inventaire');
-      const result = await response.json();
-      setInventaire(result.data || []);
-      setLoading(false);
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      window.location.href = '/';
+      return;
     }
-    fetchInventaire();
-  }, []);
-
-  useEffect(() => {
-    async function RecupereHistorique() {
-      const response = await fetch('/api/historiqueResception');
-      const result = await response.json();
-      console.log('Réponse API historique:', result);
-      setHistorique(result.user || []);
+    try {
+      JSON.parse(atob(token.split('.')[1]));
+    } catch {
+      window.location.href = '/';
     }
-    RecupereHistorique();
   }, []);
-
+  /*Récupération des informations de l'utilisateur*/
   useEffect(() => {
     const token = typeof window !== 'undefined' ? localStorage.getItem('jwt') : null;
     if (token) {
@@ -64,7 +58,7 @@ export default function Inventaire() {
       }
     }
   }, []);
-
+  /*Récupération des informations de l'utilisateur*/
   useEffect(() => {
     const fetchUser = async () => {
       const token = localStorage.getItem('jwt');
@@ -77,6 +71,29 @@ export default function Inventaire() {
     fetchUser();
   }, []);
 
+  /*Récupération des livres en stock*/
+  useEffect(() => {
+    async function fetchInventaire() {
+      const response = await fetch('/api/inventaire');
+      const result = await response.json();
+      setInventaire(result.data || []);
+      setLoading(false);
+    }
+    fetchInventaire();
+  }, []);
+
+  /*Récupération de l'historique des réceptions*/
+  useEffect(() => {
+    async function RecupereHistorique() {
+      const response = await fetch('/api/historiqueResception');
+      const result = await response.json();
+      console.log('Réponse API historique:', result);
+      setHistorique(result.user || []);
+    }
+    RecupereHistorique();
+  }, []);
+
+  /*Téléchargement du fichier CSV*/
   const downloadCSV = () => {
     const header = ["Date", "Utilisateur", "Titre", "Quantité"];
     const rows = historique.map(item => [
