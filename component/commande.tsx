@@ -82,6 +82,12 @@ export default function Commande() {
   const [showCodesList, setShowCodesList] = useState(false);
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
   const [isbnList, setIsbnList] = useState<{ isbn: number; livre_id: number }[]>([]);
+
+  // État pour la modale de détails du livre
+  const [detailOpened, setDetailOpened] = useState(false);
+  const [selectedLivre, setSelectedLivre] = useState<InventaireItem | null>(null);
+
+  
   // Détection automatique du type d'appareil et choix du scanner
   useEffect(() => {
     const detectMobileAndScanner = () => {
@@ -156,7 +162,7 @@ export default function Commande() {
   } else {
     console.warn("navigator.mediaDevices ou enumerateDevices non disponible");
   }
-
+/* recupére les commandes */
   useEffect(() => {
     const fetchCommandes = async () => {
       const response = await fetch('/api/commande', { method: 'GET' });
@@ -170,7 +176,7 @@ export default function Commande() {
     scannerRef.current = node;
     setScannerReady(!!node);
   }, []);
-
+/* fin  */
 
 
 /* recupére les isbn selon livre id */
@@ -193,7 +199,7 @@ useEffect(() => {
   recupereIsbnLivreId();
 }, []);
 
-
+/* fonctionalité du scan */
   const handleScan = (decodedText: string) => {
     if (decodedText) {
       console.log('✅ Code scanné:', decodedText);
@@ -232,7 +238,9 @@ useEffect(() => {
   const handleError = (errorMessage: string) => {
     console.error('Erreur de scan:', errorMessage);
   };
+  /*fin du scan */
 
+/* parametre du scanner */
   useEffect(() => {
     if (scannerOpened && scannerReady && scannerRef.current) {
       console.log(`Scanner ${scannerType} prêt à être utilisé`);
@@ -313,6 +321,9 @@ useEffect(() => {
       }
     }
   }, [scannerOpened, scannerReady, scannerType]);
+/* fin scan */
+
+
 
   // Nettoyage quand le scanner se ferme
   useEffect(() => {
@@ -358,6 +369,15 @@ useEffect(() => {
     (item.title ?? '').toLowerCase().includes(search.toLowerCase()) ||
     (item.author ?? '').toLowerCase().includes(search.toLowerCase())
   );
+
+  // Fonction pour afficher les détails du livre
+  const detailvre = (isbn: string) => {
+    const livre = inventaire.find(item => item.isbn.toString() === isbn);
+    if (livre) {
+      setSelectedLivre(livre);
+      setDetailOpened(true);
+    }
+  };
 
   const decrementInventaire = async (livre: InventaireItem, quantite: number) => {
     if (!quantite || quantite <= 0) {
@@ -444,11 +464,15 @@ useEffect(() => {
       if (isbnTrouve) {
         // ISBN trouvé - chercher le livre correspondant dans l'inventaire
         const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
-        
         if (livre) {
           livreFound = livre;
           break; // Arrêter dès qu'on trouve un match
         }
+      }
+      else if (!isbnTrouve) {
+        alert(`❌ Aucun livre trouvé en stock`);
+        setFormOpened(false);
+        setTimeout(() => setFormOpened(true), 500);
       }
     }
     
@@ -472,6 +496,87 @@ useEffect(() => {
       alert(`❌ Aucun livre trouvé en stock`);
     }
   };
+
+/* ajouté un nouveaux livre */
+const incrementInventaire = async (livre: InventaireItem, ajout: number) => {
+  if (!ajout || ajout === 0) {
+    alert("Veuillez saisir une quantité à ajouter supérieure à 0.");
+    return;
+  }
+  if (!livre.title) {
+    alert("Le titre du livre est manquant !");
+    return;
+  }
+  try {
+    setLoading(true);
+
+    // Si l'ISBN est différent, on l'ajoute d'abord
+    if (livre.isbn.toString() !== inventaire.find(item => item.id === livre.id)?.isbn.toString()) {
+      await isbnDiférentAjoutLigne(livre);
+    }
+
+    const res = await fetch('/api/ScannerResception', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ id: livre.id, ajout, isbn: livre.isbn }),
+    });
+    if (!res.ok) throw new Error('Erreur lors de l\'incrémentation');
+
+    await fetch('/api/historiqueResception', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: user?.id || null  ,
+        quantite: ajout,
+        name_user: user?.name || 'Inconnu',
+        livre_id: livre.livre_id,
+        livre_title: livre.title,
+        info: 0
+      }),
+    });
+
+    const response = await fetch('/api/inventaire', { method: 'GET' });
+    const result = await response.json();
+    setInventaire(result.data || []);
+    setLoading(false);
+    alert(`Quantité du livre "${livre.title}" incrémentée de ${ajout} !`);
+  } catch (error) {
+    console.error('Erreur:', error);
+    setLoading(false);
+    alert('Erreur lors de l\'incrémentation');
+  }
+};
+const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
+  try {
+    // Vérifie que nous avons les données nécessaires
+    if (!livre.isbn || !livre.livre_id) {
+      alert("ISBN ou livre_id manquant !");
+      return;
+    }
+
+    const res = await fetch('/api/isbn', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ 
+        isbn: livre.isbn,
+        livre_id: livre.livre_id
+      }),
+    });
+
+    if (!res.ok) {
+      const error = await res.json();
+      throw new Error(error.message || 'Erreur lors de l\'ajout de l\'ISBN');
+    }
+
+    alert(`ISBN ${livre.isbn} ajouté avec succès pour le livre ID ${livre.livre_id} !`);
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert('Erreur lors de l\'ajout de l\'ISBN');
+  }
+}
+
+/* fin ajouté un nouveaux livre */
+
 
   return (
     <div className={stylesCompte.revolutStyle}>
@@ -517,8 +622,8 @@ useEffect(() => {
           </Center>
         ) : (
           filteredInventaire.map((item) => (
-            <div key={item.id} className={stylesCompte.transaction}>
-              <div className={stylesCompte.transactionIcon}>📚</div>
+            <div key={item.id} onClick={() => detailvre(item.isbn.toString())} className={stylesCompte.transaction}>
+              <div className={stylesCompte.transactionIcon}>{item.livre?.image ? <img src={item.livre.image} alt="Livre" style={{  width: '30px', height: '30px' }} /> : '📚'}</div>
               <div className={stylesCompte.transactionInfo}>
                 <div className={stylesCompte.transactionTitle}>{item.title}</div>
                 <div className={stylesCompte.transactionTime}>
@@ -646,6 +751,7 @@ useEffect(() => {
                     }}
                   >
                     ✅ VALIDER TOUS LES CODES
+                    
                   </Button>
 
                   <Button
@@ -716,7 +822,91 @@ useEffect(() => {
         {(() => {
           const livre = inventaire.find(item => item.isbn.toString() === isbn.trim());
           if (isbn && !livre) {
-            return <Text color="red" ta="center" size="lg" my="xl">Livre pas en stock !</Text>;
+            // Si le livre n'est pas en stock, afficher le formulaire d'ajout
+            return (
+              <div style={{ width: 400, maxWidth: '80vw', margin: '0 auto' }}>
+                <Text color="orange" ta="center" size="lg" mb="xl">
+                  📚 Livre non en stock - Ajouter à l&apos;inventaire
+                </Text>
+                
+                <TextInput 
+                  label="ISBN" 
+                  value={isbn}
+                  readOnly 
+                  mb="sm"
+                />
+                
+                <TextInput 
+                  label="Titre du livre" 
+                  placeholder="Saisir le titre"
+                  mb="sm"
+                  id="title"
+                />
+                
+                <TextInput 
+                  label="Auteur" 
+                  placeholder="Saisir l'auteur"
+                  mb="sm"
+                  id="author"
+                />
+                
+                <TextInput 
+                  label="Prix" 
+                  type="number"
+                  placeholder="Prix en euros"
+                  mb="sm"
+                  id="price"
+                />
+                
+                <TextInput 
+                  label="Quantité à ajouter" 
+                  type="number"
+                  min={1}
+                  placeholder="Nombre d'exemplaires"
+                  mb="md"
+                  id="quantite"
+                />
+                
+                <Button
+                  color="green"
+                  fullWidth
+                  onClick={async () => {
+                    // Récupérer les valeurs des champs
+                    const title = (document.getElementById('title') as HTMLInputElement)?.value || '';
+                    const author = (document.getElementById('author') as HTMLInputElement)?.value || '';
+                    const price = Number((document.getElementById('price') as HTMLInputElement)?.value || 0);
+                    const quantiteAAjouter = Number((document.getElementById('quantite') as HTMLInputElement)?.value || 0);
+                    
+                    if (!title || !author || price <= 0 || quantiteAAjouter <= 0) {
+                      alert('Veuillez remplir tous les champs correctement');
+                      return;
+                    }
+                    
+                    // Créer un objet livre temporaire pour incrementInventaire
+                    const nouveauLivre: InventaireItem = {
+                      id: 0, // ID temporaire
+                      livre_id: 0, // Sera défini par l'API
+                      title: title,
+                      author: author,
+                      quantite: 0, // Quantité actuelle
+                      price: price,
+                      isbn: Number(isbn)
+                    };
+                    
+                    try {
+                      await incrementInventaire(nouveauLivre, quantiteAAjouter);
+                      setFormOpened(false);
+                      alert('Livre ajouté avec succès à l\'inventaire !');
+                    } catch (error) {
+                      console.error('Erreur lors de l\'ajout:', error);
+                      alert('Erreur lors de l\'ajout du livre');
+                    }
+                  }}
+                >
+                  ✅ Ajouter à l&apos;inventaire
+                </Button>
+              </div>
+            );
           }
           if (livre) {
             return (
@@ -774,6 +964,91 @@ useEffect(() => {
           }
           return null;
         })()}
+      </Modal>
+
+      {/* Modale de détails du livre */}
+      <Modal 
+        opened={detailOpened} 
+        onClose={() => setDetailOpened(false)} 
+        title="Détails du livre" 
+        centered 
+        size="md"
+      >
+        {selectedLivre && (
+          <div style={{ textAlign: 'center' }}>
+            {/* Image du livre */}
+            <div style={{ marginBottom: '20px' }}>
+              {selectedLivre.livre?.image ? (
+                <img 
+                  src={selectedLivre.livre.image} 
+                  alt={selectedLivre.title} 
+                  style={{ 
+                    width: '200px', 
+                    height: '250px', 
+                    objectFit: 'cover',
+                    borderRadius: '10px',
+                    boxShadow: '0 4px 8px rgba(0,0,0,0.2)'
+                  }} 
+                />
+              ) : (
+                <div style={{ 
+                  width: '200px', 
+                  height: '250px', 
+                  backgroundColor: '#f0f0f0',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '48px'
+                }}>
+                  📚
+                </div>
+              )}
+            </div>
+
+            {/* Informations du livre */}
+            <div style={{ textAlign: 'left' }}>
+              <Text size="xl" weight={700} mb="sm">
+                {selectedLivre.title}
+              </Text>
+              <Text size="lg" color="dimmed" mb="md">
+                👤 {selectedLivre.author}
+              </Text>
+              <Text size="md" mb="sm">
+                📖 ISBN: {selectedLivre.isbn}
+              </Text>
+              <Text size="md" mb="sm">
+                💰 Prix: {selectedLivre.price}€
+              </Text>
+              <Text size="md" mb="md">
+                📦 Quantité en stock: {selectedLivre.quantite} exemplaire{selectedLivre.quantite > 1 ? 's' : ''}
+              </Text>
+            </div>
+
+            {/* Boutons d'action */}
+            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '20px' }}>
+              <Button 
+                color="blue" 
+                onClick={() => {
+                  setIsbn(selectedLivre.isbn.toString());
+                  setDetailOpened(false);
+                  setTimeout(() => setFormOpened(true), 500);
+                }}
+              >
+                📱 Scanner ce livre
+              </Button>
+              <Button 
+                color="green" 
+                onClick={() => {
+                  setDetailOpened(false);
+                  // Ici vous pouvez ajouter d'autres actions
+                }}
+              >
+                ✅ Valider
+              </Button>
+            </div>
+          </div>
+        )}
       </Modal>
     </div>
   );
