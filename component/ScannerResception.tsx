@@ -1,8 +1,8 @@
 'use client';
 
 import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
-import { Button, Center, Group, Loader, Modal, Paper, Text, Textarea, TextInput } from '@mantine/core';
-import { IconBook, IconCamera, IconEdit } from '@tabler/icons-react';
+import { Button, Center, Loader, Modal, Paper, Text, Textarea, TextInput } from '@mantine/core';
+import { IconBook, IconCamera } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -94,7 +94,7 @@ export default function Resception() {
   };
 
   // Fonction pour valider un code choisi
-  const validateSelectedCode = (selectedCode: string) => {
+  const validateSelectedCode = async (selectedCode: string) => {
     console.log('🎯 Code sélectionné:', selectedCode);
     
     // Arrêter le scanner maintenant
@@ -107,7 +107,6 @@ export default function Resception() {
     const livre = inventaire.find(item => item.isbn.toString() === selectedCode.trim());
     
     if (livre) {
-      alert(`ISBN ${selectedCode} - ISBN existant !`);
       setEditedBooks([livre]);
       setAjouts({ [livre.id]: 0 });
       
@@ -371,6 +370,36 @@ export default function Resception() {
     );
   };
 
+  /*ajout dans l'inventaire si l'isbn est différent de l'isbn du livre*/
+  const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
+    try {
+      // Vérifie que nous avons les données nécessaires
+      if (!livre.isbn || !livre.livre_id) {
+        alert("ISBN ou livre_id manquant !");
+        return;
+      }
+
+      const res = await fetch('/api/isbn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          isbn: livre.isbn,
+          livre_id: livre.livre_id
+        }),
+      });
+
+      if (!res.ok) {
+        const error = await res.json();
+        throw new Error(error.message || 'Erreur lors de l\'ajout de l\'ISBN');
+      }
+
+      alert(`ISBN ${livre.isbn} ajouté avec succès pour le livre ID ${livre.livre_id} !`);
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur lors de l\'ajout de l\'ISBN');
+    }
+  }
+  /*ajout dans l'inventaire */
   const incrementInventaire = async (livre: InventaireItem, ajout: number) => {
     if (!ajout || ajout === 0) {
       alert("Veuillez saisir une quantité à ajouter supérieure à 0.");
@@ -382,6 +411,12 @@ export default function Resception() {
     }
     try {
       setLoading(true);
+
+      // Si l'ISBN est différent, on l'ajoute d'abord
+      if (livre.isbn.toString() !== inventaire.find(item => item.id === livre.id)?.isbn.toString()) {
+        await isbnDiférentAjoutLigne(livre);
+      }
+
       const res = await fetch('/api/ScannerResception', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -414,20 +449,7 @@ export default function Resception() {
     }
   };
 
-  const updateIsbn = async (id: number, livre_id: number, newIsbn: number, oldIsbn: number) => {
-    try {
-      const res = await fetch('/api/ScannerResception', {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ id, livre_id, newIsbn, oldIsbn }),
-      });
-      if (!res.ok) throw new Error('Erreur lors de la mise à jour de l\'ISBN');
-      alert('ISBN mis à jour avec succès !');
-    } catch (err) {
-      console.error('Erreur:', err);
-      alert('Erreur lors de la mise à jour de l\'ISBN');
-    }
-  };
+
 
   const filteredInventaire = inventaire.filter((item) =>
     (item.title ?? '').toLowerCase().includes(search.toLowerCase()) ||
@@ -532,7 +554,7 @@ export default function Resception() {
             </Button>
             <Button 
               className={commandeStyles.actionButton}
-              onClick={() => setFormOpened(true)}
+              onClick={() => setScannerOpened(true)}
             >
               ➕ Ajouter livre
             </Button>
@@ -860,12 +882,12 @@ export default function Resception() {
             <Paper key={book.id} shadow="xs" p="md" mb="md" withBorder>
               <TextInput label="Titre" value={book.title} readOnly mb="md" />
               <TextInput label="Auteur" value={book.author} readOnly mb="md" />
-              <Group gap="xs" mb="md">
-                <TextInput label="ISBN" value={book.isbn.toString()} onChange={e => handleIsbnChange(book.id, e.target.value)} style={{ flex: 1 }} />
-                <Button variant="subtle" color="blue" onClick={() => updateIsbn(book.id, book.livre_id, Number(book.isbn), book.isbn)} title="Mettre à jour l'ISBN" px={6}>
-                  <IconEdit size={20} />
-                </Button>
-              </Group>
+              <TextInput 
+                label="ISBN" 
+                value={book.isbn.toString()} 
+                onChange={e => handleIsbnChange(book.id, e.target.value)} 
+                mb="md"
+              />
               <TextInput label="Quantité" value={book.quantite} readOnly mb="md" />
               <TextInput label="Prix" value={book.price.toString()} readOnly mb="md" />
               <TextInput label="Quantité à ajouter" type="number" value={ajouts[book.id] ?? ''} onChange={e => handleAjoutChange(book.id, e.target.value)} mb="md" min={1} />

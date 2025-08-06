@@ -87,3 +87,4 @@ export async function PATCH(request: NextRequest) {
     );
   }
 }
+/* insersion dans la table isbn , le livre a le méme isbn que le livre dans la table livre */

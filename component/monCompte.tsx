@@ -1,8 +1,7 @@
 'use client';
-import { Button, Modal, Table, TextInput, Title } from '@mantine/core';
+import { Button, Modal, Table } from '@mantine/core';
 import { jwtDecode } from 'jwt-decode';
 import Image from 'next/image';
-import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import Webcam from 'react-webcam';
 import styles from './style/hom.module.css';
@@ -43,9 +42,13 @@ export default function UpdateProfile() {
   const [commandes, setCommandes] = useState<Commande[]>([]);
   const [commandeOpened, setCommandeOpened] = useState(false);
   const [avatarOpened, setAvatarOpened] = useState(false);
+  const [infoOpened, setInfoOpened] = useState(false);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const webcamRef = useRef<Webcam>(null);
   const [showWebcam, setShowWebcam] = useState(false);
+    const [livresVendus, setLivresVendus] = useState<any[]>([]);
+
+   
   type Profile = {
     id: string;
     name: string;
@@ -55,6 +58,7 @@ export default function UpdateProfile() {
     admin?: boolean;
   };
   const [userDetails, setUserDetails] = useState<Profile | null>(null);
+
 
   // Lire l'utilisateur connecté via le JWT
   useEffect(() => {
@@ -144,124 +148,214 @@ export default function UpdateProfile() {
     }
   }, [userId]);
 
+/*  Liste des commandes de l'utilisateur connecté */
+const listeCommandesUtilisateur = async () => {
+  const response = await fetch(`/api/commande`, { method: 'GET' });
+  const result = await response.json();
+  const commandesUtilisateur = (result.data || []).filter(
+    (commande: Commande) => commande.vendeur === user?.name
+  );
+  setLivresVendus(commandesUtilisateur);
+  setCommandeOpened(true);
+}
+
   return (
-    <div>
-      <Title order={2}>Information du compte</Title>
-      <div className={stylesCompte.containerCompte}>
-        {/* Colonne gauche : menu/avatar */}
-        <div className={stylesCompte.menuCompte}>
-          <button
-            type="button"
-            onClick={() => setAvatarOpened(true)}
-            className={stylesCompte.avatarButton}
-          >
+    <div className={stylesCompte.revolutStyle}>
+      {/* Header avec photo de profil et recherche */}
+
+
+      {/* Section montant principal */}
+      <div className={stylesCompte.revolutAmount}>
+        <div className={stylesCompte.revolutLabel}>{user?.name}</div>
+        <div className={stylesCompte.revolutValue}>
+          <Image
+            src={avatarPreview || user?.photo || '/img/avatar.png'}
+            alt="avatar"
+            width={80}
+            height={80}
+            style={{ 
+              borderRadius: '50%',
+              border: '3px solid #a259ff'
+            }}
+          />
+        </div>
+        <div className={stylesCompte.revolutQuickActions}>
+        <div   onClick={listeCommandesUtilisateur}  className={stylesCompte.quickAction}>
+          <span>➕</span>
+          <div className={stylesCompte.quickActionLabel}>Ajouter</div>
+        </div>
+
+         <div className={stylesCompte.quickAction}>
+           <div onClick={() => setInfoOpened(true)} className={stylesCompte.revolutdiv} >
+           <span>ℹ️</span>
+           <div className={stylesCompte.quickActionLabel}>Info</div>
+           </div>
+         </div>
+      </div>
+      </div>
+      {/* Actions rapides */}
+
+
+      {/* Liste des dernières commandes */}
+      <div className={stylesCompte.transactionsList}>
+        {commandes.map((commande) => (
+          <div key={commande.id} className={stylesCompte.transaction}>
+            <div className={stylesCompte.transactionIcon}>📚</div>
+            <div className={stylesCompte.transactionInfo}>
+              <div className={stylesCompte.transactionTitle}>{commande.title}</div>
+              <div className={stylesCompte.transactionTime}>
+                {commande.date_achat ? formatDateTimeParis(commande.date_achat).split('_')[1] : ''}
+              </div>
+            </div>
+            <div className={stylesCompte.transactionAmount}>
+              {commande.quantite}x
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Navbar en bas */}
+      {/* Navbar en haut */}
+     
+
+      {/* Modal pour changer l'avatar */}
+      <Modal opened={avatarOpened} onClose={() => setAvatarOpened(false)} title="Changer l'avatar" centered>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
+          {showWebcam ? (
+            <>
+              <Webcam
+                audio={false}
+                ref={webcamRef}
+                screenshotFormat="image/jpeg"
+                videoConstraints={{ facingMode: 'user' }}
+                style={{ width: 250, borderRadius: 8 }}
+              />
+              <Button mt="md" onClick={capture}>Prendre une photo</Button>
+              <Button mt="md" variant="outline" color="gray" onClick={() => setShowWebcam(false)}>
+                Annuler
+              </Button>
+            </>
+          ) : (
+            <>
+              <input
+                type="file"
+                accept="image/*"
+                capture="user"
+                onChange={e => {
+                  if (e.target.files && e.target.files[0]) {
+                    setAvatarPreview(URL.createObjectURL(e.target.files[0]));
+                  }
+                }}
+              />
+              <Button mt="md" onClick={() => setShowWebcam(true)}>
+                Ouvrir la caméra
+              </Button>
+            </>
+          )}
+          {avatarPreview && (
             <Image
-              src={avatarPreview || user?.photo || '/img/avatar.png'}
-              alt="avatar"
+              src={avatarPreview}
+              alt="Aperçu avatar"
               width={130}
               height={130}
               className={stylesCompte.avatarCompte}
             />
-            <div style={{ color: '#868e96', fontSize: 14, marginBottom: 24 }}>
-              Cliquez pour changer la photo
-            </div>
-          </button>
-          <div className={stylesCompte.menuLinks}>
-            <button className={`${stylesCompte.menuLink} active`}>Détails du compte</button>
-            <button className={stylesCompte.menuLink}>Adresse de livraison</button>
-            <button className={stylesCompte.menuLink}>Méthodes de paiement</button>
-          </div>
+          )}
         </div>
-        {/* Modale pour changer l'avatar */}
-        <Modal opened={avatarOpened} onClose={() => setAvatarOpened(false)} title="Changer l'avatar" centered>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-            {showWebcam ? (
-              <>
-                <Webcam
-                  audio={false}
-                  ref={webcamRef}
-                  screenshotFormat="image/jpeg"
-                  videoConstraints={{ facingMode: 'user' }}
-                  style={{ width: 250, borderRadius: 8 }}
-                />
-                <Button mt="md" onClick={capture}>Prendre une photo</Button>
-                <Button mt="md" variant="outline" color="gray" onClick={() => setShowWebcam(false)}>
-                  Annuler
-                </Button>
-              </>
-            ) : (
-              <>
-                <input
-                  type="file"
-                  accept="image/*"
-                  capture="user"
-                  onChange={e => {
-                    if (e.target.files && e.target.files[0]) {
-                      setAvatarPreview(URL.createObjectURL(e.target.files[0]));
-                    }
-                  }}
-                />
-                <Button mt="md" onClick={() => setShowWebcam(true)}>
-                  Ouvrir la caméra
-                </Button>
-              </>
-            )}
-            {avatarPreview && (
-              <Image
-                src={avatarPreview}
-                alt="Aperçu avatar"
-                width={130}
-                height={130}
-                className={stylesCompte.avatarCompte}
-              />
-            )}
-            {/* Ici tu pourras ajouter le bouton pour sauvegarder l'avatar */}
-          </div>
-        </Modal>
-        {/* Colonne droite : infos */}
-        <div className={stylesCompte.containerCompteInfo}>
-          <div className={stylesCompte.containerCompteInfoItem}>
-            <TextInput label="Name" value={userDetails?.name} readOnly className={stylesCompte.textInput} />
-            <TextInput label="Admin" value={userDetails?.admin === true ? 'oui' : 'non'} readOnly className={stylesCompte.textInput} />
-          </div>
-          <Link href="/">
-            <button className={stylesCompte.buttonCommande} onClick={handleLogout} style={{ marginLeft: 8 }}>
-              Déconnexion
-            </button>
-          </Link>
-          <button className={stylesCompte.buttonCommande} onClick={() => setCommandeOpened(true)}>
-            Voir mes commandes
-          </button>
-        </div>
-        <Modal opened={commandeOpened} onClose={() => setCommandeOpened(false)} title="Commandes" centered size="xxl">
-          <div className={styles.tableContainer}>
-            <Table.ScrollContainer minWidth={900} type="native">
-              <Table striped highlightOnHover withColumnBorders className={styles.tableModern}>
-                <Table.Thead>
-                  <Table.Tr>
-                    <Table.Th>Date</Table.Th>
-                    <Table.Th>Utilisateur</Table.Th>
-                    <Table.Th>title</Table.Th>
-                    <Table.Th>Quantité</Table.Th>
-                  </Table.Tr>
-                </Table.Thead>
-                <Table.Tbody>
-                  {commandes.map((commande) => (
-                    <Table.Tr key={commande.id + '-' + commande.title}>
-                      <Table.Td>
-                        {commande.date_achat ? formatDateTimeParis(commande.date_achat) : ''}
-                      </Table.Td>
-                      <Table.Td>{commande.vendeur}</Table.Td>
-                      <Table.Td>{commande.title}</Table.Td>
-                      <Table.Td>{commande.quantite}</Table.Td>
-                    </Table.Tr>
-                  ))}
-                </Table.Tbody>
-              </Table>
-            </Table.ScrollContainer>
-          </div>
-        </Modal>
-      </div>
+      </Modal>
+
+             {/* Modal des commandes */}
+       <Modal opened={commandeOpened} onClose={() => setCommandeOpened(false)} title="Mes Commandes" centered size="xl">
+         <div className={styles.tableContainer}>
+           <Table.ScrollContainer minWidth={900} type="native">
+             <Table striped highlightOnHover withColumnBorders className={styles.tableModern}>
+               <Table.Thead>
+                 <Table.Tr>
+                   <Table.Th>Date</Table.Th>
+                   <Table.Th>Utilisateur</Table.Th>
+                   <Table.Th>Titre</Table.Th>
+                   <Table.Th>Quantité</Table.Th>
+                 </Table.Tr>
+               </Table.Thead>
+               <Table.Tbody>
+                 {livresVendus.map((commande) => (
+                   <Table.Tr key={commande.id + '-' + commande.title}>
+                     <Table.Td>
+                       {commande.date_achat ? formatDateTimeParis(commande.date_achat) : ''}
+                     </Table.Td>
+                     <Table.Td>{commande.vendeur}</Table.Td>
+                     <Table.Td>{commande.title}</Table.Td>
+                     <Table.Td>{commande.quantite}</Table.Td>
+                   </Table.Tr>
+                 ))}
+               </Table.Tbody>
+             </Table>
+           </Table.ScrollContainer>
+         </div>
+       </Modal>
+
+       {/* Modal des informations du compte */}
+       <Modal style={{ backgroundColor: 'transparent' }} opened={infoOpened} onClose={() => setInfoOpened(false)} title="Informations du Compte" centered>
+         <div style={{ padding: '20px' }}>
+           <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px' }}>
+             <Image
+               src={avatarPreview || user?.photo || '/img/avatar.png'}
+               alt="avatar"
+               width={80}
+               height={80}
+               style={{ borderRadius: '50%' }}
+             />
+             <div>
+               <h3 style={{ margin: '0 0 10px 0', color: '#333' }}>{user?.name}</h3>
+               <p style={{ margin: '0', color: '#666' }}>ID: {user?.id}</p>
+               <p style={{ margin: '0', color: '#666' }}>
+                 Statut: {user?.admin ? 'Administrateur' : 'Utilisateur'}
+               </p>
+             </div>
+           </div>
+           <div className={stylesCompte.moncomptedetail}>
+             <h4 className={stylesCompte.moncomptedetailh4}>Détails du compte</h4>
+             <div className={stylesCompte.moncomptedetaildiv}>
+               <div className={stylesCompte.moncomptedetaildivspan}>
+                 <span className={stylesCompte.moncomptedetailspan}>Nom:</span>
+                 <span>{userDetails?.name || user?.name}</span>
+               </div>
+               <div className={stylesCompte.moncomptedetaildivspan}>
+                 <span className={stylesCompte.moncomptedetailspan}>Admin:</span>
+                 <span>{user?.admin ? 'Oui' : 'Non'}</span>
+               </div>
+               <div className={stylesCompte.moncomptedetaildivspan}>
+                 <span className={stylesCompte.moncomptedetailspan}>Commandes:</span>
+                 <span>{commandes.length}</span>
+               </div>
+               {userDetails?.updated_at && (
+                 <div className={stylesCompte.moncomptedetaildivspan}>
+                   <span className={stylesCompte.moncomptedetailspan}>Dernière mise à jour:</span>
+                   <span>{formatDateTimeParis(userDetails.updated_at)}</span>
+                 </div>
+               )}
+             </div>
+           </div>
+           
+           <div className={stylesCompte.moncomptedetailbutton}>
+             <Button 
+               onClick={handleLogout} 
+               variant="outline" 
+               color="red"
+               className={stylesCompte.moncomptedetailbutton}
+             >
+               Déconnexion
+             </Button>
+             <Button 
+               onClick={() => setAvatarOpened(true)} 
+               variant="outline"
+               className={stylesCompte.moncomptedetailbutton}
+             >
+               Changer Photo
+             </Button>
+           </div>
+         </div>
+       </Modal>
     </div>
   );
 }

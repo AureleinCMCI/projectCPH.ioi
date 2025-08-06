@@ -1,146 +1,279 @@
-
-
-.containerCompte {
-  display: flex;
-  min-height: 540px;
-  background: #fff;
-  border-radius: 18px;
-  box-shadow: 0 4px 24px #0001;
-  overflow: hidden;
-  margin-top: 32px;
+.revolutStyle {
+  min-height: 100vh;
+  background: linear-gradient(180deg, #7F3FBF 0%, #1a1a1a 50%);
+  color: white;
+  padding: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+  padding-top: 80px; /* Espace pour la navbar en haut */
 }
 
-.menuCompte {
-  background: #f7fafd;
-  width: 270px;
+/* Sur mobile : pas de marges */
+.revolutHeader,
+.revolutAmount,
+.revolutQuickActions {
+  padding-left: 0;
+  padding-right: 0;
+}
+
+/* Sur desktop : version app-like */
+@media (min-width: 768px) {
+  .revolutStyle {
+    width: 390px; /* Largeur d'un iPhone standard */
+    max-width: 390px;
+    border-radius: 20px;
+    margin: 20px auto;
+    box-shadow: 0 0 20px rgba(0,0,0,0.3);
+    padding: 0;
+  }
+}
+
+.revolutHeader {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  padding: 40px 0 0 0;
-  border-top-left-radius: 18px;
-  border-bottom-left-radius: 18px;
-  min-height: 540px;
+  gap: 12px;
+  margin-bottom: 32px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  margin: 0;
+  padding-top: 16px; /* Espace réduit car navbar en haut */
 }
 
-.avatarCompte {
-  width: 130px;
-  height: 130px;
-  border-radius: 50%;
-  object-fit: cover;
-  margin-bottom: 10px;
-  cursor: pointer;
-  border: 4px solid #e3e8f0;
-  box-shadow: 0 2px 8px #0001;
-  transition: box-shadow 0.2s, border 0.2s;
-}
-.avatarCompte:hover {
-  box-shadow: 0 4px 16px #1971c233;
-  border: 4px solid #1971c2;
-}
-
-.menuLinks {
-  margin-top: 32px;
-  width: 85%;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.menuLink {
+.avatarButtonSmall {
   background: none;
   border: none;
-  color: #495057;
-  font-weight: 500;
-  text-align: left;
-  padding: 10px 18px 10px 36px;
-  border-radius: 8px;
+  padding: 0;
   cursor: pointer;
-  font-size: 16px;
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  transition: background 0.2s, color 0.2s;
-  position: relative;
-}
-.menuLink:not(.active):hover {
-  background: #e3e8f0;
-  color: #1971c2;
-}
-.menuLink.active {
-  background: #e3e8f0;
-  color: #1971c2;
-}
-.menuLink svg {
-  font-size: 18px;
-  margin-right: 8px;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
 }
 
-.containerCompteInfo {
+.avatarCompteSmall {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.searchInput {
   flex: 1;
-  padding: 48px 48px 48px 48px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+}
+
+.revolutAmount {
+  text-align: center;
+  margin-bottom: 24px;
+  padding: 20px 0;
+}
+
+.revolutLabel {
+  font-size: 14px;
+  opacity: 0.7;
+  margin-top: 10px;
+}
+
+.revolutValue {
+  font-size: 42px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.revolutButton {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border: none !important;
+  color: white !important;
+  padding: 8px 24px !important;
+  border-radius: 20px !important;
+  font-size: 14px !important;
+}
+
+/* Actions comme dans Revolut */
+.revolutQuickActions {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 32px;
+  padding: 0 16px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+@media (max-width: 360px) {
+  .revolutQuickActions {
+    padding: 0 8px;
+    gap: 8px;
+  }
+}
+
+.quickAction {
   display: flex;
   flex-direction: column;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 50%;
+  width: 56px;
+  height: 56px;
   justify-content: center;
+  color: white;
 }
 
-.containerCompteInfoItem {
-  display: flex;
-  gap: 24px;
-  margin-bottom: 24px;
-}
-
-.textInput {
-  width: 100%;
-  background: #f4f7fa;
-  border-radius: 10px;
-  border: 1px solid #e3e8f0;
-  font-size: 16px;
-  margin-bottom: 18px;
-}
-
-.textInput input {
-  background: #f4f7fa;
-  border: none;
-  border-radius: 10px;
-  font-size: 16px;
-}
-
-.textInput label {
-  font-size: 13px;
-  color: #868e96;
+.quickActionIcon {
+  font-size: 24px;
   margin-bottom: 4px;
 }
 
-.buttonCommande, .updateButton {
-  margin-top: 24px;
-  background: #228be6;
-  color: #fff;
-  border: none;
-  border-radius: 10px;
-  padding: 12px 32px;
-  font-weight: 600;
-  font-size: 17px;
-  cursor: pointer;
-  box-shadow: 0 2px 8px #1971c233;
-  transition: background 0.2s, box-shadow 0.2s;
-}
-.buttonCommande:hover, .updateButton:hover {
-  background: #1971c2;
-  box-shadow: 0 4px 16px #1971c233;
+.quickActionLabel {
+  font-size: 12px;
+  opacity: 0.8;
+  margin-top: 8px;
+  text-align: center;
 }
 
-@media (max-width: 900px) {
-  .containerCompte {
-    flex-direction: column;
-    min-width: 0;
+/* Liste des transactions */
+.transactionsList {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 0;
+  margin: 0;
+  overflow: hidden;
+  max-height: calc(100vh - 400px);
+  overflow-y: auto;
+}
+
+@media (max-height: 700px) {
+  .transactionsList {
+    max-height: calc(100vh - 350px);
   }
-  .menuCompte {
-    width: 100%;
-    border-radius: 18px 18px 0 0;
-    min-height: unset;
-    padding-bottom: 24px;
+}
+
+/* Style de la scrollbar pour la liste */
+.transactionsList::-webkit-scrollbar {
+  width: 6px;
+}
+
+.transactionsList::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.transactionsList::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.transaction {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.transactionIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  font-size: 20px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.transactionInfo {
+  flex: 1;
+}
+
+.transactionTitle {
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.transactionTime {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.transactionAmount {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* Navbar en haut */
+.revolutNavbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100vw;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(10px);
+  padding: 16px 8px;
+  display: flex;
+  justify-content: space-around;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 1000;
+}
+
+@supports (padding-top: env(safe-area-inset-top)) {
+  .revolutNavbar {
+    padding-top: calc(env(safe-area-inset-top) + 16px);
   }
-  .containerCompteInfo {
-    padding: 32px 16px;
-  }
+}
+
+.revolutNavbar a {
+  color: white;
+  text-decoration: none;
+  opacity: 0.7;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.revolutNavbar a:hover {
+  opacity: 1;
+}
+/* Détails du compte */
+.moncomptedetail{
+  background-color: transparent !important;
+  border-top: 1px solid #eee;
+  padding-top: 20px;
+}
+
+.moncomptedetailh4{
+  background-color: transparent !important;
+  color: #333;
+  margin: 0 0 15px 0;
+}
+
+.moncomptedetaildiv{
+  background-color: transparent !important;
+  display: grid;
+  gap: 10px;
+}
+
+.moncomptedetaildivspan{
+  background-color: transparent !important;
+  display: flex;
+  justify-content: space-between;
+}
+
+.moncomptedetailspan{
+  background-color: transparent !important;
+  font-weight: bold;
+}
+
+.moncomptedetailbutton{
+  background-color: transparent !important;
+  margin-top: 20px;
+  text-align: center;
 }
