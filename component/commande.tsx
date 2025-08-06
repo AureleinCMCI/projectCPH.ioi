@@ -957,6 +957,7 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
                   onClick={async () => {
                     await decrementInventaire(livre, supprimer);
                     await ajouterCommande(livre, supprimer);
+                   alert('cela vous a couté ' + supprimer * livre.price + '€');
                   }}
                   className={isMobile ? styles.iosModalButton : ''}
                 >
