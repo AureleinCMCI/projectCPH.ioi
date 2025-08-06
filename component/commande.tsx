@@ -244,6 +244,7 @@ useEffect(() => {
   useEffect(() => {
     if (scannerOpened && scannerReady && scannerRef.current) {
       console.log(`Scanner ${scannerType} prêt à être utilisé`);
+      
       if (scannerType === 'html5') {
         // ANDROID/DESKTOP : html5-qrcode
         const html5QrcodeScanner = new Html5QrcodeScanner(
@@ -257,8 +258,10 @@ useEffect(() => {
           },
           false
         );
+
         html5QrcodeScanner.render(handleScan, handleError);
         setScanner(html5QrcodeScanner);
+
         return () => {
           if (html5QrcodeScanner) {
             html5QrcodeScanner.clear();
@@ -775,11 +778,11 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
       )}
 
       {/* Modal des commandes */}
-      <Modal opened={commandeOpened} onClose={() => setCommandeOpened(false)} title="Commandes" centered size="xxl">
+      <Modal opened={commandeOpened} onClose={() => setCommandeOpened(false)} title="Commandes" centered size="sm">
         <Button onClick={downloadCSV}>Télécharger en CSV</Button>
-        <div className={styles.tableContainer}>
-          <Table.ScrollContainer minWidth={900} type="native">
-            <Table striped highlightOnHover withColumnBorders className={styles.tableModern}>
+          <div className={styles.tableContainer} style={{ maxWidth: '500px', maxHeight: '300px' }}>
+            <Table.ScrollContainer minWidth={200} type="native">
+            <Table striped highlightOnHover withColumnBorders>
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Date</Table.Th>
@@ -972,34 +975,34 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
         onClose={() => setDetailOpened(false)} 
         title="Détails du livre" 
         centered 
-        size="md"
+        size="xs"
       >
         {selectedLivre && (
-          <div style={{ textAlign: 'center' }}>
+          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             {/* Image du livre */}
-            <div style={{ marginBottom: '20px' }}>
+            <div style={{ marginBottom: '15px' }}>
               {selectedLivre.livre?.image ? (
                 <img 
                   src={selectedLivre.livre.image} 
                   alt={selectedLivre.title} 
                   style={{ 
-                    width: '200px', 
-                    height: '250px', 
+                    width: '120px', 
+                    height: '150px', 
                     objectFit: 'cover',
-                    borderRadius: '10px',
-                    boxShadow: '0 4px 8px rgba(0,0,0,0.2)'
+                    borderRadius: '8px',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
                   }} 
                 />
               ) : (
                 <div style={{ 
-                  width: '200px', 
-                  height: '250px', 
+                  width: '120px', 
+                  height: '150px', 
                   backgroundColor: '#f0f0f0',
-                  borderRadius: '10px',
+                  borderRadius: '8px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  fontSize: '48px'
+                  fontSize: '32px'
                 }}>
                   📚
                 </div>
@@ -1007,44 +1010,43 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
             </div>
 
             {/* Informations du livre */}
-            <div style={{ textAlign: 'left' }}>
-              <Text size="xl" weight={700} mb="sm">
+            <div style={{ 
+              textAlign: 'left', 
+              backgroundColor: '#1a1a1a', 
+              padding: '20px', 
+              borderRadius: '10px',
+              color: 'white'
+            }}>
+              <Text size="xl" fw={700} mb="sm" c="white">
                 {selectedLivre.title}
               </Text>
-              <Text size="lg" color="dimmed" mb="md">
+              <Text size="lg" c="white" mb="md">
                 👤 {selectedLivre.author}
               </Text>
-              <Text size="md" mb="sm">
+              <Text size="md" c="white" mb="sm">
                 📖 ISBN: {selectedLivre.isbn}
               </Text>
-              <Text size="md" mb="sm">
+              <Text size="md" c="white" mb="sm">
                 💰 Prix: {selectedLivre.price}€
               </Text>
-              <Text size="md" mb="md">
+              <Text size="md" c="white" mb="md">
                 📦 Quantité en stock: {selectedLivre.quantite} exemplaire{selectedLivre.quantite > 1 ? 's' : ''}
               </Text>
             </div>
 
             {/* Boutons d'action */}
-            <div style={{ display: 'flex', gap: '10px', justifyContent: 'center', marginTop: '20px' }}>
+            <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '15px' }}>
               <Button 
+                size="sm"
                 color="blue" 
                 onClick={() => {
                   setIsbn(selectedLivre.isbn.toString());
+                  setSupprimer(1);
                   setDetailOpened(false);
                   setTimeout(() => setFormOpened(true), 500);
                 }}
               >
-                📱 Scanner ce livre
-              </Button>
-              <Button 
-                color="green" 
-                onClick={() => {
-                  setDetailOpened(false);
-                  // Ici vous pouvez ajouter d'autres actions
-                }}
-              >
-                ✅ Valider
+                vendre
               </Button>
             </div>
           </div>

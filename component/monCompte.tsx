@@ -46,7 +46,7 @@ export default function UpdateProfile() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
   const webcamRef = useRef<Webcam>(null);
   const [showWebcam, setShowWebcam] = useState(false);
-    const [livresVendus, setLivresVendus] = useState<any[]>([]);
+    const [livresVendus, setLivresVendus] = useState<Commande[]>([]);
 
    
   type Profile = {
