@@ -34,6 +34,14 @@ export default function Resception() {
 
   const [isbn, setIsbn] = useState('');
   const [showPopover, setShowPopover] = useState(false);
+  
+  // États pour la popup d'incrémentation (comme dans commande.tsx)
+  const [incrementModalOpened, setIncrementModalOpened] = useState(false);
+  const [quantiteToAdd, setQuantiteToAdd] = useState<number>(1);
+
+  // États pour la modale de détails du livre (nouvelle fonctionnalité)
+  const [bookDetailsModalOpened, setBookDetailsModalOpened] = useState(false);
+  const [selectedBook, setSelectedBook] = useState<InventaireItem | null>(null);
 
   // Ajouter un nouvel état pour la liste des codes scannés
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
@@ -64,6 +72,41 @@ export default function Resception() {
     };
     
     detectMobileAndScanner();
+  }, []);
+
+  // Vérifier l'ISBN en attente et ouvrir automatiquement le formulaire
+  useEffect(() => {
+    const checkPendingIsbn = () => {
+      const storedIsbn = localStorage.getItem('pendingIsbn');
+      const autoOpenForm = localStorage.getItem('autoOpenForm');
+      
+      if (storedIsbn) {
+        setIsbn(storedIsbn);
+        setFormData(prev => ({ ...prev, isbn: storedIsbn }));
+        localStorage.removeItem('pendingIsbn'); // Nettoyer
+        localStorage.removeItem('autoOpenForm'); // Nettoyer
+        console.log('📚 ISBN en attente détecté:', storedIsbn);
+        
+        // Si autoOpenForm est true, ouvrir automatiquement le formulaire
+        if (autoOpenForm === 'true') {
+          console.log('🚀 Ouverture automatique du formulaire d\'ajout');
+          setTimeout(() => setFormOpened(true), 1000); // Délai pour laisser la page se charger
+        }
+      }
+
+      // Vérifier le statut admin
+      const token = localStorage.getItem('jwt');
+      if (token) {
+        try {
+          const userData = jwtDecode<{ id: string; name: string; admin?: boolean }>(token);
+          console.log('👤 Statut admin:', userData.admin);
+        } catch {
+          console.log('👤 Statut admin: non défini');
+        }
+      }
+    };
+
+    checkPendingIsbn();
   }, []);
 
   // Gestionnaires pour html5-qrcode
@@ -97,7 +140,6 @@ export default function Resception() {
     
     // Arrêter le scanner maintenant
     if (scannerType === 'quagga' || scannerType === 'html5') {
-
       Quagga.stop();
     }
     
@@ -105,15 +147,17 @@ export default function Resception() {
     const livre = inventaire.find(item => item.isbn.toString() === selectedCode.trim());
     
     if (livre) {
-      setEditedBooks([livre]);
-      setAjouts({ [livre.id]: 0 });
+      // ✅ ISBN trouvé : ouvrir la popup d'incrémentation
+      setIsbn(livre.isbn.toString());
+      setQuantiteToAdd(1);
       
       setScannerOpened(false);
       setShowCodesList(false);
       setScannedCodes([]);
       
-      setTimeout(() => setDetailsOpened(true), 500);
+      setTimeout(() => setIncrementModalOpened(true), 500);
     } else {
+      // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout
       alert(`ISBN ${selectedCode} - Livre pas en stock !`);
       setFormData(prev => ({ ...prev, isbn: selectedCode }));
       
@@ -317,18 +361,23 @@ export default function Resception() {
         }),
       });
 
-      alert("Livre, inventaire et réception ajoutés avec succès !");
-      setFormOpened(false);
-      setFormData({  title: '',   author: '', price: '',  quantite: '',   isbn: '',   description: '',  image: '', livre_id: '', livre_title: '',  name_user: '',   info: '',  user_id: '', date_reception: '' });
-      setResult('');
-      setCapturedImage('');
+             alert("Livre, inventaire et réception ajoutés avec succès !");
+       setFormOpened(false);
+       setFormData({  title: '',   author: '', price: '',  quantite: '',   isbn: '',   description: '',  image: '', livre_id: '', livre_title: '',  name_user: '',   info: '',  user_id: '', date_reception: '' });
+       setResult('');
+       setCapturedImage('');
 
-      // Rafraîchir l'inventaire après ajout
-      setLoading(true);
-      const response = await fetch('/api/inventaire', { method: 'GET' });
-      const result = await response.json();
-      setInventaire(result.data || []);
-      setLoading(false);
+       // Rafraîchir l'inventaire après ajout
+       setLoading(true);
+       const response = await fetch('/api/inventaire', { method: 'GET' });
+       const result = await response.json();
+       setInventaire(result.data || []);
+       setLoading(false);
+
+       // Rediriger vers la page commande après ajout réussi
+       setTimeout(() => {
+         window.location.href = '/commande';
+       }, 1000); // Délai de 1 seconde pour laisser le temps de voir le message de succès
 
     } catch (error) {
       console.error('Erreur:', error);
@@ -512,12 +561,12 @@ export default function Resception() {
     
     // Décider automatiquement
     if (livreFound) {
-      alert(`✅ Livre trouvé : ${livreFound.title}`);
-      setEditedBooks([livreFound]);
-      setAjouts({ [livreFound.id]: 0 });
-      setTimeout(() => setDetailsOpened(true), 500);
+      // ✅ ISBN trouvé : ouvrir la popup d'incrémentation (comme dans commande.tsx)
+      setIsbn(livreFound.isbn.toString());
+      setQuantiteToAdd(1); // Initialiser la quantité à ajouter
+      setTimeout(() => setIncrementModalOpened(true), 500); // Ouvre la popup d'incrémentation
     } else {
-      alert(`❌ Aucun livre trouvé en stock`);
+      // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout
       setFormData(prev => ({ ...prev, isbn: scannedCodes[0] || '' }));
       setTimeout(() => setFormOpened(true), 500);
     }
@@ -564,8 +613,16 @@ export default function Resception() {
           </Center>
         ) : (
           filteredInventaire.map((item) => (
-            <div key={item.id} className={styles.transaction}>
-              <div className={styles.transactionIcon}>📚</div>
+            <div 
+              key={item.id} 
+              className={styles.transaction}
+              onClick={() => {
+                setSelectedBook(item);
+                setBookDetailsModalOpened(true);
+              }}
+              style={{ cursor: 'pointer' }}
+            >
+              <div className={styles.transactionIcon}>{item.livre?.image ? <img src={item.livre.image} alt="image" style={{width: '50px', height: '50px'}} /> : '📚'}</div>
               <div className={styles.transactionInfo}>
                 <div className={styles.transactionTitle}>{item.title}</div>
                 <div className={styles.transactionTime}>
@@ -593,7 +650,7 @@ export default function Resception() {
               <Text className={scannerStyles.scannerTitle}>
                 📱 Scanner ISBN
               </Text>
-              <Button onClick={() => setScannerOpened(false)}  variant="filled"   color="red"size="sm"  >
+              <Button onClick={() => setScannerOpened(false)}  variant="filled"   color="red"size="sm" style={{marginTop: '100px',}} >
                 ✕ Fermer
               </Button>
             </div>
@@ -666,7 +723,7 @@ export default function Resception() {
                         fontWeight: 'bold'
                       }}
                     >
-                      ✅ VALIDER TOUS LES CODES
+                      ✅ Valdier
                     </Button>
                     
                     <Button 
@@ -687,12 +744,6 @@ export default function Resception() {
             
             {/* Panneau d'informations en bas */}
             <div className={scannerStyles.infoPanel}>
-              {/* <div className={styles.statusContainer}>
-                <div className={`${styles.statusBadge} ${result ? styles.statusBadgeSuccess : ''}`}>
-                  {result ? `📚 ISBN: ${result}` : '🔍 Visez le code-barres'}
-                </div> */}
-              {/* </div> */}
-              
               <div className={scannerStyles.controlsContainer}>
                 <TextInput
                   placeholder="ISBN manuel"
@@ -700,11 +751,38 @@ export default function Resception() {
                   onChange={(e) => setIsbn(e.target.value)}
                   className={scannerStyles.isbnInput}
                   styles={{
-                    input: { backgroundColor: 'white', color: 'black' }
+                    input: { 
+                      backgroundColor: 'white', 
+                      color: 'black',
+                      fontSize: '16px', // Empêche le zoom sur iOS
+                      transform: 'scale(1)', // Force la taille
+                      minHeight: '44px' // Taille minimale recommandée pour iOS
+                    }
                   }}
                 />
                 <Button 
-                  onClick={() => {setScannerOpened(false);setFormOpened(true);}} disabled={!isbn}color="green"size="md">
+                  onClick={() => {
+                    if (isbn.trim()) {
+                      // Vérifier si l'ISBN existe dans l'inventaire
+                      const livre = inventaire.find(item => item.isbn.toString() === isbn.trim());
+                      
+                      if (livre) {
+                        // ✅ ISBN trouvé : ouvrir la popup d'incrémentation
+                        setQuantiteToAdd(1);
+                        setTimeout(() => setIncrementModalOpened(true), 500);
+                      } else {
+                        // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout
+                        setFormData(prev => ({ ...prev, isbn: isbn }));
+                        setTimeout(() => setFormOpened(true), 500);
+                      }
+                    } else {
+                      alert("Veuillez saisir un ISBN");
+                    }
+                  }}
+                  disabled={!isbn}
+                  color="green"
+                  size="md"
+                >
                   ✓ Valider
                 </Button>
               </div>
@@ -714,7 +792,7 @@ export default function Resception() {
       )}
 
       {/* Formulaire d'ajout */}
-      <Modal 
+      <Modal style={{height: '400px', zIndex: 1000}}
         opened={formOpened} 
         onClose={() => setFormOpened(false)} 
         title="Ajouter ou incrémenter un livre" 
@@ -723,17 +801,18 @@ export default function Resception() {
       >
         <form onSubmit={handleFormSubmit} style={{ 
           width: isMobile ? '100%' : '600px', 
-          maxWidth: '90vw', 
+          height: '450px',
           margin: '0 auto' 
         }} className={isMobile ? styles.iosModalContent : ''}>
           <TextInput 
             label="ISBN" 
-            name="isbn" 
+            name="isbn"
             value={formData.isbn} 
             onChange={handleFormChange} 
             required 
-            mb="sm"
-            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+            mb="sx"
+            classNames={isMobile ? { input: styles.iosModalInput } : undefined} 
+            style={{fontSize: '10px', width: '205px'}}
           />
           <TextInput 
             label="Titre du livre" 
@@ -743,6 +822,7 @@ export default function Resception() {
             required 
             mb="sm" 
             classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+            style={{fontSize: '10px',}}
           />
           <TextInput 
             label="Auteur" 
@@ -752,6 +832,7 @@ export default function Resception() {
             required 
             mb="sm" 
             classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+            style={{fontSize: '10px',}}
           />
           <Textarea 
             label="Description" 
@@ -761,6 +842,7 @@ export default function Resception() {
             minRows={1} 
             mb="sm" 
             classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+            style={{fontSize: '10px',}}
           />
           <TextInput 
             label="Prix" 
@@ -770,6 +852,7 @@ export default function Resception() {
             required 
             mb="sm" 
             classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+            style={{fontSize: '10px',}}
           />
           <TextInput 
             label="Quantité" 
@@ -779,14 +862,16 @@ export default function Resception() {
             required 
             mb="sm"
             classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+            style={{fontSize: '10px',}}
           />
-          <Button 
-            mt="sm" 
-            onClick={e => { e.preventDefault(); setShowCamera(true); }}
-            className={isMobile ? styles.iosModalButton : ''}
-          >
-            Prendre une photo
-          </Button>
+          <center>
+            <Button  mt="sm"  onClick={e => { e.preventDefault(); setShowCamera(true); }}   className={isMobile ? styles.iosModalButton : ''} style={{fontSize: '10px',}}  >
+              prendre photo
+            </Button>
+            <Button  mt="sm"   type="submit"   className={isMobile ? styles.iosModalButton : ''} style={{fontSize: '10px', marginLeft: '10px'}} >
+             Ajouter le livre
+            </Button>
+            </center>
           {showCamera && (
             <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <video ref={videoRef} autoPlay style={{ width: 320, height: 240, borderRadius: 12, background: '#000' }} />
@@ -810,26 +895,18 @@ export default function Resception() {
             </div>
           )}
           <Center h={100}>
-            <Button 
-              mt="sm" 
-              type="submit"
-              className={isMobile ? styles.iosModalButton : ''}
-            >
-              Ajouter / Incrémenter
-            </Button>
           </Center>
         </form>
       </Modal>
 
       {/* Modal détails des livres sélectionnés */}
-      <Modal opened={detailsOpened} onClose={() => setDetailsOpened(false)} title="Informations du ou des livres sélectionnés" size="xl" centered>
+      <Modal opened={detailsOpened} onClose={() => setDetailsOpened(false)} title="ajouté un livre sélectionné" size="xl" centered>
         {editedBooks.length === 0 ? (
           <Text>Aucun livre sélectionné.</Text>
         ) : (
           editedBooks.map(book => (
             <Paper key={book.id} shadow="xs" p="md" mb="md" withBorder>
               <TextInput label="Titre" value={book.title} readOnly mb="md" />
-              <TextInput label="Auteur" value={book.author} readOnly mb="md" />
               <TextInput 
                 label="ISBN" 
                 value={book.isbn.toString()} 
@@ -837,11 +914,12 @@ export default function Resception() {
                 mb="md"
               />
               <TextInput label="Quantité" value={book.quantite} readOnly mb="md" />
-              <TextInput label="Prix" value={book.price.toString()} readOnly mb="md" />
               <TextInput label="Quantité à ajouter" type="number" value={ajouts[book.id] ?? ''} onChange={e => handleAjoutChange(book.id, e.target.value)} mb="md" min={1} />
-              <Button mt="md" onClick={() => incrementInventaire(book, ajouts[book.id] || 0)}>
-                Valider (incrémenter la quantité)
-              </Button>
+              <center>  
+                <Button mt="md" onClick={() => incrementInventaire(book, ajouts[book.id] || 0)}>
+                  valide
+                </Button>
+              </center>
             </Paper>
           ))
         )}
@@ -896,6 +974,196 @@ export default function Resception() {
           </div>
         </div>
       )}
+
+      {/* Modal d'incrémentation (comme dans commande.tsx) */}
+      <Modal 
+        opened={incrementModalOpened} 
+        onClose={() => { setIncrementModalOpened(false); setQuantiteToAdd(1); }} 
+        title="Incrémenter l'inventaire" 
+        centered 
+        size={isMobile ? "xs" : "md"}
+      >
+        {(() => {
+          const livre = inventaire.find(item => item.isbn.toString() === isbn.trim());
+          if (livre) {
+            return (
+              <div style={{ width: 400, maxWidth: '80vw', margin: '0 auto' }}>
+                <Text color="green" ta="center" size="lg" mb="xl">
+                  📚 Livre trouvé - Incrémenter l&apos;inventaire
+                </Text>
+                
+                <TextInput 
+                  label="ISBN" 
+                  value={livre.isbn} 
+                  readOnly 
+                  mb="sm"
+                />
+                
+                <TextInput 
+                  label="Titre du livre" 
+                  value={livre.title} 
+                  readOnly 
+                  mb="sm"
+                />
+                
+                <TextInput 
+                  label="Auteur" 
+                  value={livre.author} 
+                  readOnly 
+                  mb="sm"
+                />
+                
+                <TextInput 
+                  label="Prix" 
+                  value={livre.price} 
+                  readOnly 
+                  mb="sm"
+                />
+                
+                <TextInput 
+                  label="Quantité actuelle" 
+                  value={livre.quantite} 
+                  readOnly 
+                  mb="md"
+                />
+                
+                <TextInput 
+                  label="Quantité à ajouter" 
+                  type="number"
+                  min={1}
+                  value={quantiteToAdd}
+                  onChange={(e) => setQuantiteToAdd(Number(e.target.value))}
+                  placeholder="Nombre d'exemplaires à ajouter"
+                  mb="md"
+                />
+                
+                <Button
+                  color="green"
+                  fullWidth
+                  onClick={async () => {
+                    if (quantiteToAdd <= 0) {
+                      alert('Veuillez saisir une quantité supérieure à 0');
+                      return;
+                    }
+                    
+                                         try {
+                       await incrementInventaire(livre, quantiteToAdd);
+                       setIncrementModalOpened(false);
+                       alert(`Quantité du livre "${livre.title}" incrémentée de ${quantiteToAdd} !`);
+                     } catch (error) {
+                       console.error('Erreur lors de l&apos;incrémentation:', error);
+                       alert('Erreur lors de l&apos;incrémentation');
+                     }
+                  }}
+                >
+                  ✅ Incrémenter l&apos;inventaire
+                </Button>
+              </div>
+            );
+          }
+          return (
+            <Text color="red" ta="center">
+              ❌ Livre non trouvé
+            </Text>
+          );
+        })()}
+      </Modal>
+
+      {/* Modal de détails du livre (nouvelle fonctionnalité) */}
+      <Modal 
+        opened={bookDetailsModalOpened} 
+        onClose={() => { 
+          setBookDetailsModalOpened(false); 
+          setSelectedBook(null); 
+        }} 
+        title="Détails du livre" 
+        centered 
+        size={isMobile ? "xs" : "md"}
+      >
+        {selectedBook && (
+          <div style={{ width: 400, maxWidth: '80vw', margin: '0 auto' }}>
+            <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+              {selectedBook.livre?.image ? (
+                <img 
+                  src={selectedBook.livre.image} 
+                  alt="Couverture du livre" 
+                  style={{ 
+                    width: '120px', 
+                    height: '160px', 
+                    objectFit: 'cover',
+                    borderRadius: '8px',
+                    boxShadow: '0 4px 8px rgba(0,0,0,0.1)'
+                  }} 
+                />
+              ) : (
+                <div style={{ 
+                  width: '120px', 
+                  height: '160px', 
+                  backgroundColor: '#f0f0f0',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '48px',
+                  margin: '0 auto'
+                }}>
+                  📚
+                </div>
+              )}
+            </div>
+            
+            <TextInput 
+              label="ISBN" 
+              value={selectedBook.isbn} 
+              readOnly 
+              mb="sm"
+            />
+            
+            <TextInput 
+              label="Titre du livre" 
+              value={selectedBook.title} 
+              readOnly 
+              mb="sm"
+            />
+            
+            <TextInput 
+              label="Auteur" 
+              value={selectedBook.author} 
+              readOnly 
+              mb="sm"
+            />
+            
+            <TextInput 
+              label="Prix" 
+              value={`${selectedBook.price}€`} 
+              readOnly 
+              mb="sm"
+            />
+            
+            <TextInput 
+              label="Quantité en stock" 
+              value={selectedBook.quantite} 
+              readOnly 
+              mb="md"
+            />
+            
+            <Button
+              color="blue"
+              fullWidth
+              onClick={() => {
+                setBookDetailsModalOpened(false);
+                setSelectedBook(null);
+                // Ouvrir la modale d'incrémentation avec ce livre
+                setIsbn(selectedBook.isbn.toString());
+                setQuantiteToAdd(1);
+                setIncrementModalOpened(true);
+              }}
+            >
+              ➕ Ajouter au stock
+            </Button>
+          </div>
+        )}
+      </Modal>
     </div>
   );
 }

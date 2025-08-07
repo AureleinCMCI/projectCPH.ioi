@@ -87,6 +87,9 @@ export default function Commande() {
   const [detailOpened, setDetailOpened] = useState(false);
   const [selectedLivre, setSelectedLivre] = useState<InventaireItem | null>(null);
 
+  // État pour la modale de liste des commandes
+  const [listeCommandeOpened, setListeCommandeOpened] = useState(false);
+
   
   // Détection automatique du type d'appareil et choix du scanner
   useEffect(() => {
@@ -382,6 +385,10 @@ useEffect(() => {
     }
   };
 
+  const listeCommande = (open: boolean) => {
+    setListeCommandeOpened(open);
+  };
+
   const decrementInventaire = async (livre: InventaireItem, quantite: number) => {
     if (!quantite || quantite <= 0) {
       alert("Veuillez saisir une quantité à supprimer supérieure à 0.");
@@ -474,8 +481,15 @@ useEffect(() => {
       }
       else if (!isbnTrouve) {
         alert(`❌ Aucun livre trouvé en stock`);
+        /*redirige vers la page scannerResception */
+        // Stocker l'ISBN et indiquer d'ouvrir automatiquement le formulaire
+        localStorage.setItem('pendingIsbn', isbn);
+        localStorage.setItem('autoOpenForm', 'true');
+        window.location.href = '/inventaire/ScannerResception';
         setFormOpened(false);
         setTimeout(() => setFormOpened(true), 500);
+        /*fin redirige vers la page commande */
+        return;
       }
     }
     
@@ -589,7 +603,7 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
       {/* Section montant principal */}
       <div className={stylesCompte.revolutAmount}>
         <div className={stylesCompte.revolutLabel}>Commandes</div>
-        <div className={stylesCompte.revolutValue}>{commandes.length}</div>
+        <div className={stylesCompte.revolutValue}>Voici l&apos;interface de vente de livres</div>
         <div className={stylesCompte.revolutQuickActions}>
           <div className={stylesCompte.quickAction}>
             <div onClick={() => setScannerOpened(true)} className={stylesCompte.revolutdiv}>
@@ -599,7 +613,7 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
           </div>
 
           <div className={stylesCompte.quickAction}>
-          <div onClick={() => setScannerOpened(true)} className={stylesCompte.revolutdiv}>
+          <div onClick={() => listeCommande(true)} className={stylesCompte.revolutdiv}>
               <span>📋</span>
               <div className={stylesCompte.quickActionLabel}>Commande</div>
             </div>
@@ -1052,6 +1066,101 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
             </div>
           </div>
         )}
+      </Modal>
+
+      {/* Modale de liste des commandes */}
+      <Modal 
+        opened={listeCommandeOpened} 
+        onClose={() => setListeCommandeOpened(false)} 
+        title="Détails des commandes" 
+        centered 
+        size="xl"
+      >
+        <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <Text size="lg" fw={600}>
+            📋 Historique des commandes ({commandes.length})
+          </Text>
+          <Button 
+            onClick={downloadCSV}
+            color="green"
+            size="sm"
+            leftSection="📥"
+          >
+            Télécharger CSV
+          </Button>
+        </div>
+
+        <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+          {commandes.length === 0 ? (
+            <Text c="dimmed" ta="center" py="xl">
+              Aucune commande trouvée
+            </Text>
+          ) : (
+            <Table striped highlightOnHover>
+              <Table.Thead>
+                <Table.Tr>
+                  <Table.Th>📅 Date</Table.Th>
+                  <Table.Th>👤 Utilisateur</Table.Th>
+                  <Table.Th>📚 Titre</Table.Th>
+                  <Table.Th>📦 Quantité</Table.Th>
+                  <Table.Th>💰 Prix unitaire</Table.Th>
+                  <Table.Th>💵 Total</Table.Th>
+                </Table.Tr>
+              </Table.Thead>
+              <Table.Tbody>
+                {commandes.map((commande, index) => (
+                  <Table.Tr key={index}>
+                    <Table.Td>
+                      {new Date(commande.date_achat).toLocaleDateString('fr-FR', {
+                        day: '2-digit',
+                        month: '2-digit',
+                        year: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit'
+                      })}
+                    </Table.Td>
+                    <Table.Td>
+                      {commande.vendeur || commande.user?.name || 'Inconnu'}
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" fw={500}>
+                        {commande.title}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c="blue" fw={600}>
+                        {commande.quantite}x
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" c="green">
+                        {/* Calculer le prix unitaire depuis l'inventaire */}
+                        {(() => {
+                          const livre = inventaire.find(item => item.title === commande.title);
+                          return livre ? `${livre.price}€` : 'N/A';
+                        })()}
+                      </Text>
+                    </Table.Td>
+                    <Table.Td>
+                      <Text size="sm" fw={700} c="green">
+                        {(() => {
+                          const livre = inventaire.find(item => item.title === commande.title);
+                          return livre ? `${(livre.price * commande.quantite).toFixed(2)}€` : 'N/A';
+                        })()}
+                      </Text>
+                    </Table.Td>
+                  </Table.Tr>
+                ))}
+              </Table.Tbody>
+            </Table>
+          )}
+        </div>
+
+        <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+          <Text size="sm" c="dimmed">
+            💡 Le fichier CSV contient toutes les commandes avec leurs détails pour analyse
+          </Text>
+        </div>
       </Modal>
     </div>
   );
