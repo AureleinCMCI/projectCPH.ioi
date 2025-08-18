@@ -1,6 +1,6 @@
 "use client";
 import { Group, Stack, Text } from "@mantine/core";
-import { IconHome2, IconSettings, IconWallet } from "@tabler/icons-react";
+import { IconHome2, IconSettings, IconWallet, IconChartBar } from "@tabler/icons-react";
 import { jwtDecode } from "jwt-decode";
 import Image from "next/image";
 import Link from "next/link";
@@ -27,7 +27,8 @@ export function BottomNavBar() {
     { label: "Home", icon: IconHome2, href: "/acceuil" },
     { label: "commande", icon: IconWallet, href: "/commande" },
     { label: "monCompte", href: "/compte", isUser: true },
-    { label: "inventaire", icon: IconSettings, href: "/inventaire" }
+    { label: "inventaire", icon: IconSettings, href: "/inventaire" },
+    { label: "statistique", icon: IconChartBar, href: "/statistique" }
   ];
   return (
     <div style={{ 

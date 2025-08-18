@@ -483,13 +483,12 @@ useEffect(() => {
         alert(`❌ Aucun livre trouvé en stock`);
         /*redirige vers la page scannerResception */
         // Stocker l'ISBN et indiquer d'ouvrir automatiquement le formulaire
-        localStorage.setItem('pendingIsbn', isbn);
+        localStorage.setItem('IsbnScanner', scannedCodes.toString());
         localStorage.setItem('autoOpenForm', 'true');
+        localStorage.setItem('returnToCommande', 'true');
         window.location.href = '/inventaire/ScannerResception';
-        setFormOpened(false);
-        setTimeout(() => setFormOpened(true), 500);
         /*fin redirige vers la page commande */
-        return;
+        return; 
       }
     }
     

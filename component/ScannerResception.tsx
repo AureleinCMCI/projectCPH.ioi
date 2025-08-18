@@ -24,7 +24,12 @@ export default function Resception() {
   const [scanner, setScanner] = useState<Html5QrcodeScanner | boolean | null>(null);
   const [scannerType, setScannerType] = useState<'html5' | 'quagga'>('html5');
 
-  const [formData, setFormData] = useState({title: '',author: '', price: '', quantite: '', isbn: '', description: '', image: '', livre_id: '', livre_title: '',  name_user: '',   info: '',  user_id: '', date_reception: '',});
+  const [formData, setFormData] = useState({
+    title: '', author: '', price: '', quantite: '', isbn: '', 
+    description: '', image: '', livre_id: '', livre_title: '', 
+    name_user: '', info: '', user_id: '', date_reception: '',
+    additionalIsbns: [] as string[] // Nouveau champ pour les ISBNs additionnels
+  });
   const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
 
@@ -73,19 +78,49 @@ export default function Resception() {
     
     detectMobileAndScanner();
   }, []);
+  /*ouvrir automatiquement le formulaire d'ajout si autoOpenForm est true*/
 
+  
+  useEffect(() => {
+    const autoOpenForm = localStorage.getItem('autoOpenForm');
+    
+    if (autoOpenForm === 'true') {
+      // Récupérer tous les ISBNs scannés
+      const IsbnScanner = localStorage.getItem('IsbnScanner');
+      if (IsbnScanner) {
+        const isbns = IsbnScanner.split(', ');
+        setFormData(prev => ({
+          ...prev,
+          isbn: isbns[0] || '', // Premier ISBN comme ISBN principal
+          additionalIsbns: isbns.slice(1) // Autres ISBNs comme ISBNs additionnels
+        }));
+      }
+      
+      // Ouvrir automatiquement le formulaire d'ajout
+      setTimeout(() => setFormOpened(true), 500);
+      localStorage.removeItem('autoOpenForm');
+    }
+  }, []);
+
+
+
+  
   // Vérifier l'ISBN en attente et ouvrir automatiquement le formulaire
   useEffect(() => {
     const checkPendingIsbn = () => {
       const storedIsbn = localStorage.getItem('pendingIsbn');
       const autoOpenForm = localStorage.getItem('autoOpenForm');
       
-      if (storedIsbn) {
-        setIsbn(storedIsbn);
-        setFormData(prev => ({ ...prev, isbn: storedIsbn }));
-        localStorage.removeItem('pendingIsbn'); // Nettoyer
-        localStorage.removeItem('autoOpenForm'); // Nettoyer
-        console.log('📚 ISBN en attente détecté:', storedIsbn);
+             if (storedIsbn) {
+         setIsbn(storedIsbn);
+         setFormData(prev => ({ 
+           ...prev, 
+           isbn: storedIsbn,
+           additionalIsbns: [] // Pas d'ISBNs additionnels pour un ISBN en attente
+         }));
+         localStorage.removeItem('pendingIsbn'); // Nettoyer
+         localStorage.removeItem('autoOpenForm'); // Nettoyer
+         console.log('📚 ISBN en attente détecté:', storedIsbn);
         
         // Si autoOpenForm est true, ouvrir automatiquement le formulaire
         if (autoOpenForm === 'true') {
@@ -156,17 +191,21 @@ export default function Resception() {
       setScannedCodes([]);
       
       setTimeout(() => setIncrementModalOpened(true), 500);
-    } else {
-      // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout
-      alert(`ISBN ${selectedCode} - Livre pas en stock !`);
-      setFormData(prev => ({ ...prev, isbn: selectedCode }));
-      
-      setScannerOpened(false);
-      setShowCodesList(false);
-      setScannedCodes([]);
-      
-      setTimeout(() => setFormOpened(true), 500);
-    }
+         } else {
+       // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout
+       alert(`ISBN ${selectedCode} - Livre pas en stock !`);
+       setFormData(prev => ({ 
+         ...prev, 
+         isbn: selectedCode,
+         additionalIsbns: [] // Pas d'ISBNs additionnels pour un code sélectionné individuellement
+       }));
+       
+       setScannerOpened(false);
+       setShowCodesList(false);
+       setScannedCodes([]);
+       
+       setTimeout(() => setFormOpened(true), 500);
+     }
   };
 
   // Initialisation scanner adaptatif (html5-qrcode OU QuaggaJS)
@@ -337,6 +376,27 @@ export default function Resception() {
         }),
       });
 
+      // 2.5. Ajouter les ISBNs additionnels s'il y en a
+      if (formData.additionalIsbns && formData.additionalIsbns.length > 0) {
+        console.log('📚 Ajout des ISBNs additionnels:', formData.additionalIsbns);
+        
+        for (const additionalIsbn of formData.additionalIsbns) {
+          try {
+            await fetch('/api/isbn', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ 
+                isbn: additionalIsbn.trim(),
+                livre_id: livreId
+              }),
+            });
+            console.log(`✅ ISBN additionnel ajouté: ${additionalIsbn}`);
+          } catch (error) {
+            console.error(`❌ Erreur lors de l'ajout de l'ISBN ${additionalIsbn}:`, error);
+          }
+        }
+      }
+
       if (!inventaireRes.ok) {
         const errorData = await inventaireRes.json();
         alert(`Erreur lors de l'ajout au stock: ${errorData.error || 'Erreur inconnue'}`);
@@ -363,7 +423,12 @@ export default function Resception() {
 
              alert("Livre, inventaire et réception ajoutés avec succès !");
        setFormOpened(false);
-       setFormData({  title: '',   author: '', price: '',  quantite: '',   isbn: '',   description: '',  image: '', livre_id: '', livre_title: '',  name_user: '',   info: '',  user_id: '', date_reception: '' });
+       setFormData({  
+         title: '', author: '', price: '', quantite: '', isbn: '', 
+         description: '', image: '', livre_id: '', livre_title: '', 
+         name_user: '', info: '', user_id: '', date_reception: '',
+         additionalIsbns: [] 
+       });
        setResult('');
        setCapturedImage('');
 
@@ -565,11 +630,15 @@ export default function Resception() {
       setIsbn(livreFound.isbn.toString());
       setQuantiteToAdd(1); // Initialiser la quantité à ajouter
       setTimeout(() => setIncrementModalOpened(true), 500); // Ouvre la popup d'incrémentation
-    } else {
-      // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout
-      setFormData(prev => ({ ...prev, isbn: scannedCodes[0] || '' }));
-      setTimeout(() => setFormOpened(true), 500);
-    }
+          } else {
+        // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout avec ISBNs séparés
+        setFormData(prev => ({ 
+          ...prev, 
+          isbn: scannedCodes[0] || '', // Premier ISBN comme ISBN principal
+          additionalIsbns: scannedCodes.slice(1) // Autres ISBNs comme ISBNs additionnels
+        }));
+        setTimeout(() => setFormOpened(true), 500);
+      }
   };
 
   return (
@@ -770,11 +839,15 @@ export default function Resception() {
                         // ✅ ISBN trouvé : ouvrir la popup d'incrémentation
                         setQuantiteToAdd(1);
                         setTimeout(() => setIncrementModalOpened(true), 500);
-                      } else {
-                        // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout
-                        setFormData(prev => ({ ...prev, isbn: isbn }));
-                        setTimeout(() => setFormOpened(true), 500);
-                      }
+                                             } else {
+                         // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout
+                         setFormData(prev => ({ 
+                           ...prev, 
+                           isbn: isbn,
+                           additionalIsbns: [] // Pas d'ISBNs additionnels pour une saisie manuelle
+                         }));
+                         setTimeout(() => setFormOpened(true), 500);
+                       }
                     } else {
                       alert("Veuillez saisir un ISBN");
                     }
@@ -804,16 +877,98 @@ export default function Resception() {
           height: '450px',
           margin: '0 auto' 
         }} className={isMobile ? styles.iosModalContent : ''}>
+          {/* ISBN principal */}
           <TextInput 
-            label="ISBN" 
+            label="ISBN principal" 
             name="isbn"
             value={formData.isbn} 
             onChange={handleFormChange} 
             required 
-            mb="sx"
+            mb="sm"
             classNames={isMobile ? { input: styles.iosModalInput } : undefined} 
-            style={{fontSize: '10px', width: '205px'}}
+            style={{fontSize: '10px', width: '100%'}}
+            placeholder="ISBN principal du livre"
           />
+          
+          {/* ISBNs additionnels scannés */}
+          {formData.additionalIsbns && formData.additionalIsbns.length > 0 && (
+            <div style={{ marginBottom: '15px' }}>
+              <Text size="sm" color="dimmed" mb="xs">
+                📚 ISBNs additionnels détectés ({formData.additionalIsbns.length}) :
+              </Text>
+              {formData.additionalIsbns.map((isbn, index) => (
+                <div key={index} style={{ 
+                  display: 'flex', 
+                  alignItems: 'center', 
+                  gap: '10px', 
+                  marginBottom: '8px',
+                  padding: '10px',
+                  backgroundColor: '#f8f9fa',
+                  borderRadius: '6px',
+                  border: '1px solid #e9ecef'
+                }}>
+                  <Text size="sm" style={{ flex: 1, fontFamily: 'monospace' }}>{isbn}</Text>
+                  <Button 
+                    size="xs" 
+                    color="red" 
+                    variant="outline"
+                    onClick={() => {
+                      const newAdditionalIsbns = formData.additionalIsbns.filter((_, i) => i !== index);
+                      setFormData(prev => ({ ...prev, additionalIsbns: newAdditionalIsbns }));
+                    }}
+                    title="Supprimer cet ISBN"
+                  >
+                    ✖
+                  </Button>
+                </div>
+              ))}
+            </div>
+          )}
+
+          <TextInput 
+            label="Titre du livre" 
+            name="title" 
+            value={formData.title} 
+            onChange={handleFormChange} 
+            required 
+            mb="sm" 
+            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+            style={{fontSize: '10px',}}
+          />
+
+          <TextInput 
+            label="Auteur" 
+            name="author" 
+            value={formData.author} 
+            onChange={handleFormChange} 
+            required 
+            mb="sm" 
+            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+            style={{fontSize: '10px',}}
+          />
+
+          <Textarea 
+            label="Description" 
+            name="description" 
+            value={formData.description} 
+            onChange={handleFormChange} 
+            minRows={1} 
+            mb="sm" 
+            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+            style={{fontSize: '10px',}}
+          />
+
+          <TextInput 
+            label="Prix" 
+            name="price" 
+            value={formData.price} 
+            onChange={handleFormChange} 
+            required 
+            mb="sm" 
+            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+            style={{fontSize: '10px',}}
+          />
+
           <TextInput 
             label="Titre du livre" 
             name="title" 
