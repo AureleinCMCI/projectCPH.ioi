@@ -170,7 +170,9 @@ export default function Statistique() {
       </div>
     );
   }
-
+  const formatNumber = (num: number): string => {
+    return num.toLocaleString('fr-FR');
+  };
   return (
     <div className={styles.revolutStyle}>
       {/* Header avec icône statistiques */}
@@ -240,7 +242,7 @@ export default function Statistique() {
               <IconCurrencyEuro size={24} color="#fa5252" />
             </Group>
             <Text size="xl" fw={700} c="red">
-              {statsGlobales.totalMontant.toFixed(2)}€
+              {formatNumber(statsGlobales.totalMontant)}€
             </Text>
             <Text size="sm" c="dimmed">
               Total des ventes
@@ -255,7 +257,7 @@ export default function Statistique() {
               <IconUsers size={24} color="#7950f2" />
             </Group>
             <Text size="xl" fw={700} c="violet">
-              {statsGlobales.totalLivres} livres
+              {formatNumber(statsGlobales.totalLivres)} livres
             </Text>
             <Text size="sm" c="dimmed">
               En inventaire

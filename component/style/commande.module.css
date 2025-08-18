@@ -1,526 +1,279 @@
-/* Style moderne pour toute la page commande - inspiré de l'image mobile */
-
-/* Reset pour plein écran mobile */
-.pageContainer {
-  -webkit-overflow-scrolling: touch;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
-/* Désactiver le zoom sur les inputs mobile */
-.searchInput input {
-  font-size: 16px !important; /* Empêche le zoom sur iOS */
-}
-
-.isbnInput input {
-  font-size: 16px !important; /* Empêche le zoom sur iOS */
-}
-
-/* Safe area pour les écrans avec notch */
-@supports (padding: max(0px)) {
-  .pageHeader {
-    padding-top: max(60px, env(safe-area-inset-top)) !important;
-  }
-  
-  .scannerHeader {
-    margin-top: max(40px, env(safe-area-inset-top)) !important;
-  }
-}
-
-/* Page principale - Plein écran mobile */
-.pageContainer {
-  background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
-  height: 100vh;
-  width: 100vw;
-  position: fixed;
-  top: 0;
-  left: 0;
-  padding: 0;
-  margin: 0;
-  overflow: hidden; /* Pas de scroll sur le container principal */
-}
-
-.mainCard {
-  background: #ffffff;
-  height: 100vh;
-  width: 100%;
-  padding: 0;
-  margin: 0;
-  border-radius: 0;
-  box-shadow: none;
-  border: none;
-  overflow: hidden;
-  display: flex;
-  flex-direction: column;
-}
-
-/* Header de la page - Position fixe */
-.pageHeader {
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  padding: 20px 24px 24px 24px; /* Top padding pour la status bar */
-  color: white;
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  width: 100%;
-  z-index: 100;
-  flex-shrink: 0;
-  margin-bottom: 70px;
-}
-
-.pageTitle {
-  font-size: 20px;
-  font-weight: 700;
-  margin: 0;
-  text-align: center;
-
-}
-
-.actionButtons {
-  display: flex;
-  gap: 12px;
-  margin-top: 16px;
-}
-
-.actionButton {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.15) !important;
-  border: 1px solid rgba(255, 255, 255, 0.3) !important;
-  color: white !important;
-  border-radius: 12px !important;
-  padding: 12px 16px !important;
-  font-size: 14px !important;
-  font-weight: 600 !important;
-  transition: all 0.3s ease !important;
-}
-
-.actionButton:hover {
-  background: rgba(255, 255, 255, 0.25) !important;
-  transform: translateY(-1px);
-}
-
-/* Section de contenu - Scrollable sous le header fixe */
-.contentSection {
-  padding-top: 200px; /* Espace pour le header fixe */
-  padding-left: 20px;
-  padding-right: 20px;
-  padding-bottom: 24px;
-  height: 100vh;
-  overflow-y: auto;
-  width: 100%;
-  background: #ffffff;
-  -webkit-overflow-scrolling: touch; /* Scroll fluide sur iOS */
-  scroll-behavior: smooth; /* Scroll fluide */
-}
-
-/* Personnaliser la scrollbar sur webkit */
-.contentSection::-webkit-scrollbar {
-  width: 4px;
-}
-
-.contentSection::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.contentSection::-webkit-scrollbar-thumb {
-  background: rgba(102, 126, 234, 0.3);
-  border-radius: 2px;
-}
-
-.contentSection::-webkit-scrollbar-thumb:hover {
-  background: rgba(102, 126, 234, 0.5);
-}
-
-.sectionTitle {
-  font-size: 18px;
-  font-weight: 700;
-  color: #333;
-  margin-bottom: 16px;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-/* Filters/Tabs */
-.filterTabs {
-  display: flex;
-  background: #f8f9fa;
-  border-radius: 12px;
-  padding: 4px;
-  margin-bottom: 20px;
-  gap: 4px;
-}
-
-.filterTab {
-  flex: 1;
-  padding: 10px 16px;
-  background: transparent;
-  border: none;
-  border-radius: 8px;
-  font-size: 14px;
-  font-weight: 600;
-  color: #666;
-  transition: all 0.3s ease;
-  cursor: pointer;
-}
-
-.filterTabActive {
-  background: white;
-  color: #333;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
-}
-
-/* Search input */
-.searchInput {
-  margin-bottom: 20px;
-}
-
-.searchInput input {
-  background: #f8f9fa !important;
-  border: 2px solid #e9ecef !important;
-  border-radius: 12px !important;
-  padding: 14px 16px !important;
-  font-size: 16px !important;
-  transition: all 0.3s ease !important;
-}
-
-.searchInput input:focus {
-  border-color: #667eea !important;
-  box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1) !important;
-  background: white !important;
-}
-
-/* Liste des items */
-.itemsList {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-}
-
-.itemCard {
-  background: white;
-  border-radius: 16px;
-  padding: 16px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.08);
-  border: 1px solid #f0f0f0;
-  transition: all 0.3s ease;
-}
-
-.itemCard:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.12);
-}
-
-.itemHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
-}
-
-.itemTitle {
-  font-size: 16px;
-  font-weight: 700;
-  color: #333;
-  margin: 0;
-  flex: 1;
-}
-
-.itemStatus {
-  padding: 6px 12px;
-  border-radius: 20px;
-  font-size: 12px;
-  font-weight: 600;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.statusStock {
-  background: #e8f5e8;
-  color: #2d5a2d;
-}
-
-.statusLow {
-  background: #fff3cd;
-  color: #856404;
-}
-
-.statusOut {
-  background: #f8d7da;
-  color: #721c24;
-}
-
-.itemDetails {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 8px;
-  font-size: 14px;
-  color: #666;
-}
-
-.itemMeta {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.itemPrice {
-  font-size: 16px;
-  font-weight: 700;
-  color: #667eea;
-}
-
-.itemQuantity {
-  font-size: 14px;
-  font-weight: 600;
-}
-
-/* Style moderne pour le scanner - inspiré de l'image */
-
-.scannerContainer {
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
-  border-radius: 0;
-  padding: 20px;
-  margin: 0;
-  width: 100%;
+.StyleCommandeGenerale {
   min-height: 100vh;
+  background: linear-gradient(180deg, #7F3FBF 0%, #1a1a1a 50%);
+  color: white;
+  padding: 0;
   position: fixed;
-  top: 0;
-  left: 0;
-  z-index: 1000;
-  overflow-y: auto;
-}
-
-.scannerHeader {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 24px;
-  margin-top: 40px; /* Espace pour la status bar */
-  padding-top: 20px;
-}
-
-.scannerTitle {
-  color: #ffffff;
-  font-size: 20px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.closeButton {
-  background: rgba(255, 255, 255, 0.1) !important;
-  border: 1px solid rgba(255, 255, 255, 0.2) !important;
-  color: #ffffff !important;
-  border-radius: 12px !important;
-  padding: 8px 16px !important;
-  font-size: 14px !important;
-  transition: all 0.3s ease !important;
-}
-
-.closeButton:hover {
-  background: rgba(255, 255, 255, 0.2) !important;
-  transform: translateY(-1px);
-}
-
-.scannerLayout {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 24px;
-}
-
-.cameraContainer {
-  width: 100%;
-  max-width: 380px;
-  height: 260px;
-  border-radius: 20px;
-  overflow: hidden;
-  background: #000;
-  position: relative;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
-  border: 2px solid rgba(255, 255, 255, 0.15);
-}
-
-.cameraContainer::before {
-  content: '';
-  position: absolute;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  background: linear-gradient(45deg, 
-    rgba(255, 255, 255, 0.1) 0%, 
-    transparent 50%, 
-    rgba(255, 255, 255, 0.05) 100%);
-  pointer-events: none;
-  z-index: 1;
+  width: 100vw;
+  height: 100vh;
+  margin: 0;
+  overflow-x: hidden;
+  padding-top: 80px; /* Espace pour la navbar en haut */
 }
 
-.reader {
-  width: 100%;
-  height: 100%;
-  border-radius: 20px;
+/* Sur mobile : pas de marges */
+.revolutHeader,
+.revolutAmount,
+.revolutQuickActions {
+  padding-left: 0;
+  padding-right: 0;
 }
 
-.infoPanel {
-  width: 100%;
-  max-width: 380px;
-  background: rgba(255, 255, 255, 0.95);
-  backdrop-filter: blur(20px);
-  border-radius: 20px;
-  padding: 24px;
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.15);
-  border: 1px solid rgba(255, 255, 255, 0.3);
+/* Sur desktop : version app-like */
+@media (min-width: 768px) {
+  .revolutStyle {
+    width: 390px; /* Largeur d'un iPhone standard */
+    max-width: 390px;
+    border-radius: 20px;
+    margin: 20px auto;
+    box-shadow: 0 0 20px rgba(0,0,0,0.3);
+    padding: 0;
+  }
 }
 
-.statusBadge {
-  text-align: center;
-  margin-bottom: 20px;
-  padding: 16px;
-  border-radius: 16px;
-  font-weight: 600;
-  font-size: 15px;
-  transition: all 0.3s ease;
-}
-
-.statusBadgeSuccess {
-  background: linear-gradient(135deg, #4caf50, #45a049);
-  color: white;
-  border: 2px solid #4caf50;
-  box-shadow: 0 4px 15px rgba(76, 175, 80, 0.3);
-}
-
-.statusBadgeWaiting {
-  background: linear-gradient(135deg, #2196f3, #1976d2);
-  color: white;
-  border: 2px solid #2196f3;
-  box-shadow: 0 4px 15px rgba(33, 150, 243, 0.3);
-}
-
-.isbnInput {
-  margin-bottom: 20px;
-}
-
-.isbnInput label {
-  font-size: 14px !important;
-  font-weight: 600 !important;
-  color: #333 !important;
-  margin-bottom: 8px !important;
-  display: flex !important;
-  align-items: center !important;
-  gap: 6px !important;
-}
-
-.isbnInput input {
-  border-radius: 12px !important;
-  border: 2px solid #e0e0e0 !important;
-  font-size: 16px !important;
-  padding: 14px 16px !important;
-  transition: all 0.3s ease !important;
-  background: #fff !important;
-}
-
-.isbnInput input:focus {
-  border-color: #2196f3 !important;
-  box-shadow: 0 0 0 3px rgba(33, 150, 243, 0.1) !important;
-  transform: translateY(-1px);
-}
-
-.validateButton {
-  width: 100% !important;
-  height: 52px !important;
-  border-radius: 14px !important;
-  font-size: 16px !important;
-  font-weight: 600 !important;
-  margin-bottom: 20px !important;
-  border: none !important;
-  transition: all 0.3s ease !important;
-}
-
-.validateButtonActive {
-  background: linear-gradient(135deg, #4caf50, #45a049) !important;
-  color: white !important;
-  box-shadow: 0 6px 20px rgba(76, 175, 80, 0.3) !important;
-}
-
-.validateButtonActive:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(76, 175, 80, 0.4) !important;
-}
-
-.validateButtonInactive {
-  background: #e0e0e0 !important;
-  color: #999 !important;
-  cursor: not-allowed !important;
-}
-
-.tipsPanel {
-  background: linear-gradient(135deg, #f8f9fa, #e9ecef);
-  border-radius: 16px;
-  padding: 18px;
-  border: 1px solid rgba(0, 0, 0, 0.05);
-}
-.scannerCloseButton{
-  margin-top: 20px !important;
-}
-.tipsTitle {
-  font-weight: 600 !important;
-  color: #666 !important;
-  margin-bottom: 12px !important;
-  font-size: 14px !important;
-}
-
-.tipsList {
-  font-size: 13px;
-  color: #777;
-  line-height: 1.6;
-}
-
-.tipsList div {
-  margin-bottom: 4px;
+.revolutHeader {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
+  margin-bottom: 32px;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.1);
+  backdrop-filter: blur(10px);
+  margin: 0;
+  padding-top: 16px; /* Espace réduit car navbar en haut */
 }
 
-/* Responsive pour mobile */
-@media (max-width: 768px) {
-  .scannerContainer {
-    margin: 0 -10px;
-    border-radius: 20px;
-    padding: 20px;
-  }
-  
-  .cameraContainer {
-    max-width: 100%;
-    height: 240px;
-  }
-  
-  .infoPanel {
-    max-width: 100%;
-    padding: 20px;
-  }
-  
-  .scannerTitle {
-    font-size: 18px;
+.avatarButtonSmall {
+  background: none;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  overflow: hidden;
+}
+
+.avatarCompteSmall {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.searchInput {
+  flex: 1;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 20px;
+}
+
+.revolutAmount {
+  text-align: center;
+  margin-bottom: 24px;
+  padding: 20px 0;
+}
+
+.revolutLabel {
+  font-size: 14px;
+  opacity: 0.7;
+  margin-top: 10px;
+}
+
+.revolutValue {
+  font-size: 42px;
+  font-weight: 600;
+  margin-bottom: 16px;
+}
+
+.revolutButton {
+  background: rgba(255, 255, 255, 0.15) !important;
+  border: none !important;
+  color: white !important;
+  padding: 8px 24px !important;
+  border-radius: 20px !important;
+  font-size: 14px !important;
+}
+
+/* Actions comme dans Revolut */
+.revolutQuickActions {
+  display: flex;
+  justify-content: space-around;
+  margin-bottom: 32px;
+  padding: 0 16px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+@media (max-width: 360px) {
+  .revolutQuickActions {
+    padding: 0 8px;
+    gap: 8px;
   }
 }
 
-/* Animation pour l'apparition */
-@keyframes slideUp {
-  from {
-    opacity: 0;
-    transform: translateY(20px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
+.quickAction {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 50%;
+  width: 56px;
+  height: 56px;
+  justify-content: center;
+  color: white;
+}
+
+.quickActionIcon {
+  font-size: 24px;
+  margin-bottom: 4px;
+}
+
+.quickActionLabel {
+  font-size: 12px;
+  opacity: 0.8;
+  margin-top: 8px;
+  text-align: center;
+}
+
+/* Liste des transactions */
+.transactionsList {
+  background: rgba(0, 0, 0, 0.3);
+  border-radius: 0;
+  margin: 0;
+  overflow: hidden;
+  max-height: calc(100vh - 400px);
+  overflow-y: auto;
+}
+
+@media (max-height: 700px) {
+  .transactionsList {
+    max-height: calc(100vh - 350px);
   }
 }
 
-.scannerContainer {
-  animation: slideUp 0.4s ease-out;
+/* Style de la scrollbar pour la liste */
+.transactionsList::-webkit-scrollbar {
+  width: 6px;
+}
+
+.transactionsList::-webkit-scrollbar-track {
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.transactionsList::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.2);
+  border-radius: 3px;
+}
+
+.transaction {
+  display: flex;
+  align-items: center;
+  padding: 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.transactionIcon {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 12px;
+  font-size: 20px;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.transactionInfo {
+  flex: 1;
+}
+
+.transactionTitle {
+  font-size: 16px;
+  margin-bottom: 4px;
+}
+
+.transactionTime {
+  font-size: 12px;
+  opacity: 0.6;
+}
+
+.transactionAmount {
+  font-size: 16px;
+  font-weight: 500;
+}
+
+/* Navbar en haut */
+.revolutNavbar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  width: 100vw;
+  background: rgba(0, 0, 0, 0.9);
+  backdrop-filter: blur(10px);
+  padding: 16px 8px;
+  display: flex;
+  justify-content: space-around;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  z-index: 1000;
+}
+
+@supports (padding-top: env(safe-area-inset-top)) {
+  .revolutNavbar {
+    padding-top: calc(env(safe-area-inset-top) + 16px);
+  }
+}
+
+.revolutNavbar a {
+  color: white;
+  text-decoration: none;
+  opacity: 0.7;
+  font-size: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.revolutNavbar a:hover {
+  opacity: 1;
+}
+/* Détails du compte */
+.moncomptedetail{
+  background-color: transparent !important;
+  border-top: 1px solid #eee;
+  padding-top: 20px;
+}
+
+.moncomptedetailh4{
+  background-color: transparent !important;
+  color: #333;
+  margin: 0 0 15px 0;
+}
+
+.moncomptedetaildiv{
+  background-color: transparent !important;
+  display: grid;
+  gap: 10px;
+}
+
+.moncomptedetaildivspan{
+  background-color: transparent !important;
+  display: flex;
+  justify-content: space-between;
+}
+
+.moncomptedetailspan{
+  background-color: transparent !important;
+  font-weight: bold;
+}
+
+.moncomptedetailbutton{
+  background-color: transparent !important;
+  margin-top: 20px;
+  text-align: center;
 }
