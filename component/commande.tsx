@@ -640,6 +640,7 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
       </div>
 
       {/* Liste des livres */}
+      {/*
       <div className={stylesCommande.transactionsList}>
         {loading ? (
           <Center>
@@ -667,7 +668,7 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
           ))
         )}
       </div>
-
+*/}
       {/* Scanner en DIV plein écran */}
       {scannerOpened && (
         <div className={styles.scannerFullScreen}>

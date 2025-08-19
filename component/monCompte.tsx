@@ -92,16 +92,6 @@ export default function UpdateProfile() {
     }
   }, [userId, user?.name]);
 
-  // Capture la photo  depuis la webcam
-  const capture = () => {
-    if (webcamRef.current) {
-      const imageSrc = webcamRef.current.getScreenshot();
-      if (imageSrc) {
-        setAvatarPreview(imageSrc);
-        setShowWebcam(false);
-      }
-    }
-  };
 
   const handleLogout = () => {
     localStorage.removeItem('jwt');
@@ -121,7 +111,52 @@ export default function UpdateProfile() {
       // Optionnel : gestion d'erreur
     }
   };
+/*change de photo de profil */
+const handleCameraCapture = async (imageSrc: string) => {
+  if (!userId) return;
+  
+  // Convertir l'image base64 en Blob
+  const response = await fetch(imageSrc);
+  const blob = await response.blob();
+  const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  formData.append('id', userId);
+  
+  try {
+    const response = await fetch('/api/acount', {
+      method: 'PUT',
+      body: formData
+    });
+    
+    if (response.ok) {
+      // Forcer le rafraîchissement de l'avatar
+      setAvatarPreview(null); // Vider l'ancienne
+      setTimeout(() => {
+        setAvatarPreview(imageSrc); // Mettre la nouvelle
+      }, 100);
+      
+      setShowWebcam(false);
+      await fetchAvatar(); // Rafraîchir depuis la base
+      alert('Photo mise à jour avec succès !');
+    } else {
+      alert('Erreur lors de la mise à jour');
+    }
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert('Erreur lors de la mise à jour');
+  }
+};
 
+// Puis remplacez l'appel par :
+
+
+
+// Fonction pour prendre une photo avec la caméra
+
+
+/* fin change de photo de profil */
   useEffect(() => {
     if (userId) {
       fetchAvatar();
@@ -230,36 +265,83 @@ const listeCommandesUtilisateur = async () => {
                 videoConstraints={{ facingMode: 'user' }}
                 style={{ width: 250, borderRadius: 8 }}
               />
-              <Button mt="md" onClick={capture}>Prendre une photo</Button>
+              <Button mt="md" onClick={() => {
+                if (webcamRef && webcamRef.current) {
+                  const imageSrc = webcamRef.current.getScreenshot();
+                  if (imageSrc) {
+                    handleCameraCapture(imageSrc);
+                  }
+                }
+              }} color="blue">
+                📸 Prendre la photo
+              </Button>
               <Button mt="md" variant="outline" color="gray" onClick={() => setShowWebcam(false)}>
-                Annuler
+                🔄 Retour
               </Button>
             </>
           ) : (
             <>
+              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+                <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Choisissez une option :</h4>
+              </div>
+              
+              <Button 
+                onClick={() => setShowWebcam(true)} 
+                color="blue" 
+                size="lg"
+                style={{ width: '200px' }}
+                leftSection="📱"
+              >
+                Prendre une photo
+              </Button>
+              
+              <div style={{ margin: '20px 0', color: '#666' }}>ou</div>
+              
               <input
                 type="file"
                 accept="image/*"
                 capture="user"
-                onChange={e => {
-                  if (e.target.files && e.target.files[0]) {
-                    setAvatarPreview(URL.createObjectURL(e.target.files[0]));
+                onChange={(e) => {
+                  const file = e.target.files && e.target.files[0];
+                  if (file) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => {
+                      if (reader.result) {
+                        handleCameraCapture(reader.result as string);
+                      }
+                    };
+                    reader.readAsDataURL(file);
                   }
                 }}
+                style={{ display: 'none' }}
+                id="file-input"
               />
-              <Button mt="md" onClick={() => setShowWebcam(true)}>
-                Ouvrir la caméra
-              </Button>
+              <label htmlFor="file-input">
+                <Button 
+                  variant="outline" 
+                  color="gray" 
+                  size="lg"
+                  style={{ width: '200px', cursor: 'pointer' }}
+                  leftSection="📁"
+                  component="span"
+                >
+                  Choisir un fichier
+                </Button>
+              </label>
             </>
           )}
+          
           {avatarPreview && (
-            <Image
-              src={avatarPreview}
-              alt="Aperçu avatar"
-              width={130}
-              height={130}
-              className={stylesCompte.avatarCompte}
-            />
+            <div style={{ marginTop: '20px', textAlign: 'center' }}>
+              <h5 style={{ margin: '0 0 10px 0', color: '#333' }}>Aperçu :</h5>
+              <Image
+                src={avatarPreview}
+                alt="Aperçu avatar"
+                width={130}
+                height={130}
+                className={stylesCompte.avatarCompte}
+              />
+            </div>
           )}
         </div>
       </Modal>

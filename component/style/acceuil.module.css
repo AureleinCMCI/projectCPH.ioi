@@ -1,0 +1,170 @@
+.AcceuilGeneral {
+    min-height: 100vh;
+    background-image: url('/femme-lisant-la-bible-a-l-interieur.jpg');
+    background-size: cover;
+    background-position: center;
+    background-repeat: no-repeat;
+    color: white;
+    padding: 0;
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    margin: 0;
+    overflow-x: hidden;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+}
+
+.mainTitle {
+    font-size: 3.5rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 4rem;
+    text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
+}
+
+.iconContainer {
+    margin-bottom: 2rem;
+}
+
+.graduationIcon {
+    font-size: 4rem;
+    color: white;
+    filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));
+}
+
+.subtitle {
+    font-size: 1.5rem;
+    text-transform: uppercase;
+    margin-bottom: 2rem;
+    opacity: 0.9;
+}
+
+.description {
+    font-size: 1rem;
+    max-width: 600px;
+    margin: 0 auto 2rem;
+    opacity: 0.8;
+    line-height: 1.6;
+}
+
+.ctaButton {
+    background: linear-gradient(45deg, #ff6b35, #f7931e);
+    border: none;
+    margin: 10px !important;
+    border-radius: 25px;
+    color: white;
+    font-size: 10px!important;
+    font-weight: bold;
+    text-decoration: none !important;
+    text-transform: uppercase;
+    cursor: pointer;
+    box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);
+    transition: all 0.3s ease;
+}
+
+.ctaButton:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(255, 107, 53, 0.6);
+}
+
+/* Responsive mobile */
+@media (max-width: 768px) {
+    .mainTitle {
+        font-size: 2.5rem;
+    }
+    
+    .graduationIcon {
+        font-size: 3rem;
+    }
+    
+    .subtitle {
+        font-size: 1.2rem;
+    }
+    
+    .description {
+        font-size: 0.9rem;
+        padding: 0 20px;
+    }
+}
+.mainTitle {
+    font-size: 3.5rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    margin-bottom: 2rem;
+    text-align: center;
+    color: white;
+}
+
+.iconContainer {
+    margin-bottom: 2rem;
+    text-align: center;
+}
+
+.graduationIcon {
+    font-size: 4rem;
+    color: white;
+}
+
+.subtitle {
+    font-size: 1.5rem;
+    text-transform: uppercase;
+    margin-bottom: 2rem;
+    text-align: center;
+    color: white;
+}
+
+.description {
+    font-size: 1rem;
+    max-width: 600px;
+    margin: 0 auto 2rem;
+    text-align: left;
+    color: white;
+    line-height: 1.6;
+}
+
+.ctaButton {
+    background: #ff6b35;
+    border: none;
+    padding: 15px 40px;
+    border-radius: 25px;
+    color: white;
+    font-size: 1.1rem;
+    font-weight: bold;
+    text-transform: uppercase;
+    cursor: pointer;
+    display: block;
+    margin: 0 auto 2rem;
+    box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);
+}
+
+.secondaryText {
+    font-size: 0.9rem;
+    text-align: left;
+    color: white;
+    opacity: 0.8;
+}
+
+/* Responsive mobile */
+@media (max-width: 768px) {
+    .mainTitle {
+        font-size: 2.5rem;
+    }
+    
+    .graduationIcon {
+        font-size: 3rem;
+    }
+    
+    .subtitle {
+        font-size: 1.2rem;
+    }
+    
+    .description, .secondaryText {
+        padding: 0 20px;
+    }
+}

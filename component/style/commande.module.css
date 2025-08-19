@@ -1,6 +1,9 @@
 .StyleCommandeGenerale {
   min-height: 100vh;
-  background: linear-gradient(180deg, #7F3FBF 0%, #1a1a1a 50%);
+  background: linear-gradient(180deg, #ff6b35 0%, #f7931e 100%);
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
   color: white;
   padding: 0;
   position: fixed;
@@ -8,272 +11,311 @@
   left: 0;
   right: 0;
   bottom: 0;
-  width: 100vw;
-  height: 100vh;
   margin: 0;
   overflow-x: hidden;
-  padding-top: 80px; /* Espace pour la navbar en haut */
-}
-
-/* Sur mobile : pas de marges */
-.revolutHeader,
-.revolutAmount,
-.revolutQuickActions {
-  padding-left: 0;
-  padding-right: 0;
-}
-
-/* Sur desktop : version app-like */
-@media (min-width: 768px) {
-  .revolutStyle {
-    width: 390px; /* Largeur d'un iPhone standard */
-    max-width: 390px;
-    border-radius: 20px;
-    margin: 20px auto;
-    box-shadow: 0 0 20px rgba(0,0,0,0.3);
-    padding: 0;
-  }
-}
-
-.revolutHeader {
+  padding-top: 80px;
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 12px;
-  margin-bottom: 32px;
-  padding: 16px;
-  background: rgba(0, 0, 0, 0.1);
-  backdrop-filter: blur(10px);
-  margin: 0;
-  padding-top: 16px; /* Espace réduit car navbar en haut */
-}
-
-.avatarButtonSmall {
-  background: none;
-  border: none;
-  padding: 0;
-  cursor: pointer;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  overflow: hidden;
-}
-
-.avatarCompteSmall {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-}
-
-.searchInput {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.1);
-  border-radius: 20px;
-}
-
-.revolutAmount {
+  justify-content: center;
   text-align: center;
-  margin-bottom: 24px;
-  padding: 20px 0;
 }
 
-.revolutLabel {
-  font-size: 14px;
-  opacity: 0.7;
-  margin-top: 10px;
+.CommandeTitle {
+  font-size: 3.5rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+  text-align: center;
+  color: white;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
 }
 
-.revolutValue {
-  font-size: 42px;
-  font-weight: 600;
-  margin-bottom: 16px;
+.TtileCommande {
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+  text-align: center;
+  color: white;
+  opacity: 0.9;
 }
 
-.revolutButton {
-  background: rgba(255, 255, 255, 0.15) !important;
-  border: none !important;
-  color: white !important;
-  padding: 8px 24px !important;
-  border-radius: 20px !important;
-  font-size: 14px !important;
-}
-
-/* Actions comme dans Revolut */
 .revolutQuickActions {
   display: flex;
-  justify-content: space-around;
-  margin-bottom: 32px;
-  padding: 0 16px;
-  flex-wrap: wrap;
-  gap: 16px;
-}
-
-@media (max-width: 360px) {
-  .revolutQuickActions {
-    padding: 0 8px;
-    gap: 8px;
-  }
+  gap: 2rem;
+  justify-content: center;
+  margin-top: 2rem;
 }
 
 .quickAction {
   display: flex;
   flex-direction: column;
   align-items: center;
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 50%;
-  width: 56px;
-  height: 56px;
-  justify-content: center;
-  color: white;
+  gap: 1rem;
 }
 
-.quickActionIcon {
-  font-size: 24px;
-  margin-bottom: 4px;
+.revolutdiv {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  padding: 2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  min-width: 150px;
+  text-align: center;
+}
+
+.revolutdiv:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+.revolutdiv span {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: 1rem;
 }
 
 .quickActionLabel {
-  font-size: 12px;
-  opacity: 0.8;
-  margin-top: 8px;
-  text-align: center;
-}
-
-/* Liste des transactions */
-.transactionsList {
-  background: rgba(0, 0, 0, 0.3);
-  border-radius: 0;
-  margin: 0;
-  overflow: hidden;
-  max-height: calc(100vh - 400px);
-  overflow-y: auto;
-}
-
-@media (max-height: 700px) {
-  .transactionsList {
-    max-height: calc(100vh - 350px);
-  }
-}
-
-/* Style de la scrollbar pour la liste */
-.transactionsList::-webkit-scrollbar {
-  width: 6px;
-}
-
-.transactionsList::-webkit-scrollbar-track {
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.transactionsList::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.2);
-  border-radius: 3px;
-}
-
-.transaction {
-  display: flex;
-  align-items: center;
-  padding: 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.transactionIcon {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  margin-right: 12px;
-  font-size: 20px;
-  background: rgba(255, 255, 255, 0.1);
-}
-
-.transactionInfo {
-  flex: 1;
-}
-
-.transactionTitle {
-  font-size: 16px;
-  margin-bottom: 4px;
-}
-
-.transactionTime {
-  font-size: 12px;
-  opacity: 0.6;
-}
-
-.transactionAmount {
-  font-size: 16px;
-  font-weight: 500;
-}
-
-/* Navbar en haut */
-.revolutNavbar {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  width: 100vw;
-  background: rgba(0, 0, 0, 0.9);
-  backdrop-filter: blur(10px);
-  padding: 16px 8px;
-  display: flex;
-  justify-content: space-around;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  z-index: 1000;
-}
-
-@supports (padding-top: env(safe-area-inset-top)) {
-  .revolutNavbar {
-    padding-top: calc(env(safe-area-inset-top) + 16px);
-  }
-}
-
-.revolutNavbar a {
+  font-size: 1.2rem;
+  font-weight: 600;
   color: white;
-  text-decoration: none;
-  opacity: 0.7;
-  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.mainIconContainer {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  margin: 3rem 0;
 }
 
-.revolutNavbar a:hover {
-  opacity: 1;
-}
-/* Détails du compte */
-.moncomptedetail{
-  background-color: transparent !important;
-  border-top: 1px solid #eee;
-  padding-top: 20px;
-}
-
-.moncomptedetailh4{
-  background-color: transparent !important;
-  color: #333;
-  margin: 0 0 15px 0;
-}
-
-.moncomptedetaildiv{
-  background-color: transparent !important;
-  display: grid;
-  gap: 10px;
-}
-
-.moncomptedetaildivspan{
-  background-color: transparent !important;
+.mainIcon {
+  background: rgba(255, 255, 255, 0.1);
+  border: 3px solid rgba(255, 255, 255, 0.3);
+  border-radius: 50%;
+  width: 200px;
+  height: 200px;
   display: flex;
-  justify-content: space-between;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
 }
 
-.moncomptedetailspan{
-  background-color: transparent !important;
-  font-weight: bold;
+.mainIcon:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
 }
 
-.moncomptedetailbutton{
-  background-color: transparent !important;
-  margin-top: 20px;
+.mainIcon span {
+  font-size: 5rem;
+  color: white;
+}
+
+.paginationDots {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.dot:first-child {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.sideAction {
+  position: absolute;
+  right: 2rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.sideButton {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  min-width: 120px;
   text-align: center;
+}
+
+.sideButton:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sideButton span {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.sideButtonLabel {
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.iconContainer {
+  margin-bottom: 2rem;
+}
+
+.graduationIcon {
+  font-size: 4rem;
+  color: white;
+  filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));
+}
+
+.subtitle {
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+  opacity: 0.9;
+}
+
+.description {
+  font-size: 1rem;
+  max-width: 600px;
+  margin: 0 auto 2rem;
+  opacity: 0.8;
+  line-height: 1.6;
+}
+
+.ctaButton {
+  background: linear-gradient(45deg, #ff6b35, #f7931e);
+  border: none;
+  margin: 10px !important;
+  border-radius: 25px;
+  color: white;
+  font-size: 10px!important;
+  font-weight: bold;
+  text-decoration: none !important;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);
+  transition: all 0.3s ease;
+}
+
+.ctaButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 107, 53, 0.6);
+}
+
+/* Responsive mobile */
+@media (max-width: 768px) {
+  .CommandeTitle {
+    font-size: 2.5rem;
+  }
+  
+  .TtileCommande {
+    font-size: 1.2rem;
+  }
+  
+  .revolutQuickActions {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .revolutdiv {
+    padding: 1.5rem;
+    min-width: 120px;
+  }
+}
+.mainTitle {
+  font-size: 3.5rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+  text-align: center;
+  color: white;
+}
+
+.iconContainer {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.graduationIcon {
+  font-size: 4rem;
+  color: white;
+}
+
+.subtitle {
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+  text-align: center;
+  color: white;
+}
+
+.description {
+  font-size: 1rem;
+  max-width: 600px;
+  margin: 0 auto 2rem;
+  text-align: left;
+  color: white;
+  line-height: 1.6;
+}
+
+.ctaButton {
+  background: #ff6b35;
+  border: none;
+  padding: 15px 40px;
+  border-radius: 25px;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: block;
+  margin: 0 auto 2rem;
+  box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);
+}
+
+.secondaryText {
+  font-size: 0.9rem;
+  text-align: left;
+  color: white;
+  opacity: 0.8;
+}
+
+/* Responsive mobile */
+@media (max-width: 768px) {
+  .mainTitle {
+      font-size: 2.5rem;
+  }
+  
+  .graduationIcon {
+      font-size: 3rem;
+  }
+  
+  .subtitle {
+      font-size: 1.2rem;
+  }
+  
+  .description, .secondaryText {
+      padding: 0 20px;
+  }
 }
