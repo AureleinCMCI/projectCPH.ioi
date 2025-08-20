@@ -95,8 +95,6 @@
 }
 
 .mainIcon {
-  background: rgba(255, 255, 255, 0.1);
-  border: 3px solid rgba(255, 255, 255, 0.3);
   border-radius: 50%;
   width: 200px;
   height: 200px;
@@ -176,6 +174,195 @@
   color: white;
   text-transform: uppercase;
   letter-spacing: 1px;
+}
+
+/* Styles pour la carte produit blanche - exactement comme l'image */
+.productCard {
+  margin-bottom: 150px !important;
+  background: white;
+  border-radius: 50px 50px 0 0;
+  padding: 0px 20px;
+  margin: 0 0px;
+  margin-top: 20px;
+  box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.1);
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.productHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+}
+
+.productTitle {
+  text-align: center;
+  margin-top: 20px;
+  font-size: 2rem;
+  font-weight: bold;
+  color: #333;
+}
+
+.productHeart {
+  font-size: 1.5rem;
+  color: #ff6b35;
+}
+
+.productDescription {
+  color: #666;
+  font-size: 1rem;
+  line-height: 1.5;
+  margin-bottom: 30px;
+  text-align: left;
+}
+
+.featureIcons {
+  display: flex;
+  gap: 15px;
+  margin-bottom: 40px;
+}
+
+.featureIcon {
+  background: #f5f5f5;
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
+
+.featureIcon:hover {
+  background: #e0e0e0;
+  transform: scale(1.05);
+}
+
+.featureIconLabel {
+  font-size: 0.7rem;
+  color: #666;
+  margin-top: 5px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.addToCartButton {
+  background: #ff6b35;
+  color: white;
+  padding: 18px;
+  border-radius: 15px;
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: auto;
+}
+
+.addToCartButton:hover {
+  background: #e55a2b;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(255, 107, 53, 0.3);
+}
+
+/* Styles pour le bouton avec icône de livre */
+.bookIconButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 10px;
+}
+
+.bookIconButton:hover {
+  transform: scale(1.1);
+}
+
+.bookIconLabel {
+  font-size: 0.8rem;
+  color: #666;
+  margin-top: 5px;
+  font-weight: 500;
+}
+
+/* Styles pour la liste des transactions/livres */
+.transactionsList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+/* Styles pour empêcher le zoom sur mobile */
+.transactionsList input,
+.transactionsList textarea {
+  font-size: 16px !important;
+  transform: scale(1) !important;
+  touch-action: manipulation !important;
+  -webkit-text-size-adjust: 100% !important;
+  -ms-text-size-adjust: 100% !important;
+}
+
+.transaction {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.transaction:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  border-color: #ff6b35;
+}
+
+.transactionIcon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+  border-radius: 8px;
+  font-size: 1.2rem;
+}
+
+.transactionInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.transactionTitle {
+  font-weight: 600;
+  color: #333;
+  font-size: 1rem;
+}
+
+.transactionTime {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.transactionAmount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
 }
 
 .iconContainer {

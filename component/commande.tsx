@@ -1,12 +1,14 @@
 'use client';
 
 import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
-import { Button, Center, Loader, Modal, Table, Text, TextInput } from '@mantine/core';
+import { Button, Center, Modal, Table, Text, TextInput } from '@mantine/core';
+import { IconCamera } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './style/ScannerResception.module.css';
 import stylesCommande from './style/commande.module.css';
+
 
 type InventaireItem = {
   id: number;
@@ -89,6 +91,9 @@ export default function Commande() {
 
   // État pour la modale de liste des commandes
   const [listeCommandeOpened, setListeCommandeOpened] = useState(false);
+  
+  // État pour la modale de vente
+  const [venteOpened, setVenteOpened] = useState(false);
 
   
   // Détection automatique du type d'appareil et choix du scanner
@@ -610,35 +615,44 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
 
       {/* Section montant principal */}
       <div className={stylesCommande.revolutAmount}>
-        <div className={stylesCommande.revolutLabel}>Commandes</div>
-        <div className={stylesCommande.TtileCommande}>Voici l&apos;interface de vente de livres</div>
+        {/* Grosse icône caméra au centre */}
+        <div className={stylesCommande.mainIconContainer}>
+          <div className={stylesCommande.mainIcon} onClick={() => setScannerOpened(true)}>
+            <IconCamera size={80} color="white" />
+          </div>
+        </div>  
         <div className={stylesCommande.revolutQuickActions}>
-          <div className={stylesCommande.quickAction}>
-            <div onClick={() => setScannerOpened(true)} className={stylesCommande.revolutdiv}>
-              <span>📱</span>
-              <div className={stylesCommande.quickActionLabel}>Scanner</div>
-            </div>
-          </div>
 
-          <div className={stylesCommande.quickAction}>
-          <div onClick={() => listeCommande(true)} className={stylesCommande.revolutdiv}>
-              <span>📋</span>
-              <div className={stylesCommande.quickActionLabel}>Commande</div>
-            </div>
-          </div>
         </div>
       </div>
 
-      {/* Barre de recherche */}
-      <div style={{ padding: '0 20px', marginBottom: '20px' }}>
-        <TextInput
-          placeholder="Rechercher un livre..."
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-          className={stylesCommande.searchInput}
-        />
-      </div>
+      {/* Carte blanche avec contenu produit - exactement comme l'image */}
+      <div className={stylesCommande.productCard}>
+        <div className={stylesCommande.productHeader}>
+          <div className={stylesCommande.productTitle}>Vos ventes</div>
+          <div className={stylesCommande.productHeart}> </div>
+        </div>
+        
+        <div className={stylesCommande.productDescription}>
+          Your productLorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nonummy nomincidunt
+        </div>
+        <Center>
+          <div className={stylesCommande.featureIcons}>
 
+            <div className={stylesCommande.featureIcon} onClick={() => setVenteOpened(true)}>
+            <span>🏆</span>
+              <div className={stylesCommande.featureIconLabel}>Vendre</div>
+            </div>
+              
+             <div className={stylesCommande.featureIcon} onClick={downloadCSV}>
+            <span>📥</span>
+              <div className={stylesCommande.featureIconLabel}>CSV</div>
+            </div>
+          </div>   
+        </Center>
+      
+      </div>
+   
       {/* Liste des livres */}
       {/*
       <div className={stylesCommande.transactionsList}>
@@ -1161,6 +1175,175 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
         <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
           <Text size="sm" c="dimmed">
             💡 Le fichier CSV contient toutes les commandes avec leurs détails pour analyse
+          </Text>
+        </div>
+      </Modal>
+
+      {/* Modale de liste des livres pour vente */}
+      <Modal 
+        opened={listeCommandeOpened} 
+        onClose={() => setListeCommandeOpened(false)} 
+        title="📚 Liste des livres disponibles à la vente" 
+        centered 
+        size="xl"
+      >
+               {/*bar de recherche */}
+        <div style={{ marginBottom: '20px' }}>
+          <TextInput
+            placeholder="🔍 Rechercher un livre par titre, auteur ou ISBN..."
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === 'Escape') {
+                e.currentTarget.blur(); // Désactive le clavier
+                document.activeElement?.blur(); // Force la désactivation du focus
+              }
+            }}
+            style={{ marginBottom: '15px' }}
+            styles={{
+              input: { 
+                borderRadius: '10px',
+                border: '2px solid #e0e0e0',
+                fontSize: '16px', // Empêche le zoom sur iOS
+                transform: 'scale(1)', // Empêche le zoom
+                touchAction: 'manipulation' // Empêche le zoom sur mobile
+              }
+            }}
+            inputMode="search" // Type de clavier optimisé pour la recherche
+            autoComplete="off" // Désactive l'autocomplétion
+          />
+
+        </div>
+
+        <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
+          {inventaire.length === 0 ? (
+            <Text c="dimmed" ta="center" py="xl">
+              Aucun livre en stock
+            </Text>
+          ) : (
+            <div className={stylesCommande.transactionsList}>
+              {inventaire.filter(item => 
+                item.title.toLowerCase().includes(search.toLowerCase()) ||
+                item.author.toLowerCase().includes(search.toLowerCase()) ||
+                item.isbn.toString().includes(search)
+              ).map((item) => (
+                <div key={item.id} onClick={() => {
+                  detailvre(item.isbn.toString());
+                  setListeCommandeOpened(false);
+                }} className={stylesCommande.transaction}>
+                  <div className={stylesCommande.transactionIcon}>
+                    {item.livre?.image ? 
+                      <img src={item.livre.image} alt="Livre" style={{ width: '30px', height: '30px' }} /> 
+                      : '📚'
+                    }
+                  </div>
+                  <div className={stylesCommande.transactionInfo}>
+                    <div className={stylesCommande.transactionTitle}>{item.title}</div>
+                    <div className={stylesCommande.transactionTime}>
+                      👤 {item.author} | 📖 ISBN: {item.isbn}
+                    </div>
+                  </div>
+                  <div className={stylesCommande.transactionAmount}>
+                    <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                      {item.quantite}x
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>
+                      {item.price}€
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+          <Text size="sm" c="dimmed">
+            💡 Cliquez sur un livre pour voir ses détails et le vendre
+          </Text>
+        </div>
+      </Modal>
+
+      {/* Modale de vente - Liste des livres pour vente */}
+      <Modal 
+        opened={venteOpened} 
+        onClose={() => setVenteOpened(false)} 
+        title="📚 Liste des livres disponibles à la vente" 
+        centered 
+        size="xl"
+      >
+        {/*bar de recherche */}
+        <div style={{ marginBottom: '20px' }}>
+          <TextInput
+            placeholder="🔍 Rechercher un livre par titre, auteur ou ISBN..."
+            value={search}
+            onChange={(e) => setSearch(e.currentTarget.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === 'Escape') {
+                e.currentTarget.blur(); // Désactive le clavier
+                document.activeElement?.blur(); // Force la désactivation du focus
+              }
+            }}
+            style={{ marginBottom: '15px' }}
+            styles={{
+              input: { 
+                borderRadius: '10px',
+                border: '2px solid #e0e0e0',
+                fontSize: '16px', // Empêche le zoom sur iOS
+                transform: 'scale(1)', // Empêche le zoom
+                touchAction: 'manipulation' // Empêche le zoom sur mobile
+              }
+            }}
+            inputMode="search" // Type de clavier optimisé pour la recherche
+            autoComplete="off" // Désactive l'autocomplétion
+          />
+        </div>
+
+        <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
+          {inventaire.length === 0 ? (
+            <Text c="dimmed" ta="center" py="xl">
+              Aucun livre en stock
+            </Text>
+          ) : (
+            <div className={stylesCommande.transactionsList}>
+              {inventaire.filter(item => 
+                item.title.toLowerCase().includes(search.toLowerCase()) ||
+                item.author.toLowerCase().includes(search.toLowerCase()) ||
+                item.isbn.toString().includes(search)
+              ).map((item) => (
+                <div key={item.id} onClick={() => {
+                  detailvre(item.isbn.toString());
+                  setVenteOpened(false);
+                }} className={stylesCommande.transaction}>
+                  <div className={stylesCommande.transactionIcon}>
+                    {item.livre?.image ? 
+                      <img src={item.livre.image} alt="Livre" style={{ width: '30px', height: '30px' }} /> 
+                      : '📚'
+                    }
+                  </div>
+                  <div className={stylesCommande.transactionInfo}>
+                    <div className={stylesCommande.transactionTitle}>{item.title}</div>
+                    <div className={stylesCommande.transactionTime}>
+                      👤 {item.author} | 📖 ISBN: {item.isbn}
+                    </div>
+                  </div>
+                  <div className={stylesCommande.transactionAmount}>
+                    <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
+                      {item.quantite}x
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#666' }}>
+                      {item.price}€
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+          <Text size="sm" c="dimmed">
+            💡 Cliquez sur un livre pour voir ses détails et le vendre
           </Text>
         </div>
       </Modal>
