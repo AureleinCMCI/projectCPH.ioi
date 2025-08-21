@@ -5,7 +5,7 @@ import { Button, Center, Loader, Modal, Paper, Text, Textarea, TextInput } from 
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import styles from './style/monCompte.module.css';
+import styles from './style/commande.module.css';
 import scannerStyles from './style/ScannerResception.module.css';
 
 type InventaireItem = { id: number; livre_id: number; title: string; author: string; quantite: number; price: number; isbn: number; livre?: { image?: string };};
@@ -508,6 +508,13 @@ export default function Resception() {
       alert("Le titre du livre est manquant !");
       return;
     }
+    
+    // Vérifier si la quantité à ajouter est supérieure au stock disponible
+    if (ajout > livre.quantite) {
+      alert(`❌ Quantité insuffisante ! Stock disponible : ${livre.quantite}, Quantité demandée : ${ajout}. Aucune insertion dans la table commande.`);
+      return;
+    }
+    
     try {
       setLoading(true);
 
@@ -540,7 +547,7 @@ export default function Resception() {
       const result = await response.json();
       setInventaire(result.data || []);
       setLoading(false);
-      alert(`Quantité du livre "${livre.title}" incrémentée de ${ajout} !`);
+      alert(`✅ Quantité du livre "${livre.title}" incrémentée de ${ajout} !`);
     } catch (error) {
       console.error('Erreur:', error);
       setLoading(false);
@@ -642,7 +649,7 @@ export default function Resception() {
   };
 
   return (
-    <div className={styles.revolutStyle}>
+    <div className={styles.StyleCommandeGenerale}>
       {/* Section montant principal */}
       <div className={styles.revolutAmount}>
         <div className={styles.revolutLabel}>Scanner Réception</div>
@@ -1201,14 +1208,20 @@ export default function Resception() {
                       return;
                     }
                     
-                                         try {
-                       await incrementInventaire(livre, quantiteToAdd);
-                       setIncrementModalOpened(false);
-                       alert(`Quantité du livre "${livre.title}" incrémentée de ${quantiteToAdd} !`);
-                     } catch (error) {
-                       console.error('Erreur lors de l&apos;incrémentation:', error);
-                       alert('Erreur lors de l&apos;incrémentation');
-                     }
+                    // Vérifier si la quantité à ajouter est supérieure au stock disponible
+                    if (quantiteToAdd > livre.quantite) {
+                      alert(`❌ Quantité insuffisante ! Stock disponible : ${livre.quantite}, Quantité demandée : ${quantiteToAdd}. Aucune insertion dans la table commande.`);
+                      return;
+                    }
+                    
+                    try {
+                      await incrementInventaire(livre, quantiteToAdd);
+                      setIncrementModalOpened(false);
+                      alert(`✅ Quantité du livre "${livre.title}" incrémentée de ${quantiteToAdd} !`);
+                    } catch (error) {
+                      console.error('Erreur lors de l&apos;incrémentation:', error);
+                      alert('Erreur lors de l&apos;incrémentation');
+                    }
                   }}
                 >
                   ✅ Incrémenter l&apos;inventaire

@@ -1,9 +1,9 @@
 'use client';
 
-import { Button, Center, Loader, Modal, Table, TextInput } from '@mantine/core';
+import { Button, Center, Modal, Table } from '@mantine/core';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import styles from './style/monCompte.module.css';
+import styles from './style/inventaire.module.css';
 
 type InventaireItem = {
   id: number;
@@ -111,75 +111,49 @@ export default function Inventaire() {
     setTimeout(() => window.URL.revokeObjectURL(url), 100);
   };
 
-  const filteredInventaire = inventaire.filter((item) =>
-    (item.title ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (item.author ?? '').toLowerCase().includes(search.toLowerCase())
-  );
+
 
   return (
-    <div className={styles.revolutStyle}>
-      {/* Section montant principal */}
+    <div className={styles.StyleInventaireGenerale}>
+      {/* Section orange en haut - exactement comme l'image */}
       <div className={styles.revolutAmount}>
-        <div className={styles.revolutLabel}>Inventaire</div>
-        <div className={styles.revolutValue}>{inventaire.length}</div>
-        <div className={styles.revolutQuickActions}>
-          {user?.admin === true && (
-            <div className={styles.quickAction}>
-              <Link href="/inventaire/ScannerResception" passHref legacyBehavior>
-                <div className={styles.revolutdiv}>
-                  <span>➕</span>
-                  <div className={styles.quickActionLabel}>Ajouter</div>
-                </div>
-              </Link>
-            </div>
-          )}
-
-          <div className={styles.quickAction}>
-            <div onClick={() => setOpened(true)} className={styles.revolutButton}>
-              <span>📋</span>
-              <div className={styles.quickActionLabel}>Historique</div>
-            </div>
-          </div>
+        <div className={styles.inventaireTitle}>
+          <div className={styles.titleLine}>INVENTAIRE</div>
         </div>
       </div>
 
-      {/* Barre de recherche */}
-      <div style={{ padding: '0 20px', marginBottom: '20px' }}>
-        <TextInput
-          placeholder="Rechercher un livre..."
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-          className={styles.searchInput}
-        />
-      </div>
+      {/* Section blanche en bas - exactement comme l'image */}
+      <div className={styles.productCard}>
+        <div className={styles.productHeader}>
+          <div className={styles.productTitle}>Livres en stock</div>
+          <div className={styles.productHeart}>📖</div>
+        </div>
+        
+        <div className={styles.productDescription}>
+          Gérez votre inventaire de livres, consultez les stocks et l&apos;historique des réceptions
+        </div>
 
-      {/* Liste des livres */}
-      <div className={styles.transactionsList}>
-        {loading ? (
-          <Center>
-            <Loader />
-          </Center>
-        ) : (
-          filteredInventaire.map((item) => (
-            <div key={item.id} className={styles.transaction}>
-              <div className={styles.transactionIcon}>📚</div>
-              <div className={styles.transactionInfo}>
-                <div className={styles.transactionTitle}>{item.title}</div>
-                <div className={styles.transactionTime}>
-                  👤 {item.author} | 📖 ISBN: {item.isbn}
-                </div>
+        {/* Boutons d'action dans la partie blanche */}
+        <Center>
+          <div className={styles.featureIcons}>
+            {user?.admin === true && (
+              <div className={styles.featureIcon}>
+                <Link href="/inventaire/ScannerResception" passHref legacyBehavior>
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
+                    <span>➕</span>
+                    <div className={styles.featureIconLabel}>Ajouter</div>
+                  </div>
+                </Link>
               </div>
-              <div className={styles.transactionAmount}>
-                <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                  {item.quantite}x
-                </div>
-                <div style={{ fontSize: '12px', color: '#666' }}>
-                  {item.price}€
-                </div>
-              </div>
+            )}
+
+            <div className={styles.featureIcon} onClick={() => setOpened(true)}>
+              <span>📋</span>
+              <div className={styles.featureIconLabel}>Historique</div>
             </div>
-          ))
-        )}
+          </div>
+        </Center>
+        {/* Liste des livres */}        
       </div>
 
       {/* Modal Historique */}

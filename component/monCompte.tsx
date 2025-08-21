@@ -195,60 +195,48 @@ const listeCommandesUtilisateur = async () => {
 }
 
   return (
-    <div className={stylesCompte.revolutStyle}>
+    <div className={stylesCompte.monCompteStyle}>
       {/* Header avec photo de profil et recherche */}
 
 
       {/* Section montant principal */}
       <div className={stylesCompte.revolutAmount}>
-        <div className={stylesCompte.revolutLabel}>{user?.name}</div>
-        <div className={stylesCompte.revolutValue}>
+        
+        <div className={stylesCompte.monComptePhoto}>
           <Image
             src={avatarPreview || user?.photo || '/img/avatar.png'}
             alt="avatar"
-            width={80}
-            height={80}
+            width={180}
+            height={180}
             style={{ 
               borderRadius: '50%',
-              border: '3px solid #a259ff'
+              border: '3px solidrgb(255, 89, 89)'
             }}
           />
         </div>
-        <div className={stylesCompte.revolutQuickActions}>
-        <div   onClick={listeCommandesUtilisateur}  className={stylesCompte.quickAction}>
-          <span>➕</span>
-          <div className={stylesCompte.quickActionLabel}>Ajouter</div>
+        <div className={stylesCompte.nameAccout}>{user?.name}</div>
+        
+        {/* Section des actions avec icônes orange */}
+        <div className={stylesCompte.actionsSection}>
+          <div className={stylesCompte.actionItem}>
+            <div  onClick={() => setInfoOpened(true)} className={stylesCompte.actionIcon}>👤</div>
+            <div  className={stylesCompte.actionText}>Mon Profil</div>
+          </div>
+          <div className={stylesCompte.actionItem}>
+          </div>
+          <div className={stylesCompte.actionItem}>
+            <div onClick={listeCommandesUtilisateur} className={stylesCompte.actionIcon}>🏆</div>
+            <div className={stylesCompte.actionText}>Mes Commandes</div>
+          </div>
+          <div className={stylesCompte.actionItem}>
+          </div>
         </div>
-
-         <div className={stylesCompte.quickAction}>
-           <div onClick={() => setInfoOpened(true)} className={stylesCompte.revolutdiv} >
-           <span>ℹ️</span>
-           <div className={stylesCompte.quickActionLabel}>Info</div>
-           </div>
-         </div>
-      </div>
       </div>
       {/* Actions rapides */}
 
 
       {/* Liste des dernières commandes */}
-      <div className={stylesCompte.transactionsList}>
-        {commandes.map((commande) => (
-          <div key={commande.id} className={stylesCompte.transaction}>
-            <div className={stylesCompte.transactionIcon}>📚</div>
-            <div className={stylesCompte.transactionInfo}>
-              <div className={stylesCompte.transactionTitle}>{commande.title}</div>
-              <div className={stylesCompte.transactionTime}>
-                {commande.date_achat ? formatDateTimeParis(commande.date_achat).split('_')[1] : ''}
-              </div>
-            </div>
-            <div className={stylesCompte.transactionAmount}>
-              {commande.quantite}x
-            </div>
-          </div>
-        ))}
-      </div>
-
+      
       {/* Navbar en bas */}
       {/* Navbar en haut */}
      

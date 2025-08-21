@@ -375,11 +375,7 @@ useEffect(() => {
 
     fetchInventaire();
   }, []);
-
-  const filteredInventaire = inventaire.filter((item) =>
-    (item.title ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (item.author ?? '').toLowerCase().includes(search.toLowerCase())
-  );
+  // filteredInventaire supprimé car il n'est pas utilisé
 
   // Fonction pour afficher les détails du livre
   const detailvre = (isbn: string) => {
@@ -390,9 +386,7 @@ useEffect(() => {
     }
   };
 
-  const listeCommande = (open: boolean) => {
-    setListeCommandeOpened(open);
-  };
+  // Suppression de la fonction inutilisée listeCommande
 
   const decrementInventaire = async (livre: InventaireItem, quantite: number) => {
     if (!quantite || quantite <= 0) {
@@ -618,7 +612,7 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
         {/* Grosse icône caméra au centre */}
         <div className={stylesCommande.mainIconContainer}>
           <div className={stylesCommande.mainIcon} onClick={() => setScannerOpened(true)}>
-            <IconCamera size={80} color="white" />
+            <IconCamera size={80} color="white" style={{ marginBottom: '370px' }} />
           </div>
         </div>  
         <div className={stylesCommande.revolutQuickActions}>
@@ -627,7 +621,7 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
       </div>
 
       {/* Carte blanche avec contenu produit - exactement comme l'image */}
-      <div className={stylesCommande.productCard}>
+      <div className={stylesCommande.productCard} style={{ position: 'fixed', bottom: '0', left: '0', right: '0' ,top: '370px' }}>
         <div className={stylesCommande.productHeader}>
           <div className={stylesCommande.productTitle}>Vos ventes</div>
           <div className={stylesCommande.productHeart}> </div>
