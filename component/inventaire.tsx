@@ -118,12 +118,12 @@ export default function Inventaire() {
       {/* Section orange en haut - exactement comme l'image */}
       <div className={styles.revolutAmount}>
         <div className={styles.inventaireTitle}>
-          <div className={styles.titleLine}>INVENTAIRE</div>
+          <div className={styles.titleLine} style={{marginBottom: '370px' }}>INVENTAIRE</div>
         </div>
       </div>
 
       {/* Section blanche en bas - exactement comme l'image */}
-      <div className={styles.productCard}>
+      <div className={styles.productCard} style={{ position: 'fixed', bottom: '0', left: '0', right: '0' ,top: '370px'  }}>
         <div className={styles.productHeader}>
           <div className={styles.productTitle}>Livres en stock</div>
           <div className={styles.productHeart}>📖</div>

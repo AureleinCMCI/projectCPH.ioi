@@ -2,11 +2,11 @@
 
 import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
 import { Button, Center, Loader, Modal, Paper, Text, Textarea, TextInput } from '@mantine/core';
+import { IconCamera } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import styles from './style/commande.module.css';
-import scannerStyles from './style/ScannerResception.module.css';
+import { default as scannerStyles, default as styles } from './style/commande.module.css';
 
 type InventaireItem = { id: number; livre_id: number; title: string; author: string; quantite: number; price: number; isbn: number; livre?: { image?: string };};
 
@@ -47,10 +47,12 @@ export default function Resception() {
   // États pour la modale de détails du livre (nouvelle fonctionnalité)
   const [bookDetailsModalOpened, setBookDetailsModalOpened] = useState(false);
   const [selectedBook, setSelectedBook] = useState<InventaireItem | null>(null);
+  const [inventaireModalOpened, setInventaireModalOpened] = useState(false);
 
   // Ajouter un nouvel état pour la liste des codes scannés
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
   const [showCodesList, setShowCodesList] = useState(false);
+  const [isbnList, setIsbnList] = useState<{ isbn: number; livre_id: number }[]>([]);
 
   const setScannerNode = useCallback((node: HTMLDivElement | null) => {
     scannerRef.current = node;
@@ -170,42 +172,68 @@ export default function Resception() {
   };
 
   // Fonction pour valider un code choisi
-  const validateSelectedCode = async (selectedCode: string) => {
-    console.log('🎯 Code sélectionné:', selectedCode);
+
+
+  // Fonction pour vérifier TOUS les codes scannés (méthode améliorée comme dans commande.tsx)
+  const validateAllScannedCodes = () => {
+    console.log('🔍 Vérification de TOUS les codes scannés...', scannedCodes);
     
-    // Arrêter le scanner maintenant
-    if (scannerType === 'quagga' || scannerType === 'html5') {
-      Quagga.stop();
+    // Vérifier TOUS les ISBNs pour trouver le livre
+    let livreFound = null;
+    let isbnTrouve = null;
+    
+    // Première passe : chercher un ISBN valide
+    for (const code of scannedCodes) {
+      console.log(`🔍 Vérification de l'ISBN: ${code}`);
+      
+      // Vérifier si l'ISBN existe dans la liste des ISBN
+      const isbnMatch = isbnList.find(item => item.isbn.toString() === code.trim());
+      
+      if (isbnMatch) {
+        console.log(`✅ ISBN trouvé dans la base: ${isbnMatch.isbn}`);
+        isbnTrouve = isbnMatch;
+        break; // On a trouvé un ISBN valide, on peut arrêter
+      }
     }
     
-    // Vérifier si l'ISBN existe en stock
-    const livre = inventaire.find(item => item.isbn.toString() === selectedCode.trim());
+    // Si on a trouvé un ISBN, chercher le livre correspondant
+    if (isbnTrouve) {
+      console.log(`🔍 Recherche du livre pour l'ISBN: ${isbnTrouve.isbn}`);
+      const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
+      
+      if (livre) {
+        console.log(`✅ Livre trouvé: ${livre.title}`);
+        livreFound = livre;
+      } else {
+        console.log(`❌ ISBN trouvé mais livre non en stock: ${isbnTrouve.isbn}`);
+      }
+    } else {
+      console.log(`❌ Aucun ISBN valide trouvé dans les codes scannés`);
+    }
     
-    if (livre) {
+    // Fermer le scanner
+    if (scannerType === 'quagga') {
+      Quagga.stop();
+    }
+    setScannerOpened(false);
+    setShowCodesList(false);
+    setScannedCodes([]);
+    
+    // Décider automatiquement
+    if (livreFound) {
       // ✅ ISBN trouvé : ouvrir la popup d'incrémentation
-      setIsbn(livre.isbn.toString());
+      setIsbn(livreFound.isbn.toString());
       setQuantiteToAdd(1);
-      
-      setScannerOpened(false);
-      setShowCodesList(false);
-      setScannedCodes([]);
-      
       setTimeout(() => setIncrementModalOpened(true), 500);
-         } else {
-       // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout
-       alert(`ISBN ${selectedCode} - Livre pas en stock !`);
-       setFormData(prev => ({ 
-         ...prev, 
-         isbn: selectedCode,
-         additionalIsbns: [] // Pas d'ISBNs additionnels pour un code sélectionné individuellement
-       }));
-       
-       setScannerOpened(false);
-       setShowCodesList(false);
-       setScannedCodes([]);
-       
-       setTimeout(() => setFormOpened(true), 500);
-     }
+    } else {
+      // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout avec ISBNs séparés
+      setFormData(prev => ({ 
+        ...prev, 
+        isbn: scannedCodes[0] || '',
+        additionalIsbns: scannedCodes.slice(1)
+      }));
+      setTimeout(() => setFormOpened(true), 500);
+    }
   };
 
   // Initialisation scanner adaptatif (html5-qrcode OU QuaggaJS)
@@ -305,21 +333,29 @@ export default function Resception() {
     }
   }, [scannerOpened, scanner, scannerType]);
 
-  // Récupération de l'inventaire au chargement
+  // Récupération de l'inventaire et de la liste des ISBNs au chargement
   useEffect(() => {
-    async function fetchInventaire() {
+    async function fetchData() {
       setLoading(true);
       try {
-        const response = await fetch('/api/inventaire', { method: 'GET' });
-        const result = await response.json();
-        setInventaire(result.data || []);
-      } catch {
+        // Récupérer l'inventaire
+        const inventaireResponse = await fetch('/api/inventaire', { method: 'GET' });
+        const inventaireResult = await inventaireResponse.json();
+        setInventaire(inventaireResult.data || []);
+        
+        // Récupérer la liste des ISBNs
+        const isbnResponse = await fetch('/api/isbn', { method: 'GET' });
+        const isbnResult = await isbnResponse.json();
+        setIsbnList(isbnResult.data || []);
+      } catch (error) {
+        console.error('Erreur lors de la récupération des données:', error);
         setInventaire([]);
+        setIsbnList([]);
       } finally {
         setLoading(false);
       }
     }
-    fetchInventaire();
+    fetchData();
   }, []);
 
   // Gestion du formulaire d'ajout
@@ -510,10 +546,7 @@ export default function Resception() {
     }
     
     // Vérifier si la quantité à ajouter est supérieure au stock disponible
-    if (ajout > livre.quantite) {
-      alert(`❌ Quantité insuffisante ! Stock disponible : ${livre.quantite}, Quantité demandée : ${ajout}. Aucune insertion dans la table commande.`);
-      return;
-    }
+
     
     try {
       setLoading(true);
@@ -607,117 +640,102 @@ export default function Resception() {
     }
   }
 
-  // Ajouter cette fonction pour valider tous les codes
-  const validateAllScannedCodes = () => {
-    console.log('🔍 Vérification de tous les codes scannés...', scannedCodes);
-    
-    // Chercher si AU MOINS UN ISBN existe dans la base de données
-    let livreFound = null;
-    
-    for (const code of scannedCodes) {
-      const livre = inventaire.find(item => item.isbn.toString() === code.trim());
-      
-      if (livre) {
-        livreFound = livre;
-        break; // Arrêter dès qu'on trouve un match
-      }
-    }
-    
-    // Fermer le scanner
-    if (scannerType === 'quagga') {
-      Quagga.stop();
-    }
-    setScannerOpened(false);
-    setShowCodesList(false);
-    setScannedCodes([]);
-    
-    // Décider automatiquement
-    if (livreFound) {
-      // ✅ ISBN trouvé : ouvrir la popup d'incrémentation (comme dans commande.tsx)
-      setIsbn(livreFound.isbn.toString());
-      setQuantiteToAdd(1); // Initialiser la quantité à ajouter
-      setTimeout(() => setIncrementModalOpened(true), 500); // Ouvre la popup d'incrémentation
-          } else {
-        // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout avec ISBNs séparés
-        setFormData(prev => ({ 
-          ...prev, 
-          isbn: scannedCodes[0] || '', // Premier ISBN comme ISBN principal
-          additionalIsbns: scannedCodes.slice(1) // Autres ISBNs comme ISBNs additionnels
-        }));
-        setTimeout(() => setFormOpened(true), 500);
-      }
-  };
+
 
   return (
     <div className={styles.StyleCommandeGenerale}>
       {/* Section montant principal */}
       <div className={styles.revolutAmount}>
-        <div className={styles.revolutLabel}>Scanner Réception</div>
-        <div className={styles.revolutValue}>{inventaire.length}</div>
         <div className={styles.revolutQuickActions}>
           <div className={styles.quickAction}>
-            <div onClick={() => setScannerOpened(true)} className={styles.revolutdiv}>
-              <span>📱</span>
-              <div className={styles.quickActionLabel}>Scanner</div>
-            </div>
+          <div className={styles.mainIcon} onClick={() => setScannerOpened(true)}>
+            <IconCamera size={80} color="white" style={{ marginBottom: '370px' }} />
           </div>
-
-          <div className={styles.quickAction}>
-            <div onClick={() => setFormOpened(true)} className={styles.revolutButton}>
-              <span>➕</span>
-              <div className={styles.quickActionLabel}>Ajouter</div>
-            </div>
           </div>
+          <Center> 
+            <div className={styles.productCard} style={{ position: 'fixed', bottom: '0', left: '0', right: '0' ,top: '370px' }}>
+              <div className={styles.productHeader}>
+                <div className={styles.productTitle}>Réception de livres </div>
+                <div className={styles.productHeart}> </div>
+              </div>
+              <div className={styles.productDescription}>
+                Réception de livres , rajouté vos livres directement dans l&apos;inventaire
+              </div>
+              <Center style={{display: 'flex', flexDirection: 'row', gap: '30px'}}>
+                <div onClick={() => setFormOpened(true)} className={styles.featureIcon}>
+                  <span>➕</span>
+                  <div className={styles.featureIconLabel}>Ajouter</div>
+                </div>
+                <div onClick={() => setInventaireModalOpened(true)} className={styles.featureIcon}>
+                  <span>📚</span>
+                  <div className={styles.featureIconLabel}>Inventaire</div>
+                </div>
+              </Center>
+            </div>
+          </Center>
         </div>
       </div>
 
-      {/* Barre de recherche */}
-      <div style={{ padding: '0 20px', marginBottom: '20px' }}>
-        <TextInput
-          placeholder="Rechercher un livre..."
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-          className={styles.searchInput}
-        />
-      </div>
-
-      {/* Liste des livres */}
-      <div className={styles.transactionsList}>
-        {loading ? (
-          <Center>
-            <Loader />
-          </Center>
-        ) : (
-          filteredInventaire.map((item) => (
-            <div 
-              key={item.id} 
-              className={styles.transaction}
-              onClick={() => {
-                setSelectedBook(item);
-                setBookDetailsModalOpened(true);
-              }}
-              style={{ cursor: 'pointer' }}
-            >
-              <div className={styles.transactionIcon}>{item.livre?.image ? <img src={item.livre.image} alt="image" style={{width: '50px', height: '50px'}} /> : '📚'}</div>
-              <div className={styles.transactionInfo}>
-                <div className={styles.transactionTitle}>{item.title}</div>
-                <div className={styles.transactionTime}>
-                  👤 {item.author} | 📖 ISBN: {item.isbn}
+      <Modal opened={inventaireModalOpened} onClose={() => setInventaireModalOpened(false)}> 
+        <div style={{ padding: '20px' }}>
+          <h3 style={{ marginBottom: '20px', textAlign: 'center' }}>📚 Livres en Stock</h3>
+          
+          <div style={{ padding: '0 0 20px 0' }}>
+            <TextInput
+              placeholder="Rechercher un livre..."
+              value={search}
+              onChange={(e) => setSearch(e.currentTarget.value)}
+              className={styles.searchInput}
+            />
+          </div>
+          
+          <div className={styles.transactionsList}>
+            {loading ? (
+              <Center>
+                <Loader />
+              </Center>
+            ) : filteredInventaire.length === 0 ? (
+              <Center>
+                <Text c="dimmed">Aucun livre trouvé</Text>
+              </Center>
+            ) : (
+              filteredInventaire.map((item) => (
+                <div 
+                  key={item.id} 
+                  className={styles.transaction}
+                  style={{ cursor: 'pointer' }}
+                  onClick={() => {
+                    setSelectedBook(item);
+                    setInventaireModalOpened(false);
+                    setBookDetailsModalOpened(true);
+                  }}
+                >
+                  <div className={styles.transactionIcon}>
+                    {item.livre?.image ? 
+                      <img src={item.livre.image} alt="image" style={{width: '50px', height: '50px'}} /> 
+                      : '📚'
+                    }
+                  </div>
+                  <div className={styles.transactionInfo}>
+                    <div className={styles.transactionTitle}>{item.title}</div>
+                    <div className={styles.transactionTime}>
+                      👤 {item.author} | 📖 ISBN: {item.isbn}
+                    </div>
+                  </div>
+                  <div className={styles.transactionAmount}>
+                    <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                      {item.quantite}x
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#666' }}>
+                      {item.price}€
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className={styles.transactionAmount}>
-                <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                  {item.quantite}x
-                </div>
-                <div style={{ fontSize: '12px', color: '#666' }}>
-                  {item.price}€
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
+              ))
+            )}
+          </div>
+        </div>
+      </Modal>
       {/* Scanner en DIV plein écran - AUCUNE compression */}
       {scannerOpened && (
           <div className={scannerStyles.scannerFullScreen}>
@@ -1113,7 +1131,7 @@ export default function Resception() {
                 <Button 
                   size="xs" 
                   color="green"
-                  onClick={() => validateSelectedCode(code)}
+                  onClick={() => validateAllScannedCodes()}
                 >
                   ✓ Choisir
                 </Button>
@@ -1206,18 +1224,10 @@ export default function Resception() {
                     if (quantiteToAdd <= 0) {
                       alert('Veuillez saisir une quantité supérieure à 0');
                       return;
-                    }
-                    
-                    // Vérifier si la quantité à ajouter est supérieure au stock disponible
-                    if (quantiteToAdd > livre.quantite) {
-                      alert(`❌ Quantité insuffisante ! Stock disponible : ${livre.quantite}, Quantité demandée : ${quantiteToAdd}. Aucune insertion dans la table commande.`);
-                      return;
-                    }
-                    
+                    }    
                     try {
                       await incrementInventaire(livre, quantiteToAdd);
                       setIncrementModalOpened(false);
-                      alert(`✅ Quantité du livre "${livre.title}" incrémentée de ${quantiteToAdd} !`);
                     } catch (error) {
                       console.error('Erreur lors de l&apos;incrémentation:', error);
                       alert('Erreur lors de l&apos;incrémentation');

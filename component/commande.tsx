@@ -633,7 +633,7 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
         <Center>
           <div className={stylesCommande.featureIcons}>
 
-            <div className={stylesCommande.featureIcon} onClick={() => setVenteOpened(true)}>
+          <div className={stylesCommande.featureIcon} onClick={() => setVenteOpened(true)}>
             <span>🏆</span>
               <div className={stylesCommande.featureIconLabel}>Vendre</div>
             </div>
@@ -1190,7 +1190,7 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === 'Escape') {
                 e.currentTarget.blur(); // Désactive le clavier
-                document.activeElement?.blur(); // Force la désactivation du focus
+                (document.activeElement as HTMLElement)?.blur(); // Force la désactivation du focus
               }
             }}
             style={{ marginBottom: '15px' }}
@@ -1275,7 +1275,7 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === 'Escape') {
                 e.currentTarget.blur(); // Désactive le clavier
-                document.activeElement?.blur(); // Force la désactivation du focus
+                (document.activeElement as HTMLElement)?.blur(); // Force la désactivation du focus
               }
             }}
             style={{ marginBottom: '15px' }}
