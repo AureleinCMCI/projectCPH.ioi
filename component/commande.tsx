@@ -514,9 +514,9 @@ useEffect(() => {
     } else {
       // ❌ Aucun livre trouvé : rediriger vers réception
       alert(`❌ Aucun livre trouvé en stock`);
-      localStorage.setItem('pendingIsbn', scannedCodes.join(', '));
       localStorage.setItem('autoOpenForm', 'true');
       localStorage.setItem('returnToCommande', 'true');
+      localStorage.setItem('scannedIsbns', JSON.stringify(scannedCodes));
       window.location.href = '/inventaire/ScannerResception';
     }
   };
@@ -609,6 +609,28 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
 
       {/* Section montant principal */}
       <div className={stylesCommande.revolutAmount}>
+        {/* Icônes de livres et dollars flottantes décoratives */}
+        <div className={stylesCommande.floatingBooks}>
+          {/* Livres flottants */}
+          <div className={stylesCommande.floatingBook} style={{ top: '10%', left: '15%', animationDelay: '0s' }}>📚</div>
+          <div className={stylesCommande.floatingBook} style={{ top: '20%', right: '20%', animationDelay: '1s' }}>📖</div>
+          <div className={stylesCommande.floatingBook} style={{ top: '35%', left: '10%', animationDelay: '2s' }}>📗</div>
+          <div className={stylesCommande.floatingBook} style={{ top: '45%', right: '15%', animationDelay: '3s' }}>📘</div>
+          <div className={stylesCommande.floatingBook} style={{ top: '15%', left: '50%', animationDelay: '1.5s' }}>📙</div>
+          <div className={stylesCommande.floatingBook} style={{ top: '30%', right: '45%', animationDelay: '2.5s' }}>📕</div>
+          <div className={stylesCommande.floatingBook} style={{ top: '50%', left: '25%', animationDelay: '0.5s' }}>📔</div>
+          <div className={stylesCommande.floatingBook} style={{ top: '40%', right: '35%', animationDelay: '3.5s' }}>📒</div>
+          
+          {/* Dollars flottants */}
+          <div className={stylesCommande.floatingDollar} style={{ top: '25%', left: '35%', animationDelay: '0.8s' }}>💵</div>
+          <div className={stylesCommande.floatingDollar} style={{ top: '55%', right: '25%', animationDelay: '2.2s' }}>💰</div>
+          <div className={stylesCommande.floatingDollar} style={{ top: '12%', right: '40%', animationDelay: '1.8s' }}>💸</div>
+          <div className={stylesCommande.floatingDollar} style={{ top: '48%', left: '45%', animationDelay: '3.2s' }}>💲</div>
+          <div className={stylesCommande.floatingDollar} style={{ top: '8%', left: '65%', animationDelay: '0.3s' }}>💴</div>
+          <div className={stylesCommande.floatingDollar} style={{ top: '38%', right: '60%', animationDelay: '2.8s' }}>💶</div>
+          <div className={stylesCommande.floatingDollar} style={{ top: '22%', left: '75%', animationDelay: '1.2s' }}>💷</div>
+        </div>
+        
         {/* Grosse icône caméra au centre */}
         <div className={stylesCommande.mainIconContainer}>
           <div className={stylesCommande.mainIcon} onClick={() => setScannerOpened(true)}>
@@ -628,7 +650,7 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
         </div>
         
         <div className={stylesCommande.productDescription}>
-          Your productLorem ipsum dolor sit amet, consectetuer adipiscing elit, sed diam nonummy nomincidunt
+         Ici , passeé la vente de vos livres  en toute sécurité , soiyez-benis , que les livres atteignes les nations 
         </div>
         <Center>
           <div className={stylesCommande.featureIcons}>

@@ -87,10 +87,25 @@ export default function Resception() {
     const autoOpenForm = localStorage.getItem('autoOpenForm');
     
     if (autoOpenForm === 'true') {
-      // Récupérer tous les ISBNs scannés
+      // Récupérer tous les ISBNs scannés (depuis commande.tsx ou scanner direct)
+      const scannedIsbns = localStorage.getItem('scannedIsbns');
       const IsbnScanner = localStorage.getItem('IsbnScanner');
-      if (IsbnScanner) {
-        const isbns = IsbnScanner.split(', ');
+      
+      let isbns: string[] = [];
+      
+      if (scannedIsbns) {
+        // ISBNs venant de commande.tsx (format JSON)
+        try {
+          isbns = JSON.parse(scannedIsbns);
+        } catch (e) {
+          console.error('Erreur parsing scannedIsbns:', e);
+        }
+      } else if (IsbnScanner) {
+        // ISBNs venant du scanner direct (format string avec virgules)
+        isbns = IsbnScanner.split(', ');
+      }
+      
+      if (isbns.length > 0) {
         setFormData(prev => ({
           ...prev,
           isbn: isbns[0] || '', // Premier ISBN comme ISBN principal
@@ -101,6 +116,8 @@ export default function Resception() {
       // Ouvrir automatiquement le formulaire d'ajout
       setTimeout(() => setFormOpened(true), 500);
       localStorage.removeItem('autoOpenForm');
+      localStorage.removeItem('scannedIsbns'); // Nettoyer
+      localStorage.removeItem('IsbnScanner'); // Nettoyer
     }
   }, []);
 
@@ -236,87 +253,148 @@ export default function Resception() {
     }
   };
 
+  // Fonction pour demander les permissions de caméra
+  const requestCameraPermission = async () => {
+    try {
+      console.log('🔐 Demande de permission caméra...');
+      
+      // Vérifier si l'API MediaDevices est disponible
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        throw new Error('API MediaDevices non supportée');
+      }
+
+      // Demander la permission avec des contraintes spécifiques pour Android
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: { ideal: 'environment' }, // Force la caméra arrière
+          width: { ideal: 1280, min: 640 },
+          height: { ideal: 720, min: 480 },
+          aspectRatio: { ideal: 16/9 }
+        }
+      });
+
+      console.log('✅ Permission caméra accordée');
+      
+      // Arrêter le stream temporaire pour libérer la caméra
+      stream.getTracks().forEach(track => track.stop());
+      
+      return true;
+    } catch (error) {
+      console.error('❌ Erreur permission caméra:', error);
+      
+      if (error instanceof Error) {
+        if (error.name === 'NotAllowedError') {
+          alert('❌ Permission caméra refusée ! Veuillez autoriser l\'accès à la caméra dans les paramètres de votre navigateur.');
+        } else if (error.name === 'NotFoundError') {
+          alert('❌ Aucune caméra trouvée sur cet appareil.');
+        } else if (error.name === 'NotReadableError') {
+          alert('❌ Caméra déjà utilisée par une autre application.');
+        } else {
+          alert(`❌ Erreur caméra: ${error.message}`);
+        }
+      }
+      
+      return false;
+    }
+  };
+
   // Initialisation scanner adaptatif (html5-qrcode OU QuaggaJS)
   useEffect(() => {
     if (scannerOpened && scannerReady && scannerRef.current) {
       console.log(`Scanner ${scannerType} prêt à être utilisé`);
       
-      if (scannerType === 'html5') {
-        // ANDROID/DESKTOP : html5-qrcode
-        const html5QrcodeScanner = new Html5QrcodeScanner(
-          "reader",
-          { 
-            fps: 10, 
-            aspectRatio: 2.5,
-            videoConstraints: {
-              facingMode: 'environment'
-            }
-          },
-          false
-        );
+      // Demander d'abord la permission caméra
+      requestCameraPermission().then(permissionGranted => {
+        if (!permissionGranted) {
+          console.log('❌ Permission caméra refusée, fermeture du scanner');
+          setScannerOpened(false);
+          return;
+        }
+        
+        if (scannerType === 'html5') {
+          // ANDROID/DESKTOP : html5-qrcode avec contraintes optimisées
+          const html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader",
+            { 
+              fps: 10, 
+              aspectRatio: 2.5,
+              videoConstraints: {
+                facingMode: { ideal: 'environment' }, // Force la caméra arrière
+                width: { ideal: 1280, min: 640 },
+                height: { ideal: 720, min: 480 },
+                aspectRatio: { ideal: 16/9 }
+              }
+            },
+            false
+          );
 
-        html5QrcodeScanner.render(handleScan, handleError);
-        setScanner(html5QrcodeScanner);
+          html5QrcodeScanner.render(handleScan, handleError);
+          setScanner(html5QrcodeScanner);
 
-        return () => {
-          if (html5QrcodeScanner) {
-            html5QrcodeScanner.clear();
-          }
-        };
-      } else {
-        Quagga.init({
-          inputStream: {
-            name: "Live",
-            type: "LiveStream",
-            target: document.getElementById('reader') as HTMLElement,
-            constraints: {
-              width: { min: 640, ideal: 1280 },
-              height: { min: 480, ideal: 720 },
-              facingMode: "environment"
+          return () => {
+            if (html5QrcodeScanner) {
+              html5QrcodeScanner.clear();
             }
-          },
-          decoder: {
-            readers: [
-              "ean_reader",
-              "ean_8_reader",
-              "code_128_reader",
-              "code_39_reader",
-              "codabar_reader",
-              "i2of5_reader"
-            ]
-          },
-          locate: false,
-          locator: {
-            patchSize: "large",
-            halfSample: true
-          },
-          numOfWorkers: 2,
-          frequency: 10
-        }, (err) => {
-          if (err) {
-            console.error('Erreur initialisation Quagga:', err);
-            handleError(err.message);
-            return;
-          }
-          console.log("✅ QuaggaJS initialisé avec succès");
-          Quagga.start();
-          setScanner(true);
-        });
-        const onDetected = (result: QuaggaJSResultObject) => {  
-          const code = result.codeResult.code;
-          console.log('Code détecté par Quagga:', code);
-          if (code) {
-            handleScan(code);
-          }
-        };
-        Quagga.onDetected(onDetected);
-        return () => {
-          console.log('Nettoyage QuaggaJS...');
-          Quagga.offDetected(onDetected as QuaggaJSResultCallbackFunction);
-          Quagga.stop();
-          setScanner(null);
-        };
-      }
+          };
+        } else {
+          // iOS : QuaggaJS avec contraintes optimisées
+          Quagga.init({
+            inputStream: {
+              name: "Live",
+              type: "LiveStream",
+              target: document.getElementById('reader') as HTMLElement,
+              constraints: {
+                width: { min: 640, ideal: 1280 },
+                height: { min: 480, ideal: 720 },
+                facingMode: { ideal: "environment" }, // Force la caméra arrière
+                aspectRatio: { ideal: 16/9 }
+              }
+            },
+            decoder: {
+              readers: [
+                "ean_reader",
+                "ean_8_reader",
+                "code_128_reader",
+                "code_39_reader",
+                "codabar_reader",
+                "i2of5_reader"
+              ]
+            },
+            locate: false,
+            locator: {
+              patchSize: "large",
+              halfSample: true
+            },
+            numOfWorkers: 2,
+            frequency: 10
+          }, (err) => {
+            if (err) {
+              console.error('Erreur initialisation Quagga:', err);
+              handleError(err.message);
+              return;
+            }
+            console.log("✅ QuaggaJS initialisé avec succès");
+            Quagga.start();
+            setScanner(true);
+          });
+          
+          const onDetected = (result: QuaggaJSResultObject) => {  
+            const code = result.codeResult.code;
+            console.log('Code détecté par Quagga:', code);
+            if (code) {
+              handleScan(code);
+            }
+          };
+          
+          Quagga.onDetected(onDetected);
+          return () => {
+            console.log('Nettoyage QuaggaJS...');
+            Quagga.offDetected(onDetected as QuaggaJSResultCallbackFunction);
+            Quagga.stop();
+            setScanner(null);
+          };
+        }
+      });
     }
   }, [scannerOpened, scannerReady, scannerType]);
   useEffect(() => {
@@ -892,7 +970,18 @@ export default function Resception() {
       {/* Formulaire d'ajout */}
       <Modal style={{height: '400px', zIndex: 1000}}
         opened={formOpened} 
-        onClose={() => setFormOpened(false)} 
+        onClose={() => {
+          setFormOpened(false);
+          // Si on vient de la page commande, retourner automatiquement
+          const returnToCommande = localStorage.getItem('returnToCommande');
+          if (returnToCommande === 'true') {
+            localStorage.removeItem('returnToCommande');
+            localStorage.removeItem('autoOpenForm');
+            localStorage.removeItem('scannedIsbns');
+            localStorage.removeItem('IsbnScanner');
+            window.location.href = '/commande';
+          }
+        }} 
         title="Ajouter ou incrémenter un livre" 
         centered 
         size={isMobile ? "xs" : "xl"}
