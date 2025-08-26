@@ -3,7 +3,7 @@
 import { BarChart } from '@mantine/charts';
 import { Badge, Button, Card, Center, Grid, Group, Loader, Modal, Paper, RingProgress, ScrollArea, Select, Stack, Table, Text, Title } from '@mantine/core';
 import { IconCurrencyEuro, IconDownload, IconPackage, IconShoppingCart, IconTrendingDown, IconTrendingUp, IconUsers, IconX } from '@tabler/icons-react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import styles from './style/statistique.module.css';
 
 type VenteStats = {
@@ -53,6 +53,61 @@ type InventaireItem = {
   quantite: number;
 };
 
+// Composant pour animer les compteurs
+function AnimatedCounter({ value, duration = 1000, formatFn }: { 
+  value: number; 
+  duration?: number; 
+  formatFn?: (num: number) => string;
+}) {
+  const [displayValue, setDisplayValue] = useState(0);
+  const [previousValue, setPreviousValue] = useState(0);
+  const countRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    if (previousValue !== value) {
+      // Annuler l'animation précédente si elle existe
+      if (countRef.current !== null) {
+        cancelAnimationFrame(countRef.current);
+      }
+
+      const startValue = previousValue;
+      const endValue = value;
+      const startTime = Date.now();
+
+      const animate = () => {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        
+        // Fonction d'easing pour un effet plus smooth
+        const easeOutQuart = 1 - Math.pow(1 - progress, 4);
+        
+        const currentValue = startValue + (endValue - startValue) * easeOutQuart;
+        setDisplayValue(Math.round(currentValue));
+
+        if (progress < 1) {
+          countRef.current = requestAnimationFrame(animate);
+        } else {
+          setPreviousValue(value);
+          countRef.current = null;
+        }
+      };
+
+      countRef.current = requestAnimationFrame(animate);
+    }
+
+    return () => {
+      if (countRef.current !== null) {
+        cancelAnimationFrame(countRef.current);
+      }
+    };
+  }, [value, duration, previousValue]);
+
+  // Utiliser la fonction de formatage si fournie, sinon formatage par défaut
+  const formattedValue = formatFn ? formatFn(displayValue) : displayValue.toString();
+
+  return <span>{formattedValue}</span>;
+}
+
 export default function Statistique() {
   const [statsGlobales, setStatsGlobales] = useState<StatsGlobales>({
     totalVentes: 0,
@@ -65,9 +120,6 @@ export default function Statistique() {
     chiffreAffairesMoisActuel: 0,
     receptionsMoisActuel: 0
   });
-  
-  const [ventesMensuelles, setVentesMensuelles] = useState<VenteStats[]>([]);
-  const [receptionsMensuelles, setReceptionsMensuelles] = useState<ReceptionStats[]>([]);
   const [loading, setLoading] = useState(true);
   const [modalVentesOuvert, setModalVentesOuvert] = useState(false);
   const [modalReceptionsOuvert, setModalReceptionsOuvert] = useState(false);
@@ -670,7 +722,10 @@ export default function Statistique() {
               <IconShoppingCart size={24} color="#228be6" />
             </Group>
             <Text size="xl" fw={700} c="blue">
-              {statsGlobales.totalVentes} livres
+              <AnimatedCounter 
+                value={statsGlobales.totalVentes} 
+                formatFn={(num) => `${formatNumber(num)} livres`}
+              />
             </Text>
             <Group mt="xs">
               {statsGlobales.evolutionVentes >= 0 ? (
@@ -703,7 +758,10 @@ export default function Statistique() {
               <IconPackage size={24} color="#40c057" />
             </Group>
             <Text size="xl" fw={700} c="green">
-              {statsGlobales.totalReceptions} livres
+              <AnimatedCounter 
+                value={statsGlobales.totalReceptions} 
+                formatFn={(num) => `${formatNumber(num)} livres`}
+              />
             </Text>
             <Group mt="xs">
               {statsGlobales.evolutionReceptions >= 0 ? (
@@ -736,7 +794,10 @@ export default function Statistique() {
               <IconCurrencyEuro size={24} color="#fa5252" />
             </Group>
             <Text size="xl" fw={700} c="red">
-              {formatNumber(statsGlobales.totalMontant)}€
+              <AnimatedCounter 
+                value={statsGlobales.totalMontant} 
+                formatFn={(num) => `${formatNumber(num)}€`}
+              />
             </Text>
             <Text size="sm" c="dimmed">
               Total des ventes
@@ -763,7 +824,10 @@ export default function Statistique() {
               <IconUsers size={24} color="#7950f2" />
             </Group>
             <Text size="xl" fw={700} c="violet">
-              {formatNumber(statsGlobales.totalLivres)} livres
+              <AnimatedCounter 
+                value={statsGlobales.totalLivres} 
+                formatFn={(num) => `${formatNumber(num)} livres`}
+              />
             </Text>
             <Text size="sm" c="dimmed">
               En inventaire
@@ -775,102 +839,7 @@ export default function Statistique() {
         </Grid.Col>
       </Grid>
 
-      {/* Graphiques */}
-      <Grid gutter="md" style={{ padding: '0 20px', marginBottom: '20px' }}>
-        <Grid.Col span={{ base: 12, lg: 6 }}>
-          <Paper shadow="sm" p="md" radius="md" withBorder>
-            <Title order={3} mb="md" ta="center">�� Évolution des ventes mensuelles</Title>
-            <div style={{ height: '300px' }}>
-              <BarChart
-                data={ventesMensuelles}
-                dataKey="date"
-                series={[{ name: 'Livres vendus', color: '#228be6' }]}
-                style={{ height: '300px' }}
-                valueFormatter={(value: number) => `${value} livres`}
-              />
-            </div>
-          </Paper>
-        </Grid.Col>
-
-        <Grid.Col span={{ base: 12, lg: 6 }}>
-          <Paper shadow="sm" p="md" radius="md" withBorder>
-            <Title order={3} mb="md" ta="center">📦 Évolution des réceptions mensuelles</Title>
-            <div style={{ height: '300px' }}>
-              <BarChart
-                data={receptionsMensuelles}
-                dataKey="date"
-                series={[{ name: 'Livres reçus', color: '#40c057' }]}
-                style={{ height: '300px' }}
-                valueFormatter={(value: number) => `${value} livres`}
-              />
-            </div>
-          </Paper>
-        </Grid.Col>
-      </Grid>
-
-      {/* Indicateurs de performance */}
-      <Grid gutter="md" style={{ padding: '0 20px' }}>
-        <Grid.Col span={{ base: 12, lg: 6 }}>
-          <Paper shadow="sm" p="md" radius="md" withBorder>
-            <Title order={3} mb="md" ta="center">🎯 Performance des ventes</Title>
-            <Stack align="center" gap="md">
-              <RingProgress
-                size={120}
-                thickness={12}
-                sections={[
-                  { 
-                    value: statsGlobales.totalVentes > 0 ? 
-                      (statsGlobales.totalVentes / (statsGlobales.totalVentes + statsGlobales.totalReceptions)) * 100 : 0, 
-                    color: '#228be6' 
-                  }
-                ]}
-                label={
-                  <Text ta="center" size="lg" fw={700}>
-                    {statsGlobales.totalVentes > 0 ? 
-                      Math.round((statsGlobales.totalVentes / (statsGlobales.totalVentes + statsGlobales.totalReceptions)) * 100) : 0}%
-                  </Text>
-                }
-              />
-              <Text size="sm" c="dimmed" ta="center">
-                Taux de rotation des stocks
-              </Text>
-            </Stack>
-          </Paper>
-        </Grid.Col>
-
-        <Grid.Col span={{ base: 12, lg: 6 }}>
-          <Paper shadow="sm" p="md" radius="md" withBorder>
-            <Title order={3} mb="md" ta="center">📊 Résumé mensuel</Title>
-            <Stack gap="sm">
-              <Group justify="space-between">
-                <Text>Ventes du mois :</Text>
-                <Badge color="blue" size="lg">
-                  {statsGlobales.ventesMoisActuel} livres
-                </Badge>
-              </Group>
-              <Group justify="space-between">
-                <Text>CA du mois :</Text>
-                <Badge color="orange" size="lg">
-                  {formatNumber(statsGlobales.chiffreAffairesMoisActuel)}€
-                </Badge>
-              </Group>
-              <Group justify="space-between">
-                <Text>Réceptions du mois :</Text>
-                <Badge color="green" size="lg">
-                  {statsGlobales.receptionsMoisActuel} livres
-                </Badge>
-              </Group>
-              <Group justify="space-between">
-                <Text>Stock disponible :</Text>
-                <Badge color="violet" size="lg">
-                  {statsGlobales.totalLivres} livres
-                </Badge>
-              </Group>
-            </Stack>
-          </Paper>
-        </Grid.Col>
-      </Grid>
-
+      {/* Graphiques */}   
       {/* Modal des détails des ventes */}
       <Modal
         opened={modalVentesOuvert}

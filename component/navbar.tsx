@@ -85,7 +85,7 @@ export function BottomNavBar() {
         left: isMenuOpen ? '0' : '-350px',
         width: '320px',
         height: '100vh',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(135deg,rgb(0, 1, 4) 0%,rgb(30, 86, 255) 100%)',
         zIndex: 1800,
         transition: 'left 0.3s ease',
         padding: '80px 0 40px 0',

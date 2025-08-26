@@ -6,7 +6,7 @@ import { IconCamera } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { default as scannerStyles, default as styles } from './style/commande.module.css';
+import { default as scannerStyles, default as styles } from './style/ScannerResception.module.css';
 
 type InventaireItem = { id: number; livre_id: number; title: string; author: string; quantite: number; price: number; isbn: number; livre?: { image?: string };};
 
@@ -722,6 +722,28 @@ export default function Resception() {
 
   return (
     <div className={styles.StyleCommandeGenerale}>
+      {/* Icônes flottantes décoratives */}
+      <div className={styles.floatingBooks}>
+        {/* Livres flottants */}
+        <div className={styles.floatingBook} style={{ top: '10%', left: '15%', animationDelay: '0s' }}>📚</div>
+        <div className={styles.floatingBook} style={{ top: '20%', right: '20%', animationDelay: '1s' }}>📖</div>
+        <div className={styles.floatingBook} style={{ top: '35%', left: '10%', animationDelay: '2s' }}>📗</div>
+        <div className={styles.floatingBook} style={{ top: '45%', right: '15%', animationDelay: '3s' }}>📘</div>
+        <div className={styles.floatingBook} style={{ top: '15%', left: '50%', animationDelay: '1.5s' }}>📙</div>
+        <div className={styles.floatingBook} style={{ top: '30%', right: '45%', animationDelay: '2.5s' }}>📕</div>
+        <div className={styles.floatingBook} style={{ top: '50%', left: '25%', animationDelay: '0.5s' }}>📔</div>
+        <div className={styles.floatingBook} style={{ top: '40%', right: '35%', animationDelay: '3.5s' }}>📒</div>
+        
+        {/* Machines de production flottantes */}
+        <div className={styles.floatingDollar} style={{ top: '25%', left: '35%', animationDelay: '0.8s' }}>⚙️</div>
+        <div className={styles.floatingDollar} style={{ top: '55%', right: '25%', animationDelay: '2.2s' }}>🏭</div>
+        <div className={styles.floatingDollar} style={{ top: '12%', right: '40%', animationDelay: '1.8s' }}>🔧</div>
+        <div className={styles.floatingDollar} style={{ top: '48%', left: '45%', animationDelay: '3.2s' }}>⚡</div>
+        <div className={styles.floatingDollar} style={{ top: '8%', left: '65%', animationDelay: '0.3s' }}>🔩</div>
+        <div className={styles.floatingDollar} style={{ top: '38%', right: '60%', animationDelay: '2.8s' }}>🏗️</div>
+        <div className={styles.floatingDollar} style={{ top: '22%', left: '75%', animationDelay: '1.2s' }}>⚒️</div>
+      </div>
+
       {/* Section montant principal */}
       <div className={styles.revolutAmount}>
         <div className={styles.revolutQuickActions}>
