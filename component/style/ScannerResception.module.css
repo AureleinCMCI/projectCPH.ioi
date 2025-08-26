@@ -95,6 +95,8 @@
 }
 
 .mainIcon {
+  border-radius: 50%;
+  border: 2px solid rgba(255, 255, 255, 0.5);
   width: 200px;
   height: 200px;
   display: flex;
@@ -102,7 +104,10 @@
   justify-content: center;
   cursor: pointer;
   transition: all 0.3s ease;
-
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(10px);
+  margin-bottom:370px;
+  z-index: 1000;
 }
 
 .mainIcon:hover {
