@@ -1,22 +1,11 @@
 'use client';
 
-import { BarChart } from '@mantine/charts';
-import { Badge, Button, Card, Center, Grid, Group, Loader, Modal, Paper, RingProgress, ScrollArea, Select, Stack, Table, Text, Title } from '@mantine/core';
+import { Badge, Button, Card, Center, Grid, Group, Loader, Modal, Paper, ScrollArea, Select, Stack, Table, Text } from '@mantine/core';
 import { IconCurrencyEuro, IconDownload, IconPackage, IconShoppingCart, IconTrendingDown, IconTrendingUp, IconUsers, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
 import styles from './style/statistique.module.css';
 
-type VenteStats = {
-  date: string;
-  quantite: number;
-  montant: number;
-};
 
-type ReceptionStats = {
-  date: string;
-  quantite: number;
-  user: string;
-};
 
 type StatsGlobales = {
   totalVentes: number;
@@ -229,12 +218,7 @@ export default function Statistique() {
         console.log('Réceptions récupérées:', receptions.user);
         console.log('Nombre de réceptions:', receptions.user?.length || 0);
         
-        // Préparer les données pour les graphiques
-        const ventesParMois = prepareVentesParMois(commandes.data || []);
-        const receptionsParMois = prepareReceptionsParMois(receptions.user || []);
-        
-        setVentesMensuelles(ventesParMois);
-        setReceptionsMensuelles(receptionsParMois);
+        // Note: Les données de graphiques peuvent être ajoutées ici si nécessaire
         
       } catch (error) {
         console.error('Erreur lors de la récupération des statistiques:', error);
@@ -251,39 +235,7 @@ export default function Statistique() {
     return () => clearInterval(interval);
   }, []);
 
-  const prepareVentesParMois = (commandes: Commande[]): VenteStats[] => {
-    const mois = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
-    const ventesParMois = new Array(12).fill(0).map((_, index) => ({
-      date: mois[index],
-      quantite: 0,
-      montant: 0
-    }));
-    
-    commandes.forEach((cmd: Commande) => {
-      const date = new Date(cmd.date_achat);
-      const moisIndex = date.getMonth();
-      ventesParMois[moisIndex].quantite += cmd.quantite;
-    });
-    
-    return ventesParMois;
-  };
 
-  const prepareReceptionsParMois = (receptions: Reception[]): ReceptionStats[] => {
-    const mois = ['Jan', 'Fév', 'Mar', 'Avr', 'Mai', 'Juin', 'Juil', 'Août', 'Sep', 'Oct', 'Nov', 'Déc'];
-    const receptionsParMois = new Array(12).fill(0).map((_, index) => ({
-      date: mois[index],
-      quantite: 0,
-      user: ''
-    }));
-    
-    receptions.forEach((rec: Reception) => {
-      const date = convertirTimestamp(rec.date_reception);
-      const moisIndex = date.getMonth();
-      receptionsParMois[moisIndex].quantite += rec.quantite;
-    });
-    
-    return receptionsParMois;
-  };
 
   if (loading) {
     return (
