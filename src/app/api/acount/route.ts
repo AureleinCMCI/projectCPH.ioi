@@ -9,6 +9,13 @@ type Profile = {
   photo?: string;
 };
 
+type PhotoItem = {
+  id: string;
+  url: string;
+  created_at: string;
+  isActive?: boolean;
+};
+
 // GET: Récupérer un profil par ID
 export async function GET(req: NextRequest) {
   const supabase = createClient();
@@ -93,7 +100,7 @@ export async function PATCH(req: NextRequest) {
     }
     
     // Marquer la photo sélectionnée comme active
-    photosArray = photosArray.map(p => ({
+    photosArray = photosArray.map((p: PhotoItem) => ({
       ...p,
       isActive: p.url === photo
     }));
