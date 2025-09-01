@@ -9,6 +9,7 @@ import styles from './style/statistique.module.css';
 type StatsGlobales = {
   totalVentes: number;
   totalReceptions: number;
+  totalReservations: number;
   totalMontant: number;
   totalLivres: number;
   evolutionVentes: number;
@@ -34,6 +35,22 @@ type Reception = {
   info: number;
   name_user: string;
   livre_title: string;
+};
+
+type Reservation = {
+  id: number;
+  inventaire_id: number;
+  quantite_bloquee: number;
+  date_expiration: string;
+  date_creation: string;
+   name?: string;
+    telephone?: string;
+  inventaire?: {
+    title: string;
+    author: string;
+    price: number;
+    isbn: number;
+  };
 };
 
 type InventaireItem = {
@@ -101,6 +118,7 @@ export default function Statistique() {
   const [statsGlobales, setStatsGlobales] = useState<StatsGlobales>({
     totalVentes: 0,
     totalReceptions: 0,
+    totalReservations: 0,
     totalMontant: 0,
     totalLivres: 0,
     evolutionVentes: 0,
@@ -110,12 +128,14 @@ export default function Statistique() {
     receptionsMoisActuel: 0
   });
   const [loading, setLoading] = useState(true);
-  const [modalVentesOuvert, setModalVentesOuvert] = useState(false);
-  const [modalReceptionsOuvert, setModalReceptionsOuvert] = useState(false);
-  const [modalCAOuvert, setModalCAOuvert] = useState(false);
-  const [modalStockOuvert, setModalStockOuvert] = useState(false);
+     const [modalVentesOuvert, setModalVentesOuvert] = useState(false);
+   const [modalReceptionsOuvert, setModalReceptionsOuvert] = useState(false);
+   const [modalCAOuvert, setModalCAOuvert] = useState(false);
+   const [modalStockOuvert, setModalStockOuvert] = useState(false);
+   const [modalReservationsOuvert, setModalReservationsOuvert] = useState(false);
   const [toutesLesCommandes, setToutesLesCommandes] = useState<Commande[]>([]);
   const [toutesLesReceptions, setToutesLesReceptions] = useState<Reception[]>([]);
+  const [toutesLesReservations, setToutesLesReservations] = useState<Reservation[]>([]);
   const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
   const [moisFiltre, setMoisFiltre] = useState<string>('tous');
   const [moisFiltreReceptions, setMoisFiltreReceptions] = useState<string>('tous');
@@ -162,9 +182,14 @@ export default function Statistique() {
         const inventaireRes = await fetch('/api/inventaire');
         const inventaire = await inventaireRes.json();
         
-        // Calculer les statistiques globales
-        const totalVentes = commandes.data?.reduce((acc: number, cmd: Commande) => acc + cmd.quantite, 0) || 0;
-        const totalReceptions = receptions.user?.reduce((acc: number, rec: Reception) => acc + rec.quantite, 0) || 0;
+                 // Récupérer toutes les réservations (pour les statistiques globales)
+         const reservationsRes = await fetch('/api/reservations');
+         const reservations = await reservationsRes.json();
+         
+         // Calculer les statistiques globales
+         const totalVentes = commandes.data?.reduce((acc: number, cmd: Commande) => acc + cmd.quantite, 0) || 0;
+         const totalReceptions = receptions.user?.reduce((acc: number, rec: Reception) => acc + rec.quantite, 0) || 0;
+         const totalReservations = reservations.data?.reduce((acc: number, res: Reservation) => acc + res.quantite_bloquee, 0) || 0;
         const totalMontant = commandes.data?.reduce((acc: number, cmd: Commande) => {
           // Utiliser le prix réel de vente ou fallback sur l'inventaire
           if (cmd.price) {
@@ -207,22 +232,24 @@ export default function Statistique() {
           return dateReception >= debutMoisActuel && dateReception <= finMoisActuel;
         }).reduce((acc: number, rec: Reception) => acc + rec.quantite, 0) || 0;
         
-        setStatsGlobales({
-          totalVentes,
-          totalReceptions,
-          totalMontant,
-          totalLivres,
-          evolutionVentes: totalVentes - ventesMoisActuel,
-          evolutionReceptions: totalReceptions - receptionsMoisActuel,
-          ventesMoisActuel,
-          chiffreAffairesMoisActuel,
-          receptionsMoisActuel
-        });
+                 setStatsGlobales({
+           totalVentes,
+           totalReceptions,
+           totalReservations,
+           totalMontant,
+           totalLivres,
+           evolutionVentes: totalVentes - ventesMoisActuel,
+           evolutionReceptions: totalReceptions - receptionsMoisActuel,
+           ventesMoisActuel,
+           chiffreAffairesMoisActuel,
+           receptionsMoisActuel
+         });
         
-        // Stocker les données pour les modals
-        setToutesLesCommandes(commandes.data || []);
-        setToutesLesReceptions(receptions.user || []);
-        setInventaire(inventaire.data || []);
+                 // Stocker les données pour les modals
+         setToutesLesCommandes(commandes.data || []);
+         setToutesLesReceptions(receptions.user || []);
+         setToutesLesReservations(reservations.data || []);
+         setInventaire(inventaire.data || []);
         
         // Debug logs pour vérifier les données
         console.log('Réceptions récupérées:', receptions.user);
@@ -762,35 +789,65 @@ export default function Statistique() {
           </Card>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
-          <Card 
-            shadow="sm" 
-            padding="lg" 
-            radius="md" 
-            withBorder 
-            style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
-            onClick={() => setModalStockOuvert(true)}
-            onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
-            onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
-          >
-            <Group justify="space-between" mb="xs">
-              <Text size="lg" fw={500}>Stock actuel</Text>
-              <IconUsers size={24} color="#7950f2" />
-            </Group>
-            <Text size="xl" fw={700} c="violet">
-              <AnimatedCounter 
-                value={statsGlobales.totalLivres} 
-                formatFn={(num) => `${formatNumber(num)} livres`}
-              />
-            </Text>
-            <Text size="sm" c="dimmed">
-              En inventaire
-            </Text>
-            <Text size="xs" c="dimmed" mt="xs">
-              👆 Cliquez pour voir les détails
-            </Text>
-          </Card>
-        </Grid.Col>
+                 <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
+           <Card 
+             shadow="sm" 
+             padding="lg" 
+             radius="md" 
+             withBorder 
+             style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+             onClick={() => setModalStockOuvert(true)}
+             onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+           >
+             <Group justify="space-between" mb="xs">
+               <Text size="lg" fw={500}>Stock actuel</Text>
+               <IconUsers size={24} color="#7950f2" />
+             </Group>
+             <Text size="xl" fw={700} c="violet">
+               <AnimatedCounter 
+                 value={statsGlobales.totalLivres} 
+                 formatFn={(num) => `${formatNumber(num)} livres`}
+               />
+             </Text>
+             <Text size="sm" c="dimmed">
+               En inventaire
+             </Text>
+             <Text size="xs" c="dimmed" mt="xs">
+               👆 Cliquez pour voir les détails
+             </Text>
+           </Card>
+         </Grid.Col>
+
+         <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
+           <Card 
+             shadow="sm" 
+             padding="lg" 
+             radius="md" 
+             withBorder 
+             style={{ cursor: 'pointer', transition: 'transform 0.2s' }}
+             onClick={() => setModalReservationsOuvert(true)}
+             onMouseEnter={(e) => e.currentTarget.style.transform = 'scale(1.02)'}
+             onMouseLeave={(e) => e.currentTarget.style.transform = 'scale(1)'}
+           >
+             <Group justify="space-between" mb="xs">
+               <Text size="lg" fw={500}>Réservations</Text>
+               <IconPackage size={24} color="#fd7e14" />
+             </Group>
+             <Text size="xl" fw={700} c="orange">
+               <AnimatedCounter 
+                 value={statsGlobales.totalReservations} 
+                 formatFn={(num) => `${formatNumber(num)} livres`}
+               />
+             </Text>
+             <Text size="sm" c="dimmed">
+               Livres réservés
+             </Text>
+             <Text size="xs" c="dimmed" mt="xs">
+               👆 Cliquez pour voir les détails
+             </Text>
+           </Card>
+         </Grid.Col>
       </Grid>
 
       {/* Graphiques */}   
@@ -1368,9 +1425,130 @@ export default function Statistique() {
             >
               Fermer
             </Button>
-          </Group>
-        </Stack>
-      </Modal>
-    </div>
-  );
+                     </Group>
+         </Stack>
+       </Modal>
+
+       {/* Modal des réservations */}
+       <Modal
+         opened={modalReservationsOuvert}
+         onClose={() => setModalReservationsOuvert(false)}
+         title="📅 Détails des réservations"
+         size="xl"
+         centered
+         styles={{
+           body: {
+             maxHeight: '80vh',
+             overflow: 'hidden',
+           },
+         }}
+       >
+         <Stack gap="md">
+           {/* Statistiques des réservations */}
+           <Paper p="md" withBorder radius="md">
+             <Group justify="space-around" align="center">
+               <div style={{ textAlign: 'center' }}>
+                 <Text size="xl" fw={700} c="orange">
+                   {toutesLesReservations.reduce((acc, res) => acc + res.quantite_bloquee, 0)}
+                 </Text>
+                 <Text size="sm" c="dimmed">Livres réservés</Text>
+               </div>
+               <div style={{ textAlign: 'center' }}>
+                 <Text size="xl" fw={700} c="blue">
+                   {toutesLesReservations.length}
+                 </Text>
+                 <Text size="sm" c="dimmed">Réservations actives</Text>
+               </div>
+               <div style={{ textAlign: 'center' }}>
+                 <Text size="xl" fw={700} c="violet">
+                   {[...new Set(toutesLesReservations.map(res => res.inventaire?.title))].length}
+                 </Text>
+                 <Text size="sm" c="dimmed">Livres différents</Text>
+               </div>
+             </Group>
+           </Paper>
+
+           {/* Tableau des réservations */}
+           <ScrollArea h={400}>
+             <Table striped highlightOnHover withTableBorder>
+               <Table.Thead>
+                 <Table.Tr>
+                   <Table.Th>Livre</Table.Th>
+                   <Table.Th style={{ textAlign: 'center' }}>Quantité réservée</Table.Th>
+                   <Table.Th>Date de création</Table.Th>
+                   <Table.Th>Date d&apos;expiration</Table.Th>
+                   <Table.Th style={{ textAlign: 'center' }}>Statut</Table.Th>
+                 </Table.Tr>
+               </Table.Thead>
+               <Table.Tbody>
+                 {toutesLesReservations.length === 0 ? (
+                   <Table.Tr>
+                     <Table.Td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>
+                       <Text c="dimmed">Aucune réservation active</Text>
+                     </Table.Td>
+                   </Table.Tr>
+                 ) : (
+                   toutesLesReservations
+                     .sort((a, b) => new Date(b.date_creation).getTime() - new Date(a.date_creation).getTime())
+                     .map((reservation, index) => {
+                       const dateCreation = new Date(reservation.date_creation);
+                       const dateExpiration = new Date(reservation.date_expiration);
+                       const maintenant = new Date();
+                       const estExpiree = dateExpiration < maintenant;
+                       
+                       return (
+                         <Table.Tr key={index} style={{ 
+                           opacity: estExpiree ? 0.6 : 1,
+                           backgroundColor: estExpiree ? '#f8f9fa' : undefined 
+                         }}>
+                           <Table.Td>
+                             <Text size="sm" fw={500} style={{ maxWidth: '200px' }}>
+                               {reservation.inventaire?.title || 'Titre non défini'}
+                             </Text>
+                           </Table.Td>
+                           <Table.Td style={{ textAlign: 'center' }}>
+                             <Badge color="orange" size="lg">
+                               {reservation.quantite_bloquee}
+                             </Badge>
+                           </Table.Td>
+                           <Table.Td>
+                             <Text size="sm" fw={500}>
+                               {dateCreation.toLocaleDateString('fr-FR')}
+                             </Text>
+                           </Table.Td>
+                           <Table.Td>
+                             <Text size="sm" fw={500}>
+                               {dateExpiration.toLocaleDateString('fr-FR')}
+                             </Text>
+                           </Table.Td>
+                           <Table.Td style={{ textAlign: 'center' }}>
+                             <Badge 
+                               color={estExpiree ? 'red' : 'green'} 
+                               variant={estExpiree ? 'outline' : 'filled'}
+                             >
+                               {estExpiree ? 'Expirée' : 'Active'}
+                             </Badge>
+                           </Table.Td>
+                         </Table.Tr>
+                       );
+                     })
+                 )}
+               </Table.Tbody>
+             </Table>
+           </ScrollArea>
+
+           {/* Bouton de fermeture */}
+           <Group justify="center" mt="md">
+             <Button
+               leftSection={<IconX size={16} />}
+               variant="light"
+               onClick={() => setModalReservationsOuvert(false)}
+             >
+               Fermer
+             </Button>
+           </Group>
+         </Stack>
+       </Modal>
+     </div>
+   );
 }

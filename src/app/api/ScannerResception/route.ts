@@ -107,7 +107,7 @@ export async function DELETE(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const supabase = createClient();
-    const { id, quantite_a_bloquer, date_expiration } = await request.json();
+    const { id, quantite_a_bloquer, date_expiration, name, telephone } = await request.json();
 
     if (!id || !quantite_a_bloquer || !date_expiration) {
       return new Response(JSON.stringify({ error: "id, quantite_a_bloquer et date_expiration requis" }), { status: 400 });
@@ -146,15 +146,34 @@ export async function PUT(request: NextRequest) {
       return new Response(JSON.stringify({ error: updateError.message }), { status: 400 });
     }
 
-    // 2. Ajouter les livres réservés dans blocages_inventaire
+    // 2. Ajouter les livres réservés dans reservations
+    const user_id = request.headers.get('user_id');
+    
+    const reservationData: {
+      inventaire_id: number;
+      quantite_bloquee: number;
+      date_expiration: string;
+      date_creation: string;
+      name: string | null;
+      telephone: string | null;
+      user_id?: number;
+    } = {
+      inventaire_id: id,
+      quantite_bloquee: quantite_a_bloquer,
+      date_expiration: date_expiration,
+      date_creation: new Date().toISOString(),
+      name: name || null,
+      telephone: telephone || null
+    };
+
+    // Ajouter user_id seulement s'il existe
+    if (user_id) {
+      reservationData.user_id = parseInt(user_id);
+    }
+
     const { data: blocage, error: insertError } = await supabase
-      .from('blocages_inventaire')
-      .insert([{
-        inventaire_id: id,
-        quantite_bloquee: quantite_a_bloquer,
-        date_expiration: date_expiration,
-        date_creation: new Date().toISOString()
-      }])
+      .from('reservations')
+      .insert([reservationData])
       .select()
       .single();
 

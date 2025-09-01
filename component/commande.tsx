@@ -106,6 +106,30 @@ import stylesCommande from './style/commande.module.css';
     const [modeModal, setModeModal] = useState<'vente' | 'reservation'>('vente');
     const [dateReservation, setDateReservation] = useState('');
 
+    // État pour la modale des réservations
+    const [reservationsOpened, setReservationsOpened] = useState(false);
+    const [reservations, setReservations] = useState<{
+      id: number;
+      inventaire_id: number;
+      quantite_bloquee: number;
+      date_expiration: string;
+      date_creation: string;
+      name?: string;
+      telephone?: string;
+      user_id?: number;
+      inventaire?: {
+        title: string;
+        author: string;
+        price: number;
+        isbn: number;
+      };
+      "USER"?: {
+        id: number;
+        name: string;
+        admin: boolean;
+      };
+    }[]>([]);
+
     
     // Détection automatique du type d'appareil et choix du scanner
     useEffect(() => {
@@ -194,6 +218,62 @@ import stylesCommande from './style/commande.module.css';
       };
       fetchCommandes();
     }, []);
+
+    /* récupérer les réservations de l'utilisateur connecté */
+    const fetchReservations = async () => {
+      if (!user) return;
+      
+      try {
+        const response = await fetch(`/api/reservations?user_id=${user.id}`, { method: 'GET' });
+        const result = await response.json();
+        setReservations(result.data || []);
+      } catch (error) {
+        console.error('Erreur lors de la récupération des réservations:', error);
+        setReservations([]);
+      }
+    };
+
+    // Charger les réservations au démarrage
+    useEffect(() => {
+      if (user) {
+        fetchReservations();
+      }
+    }, [user]);
+
+    /* annuler une réservation */
+    const annulerReservation = async (reservationId: number) => {
+      if (!user) return;
+      
+      if (!confirm('❓ Êtes-vous sûr de vouloir annuler cette réservation ?')) {
+        return;
+      }
+
+      try {
+        const res = await fetch('/api/reservations', {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: reservationId,
+            user_id: user.id
+          }),
+        });
+
+        if (res.ok) {
+          alert('✅ Réservation annulée avec succès !');
+          fetchReservations(); // Rafraîchir la liste
+          // Rafraîchir l'inventaire aussi
+          const response = await fetch('/api/inventaire', { method: 'GET' });
+          const result = await response.json();
+          setInventaire(result.data || []);
+        } else {
+          const error = await res.json();
+          alert(`❌ Erreur: ${error.error || error.message}`);
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        alert('❌ Erreur de connexion');
+      }
+    };
 
     const setScannerNode = useCallback((node: HTMLDivElement | null) => {
       scannerRef.current = node;
@@ -300,14 +380,28 @@ import stylesCommande from './style/commande.module.css';
        return;
      }
 
+     // Récupérer les informations du client
+     const clientName = (document.getElementById('clientName') as HTMLInputElement)?.value || '';
+     const clientPhone = (document.getElementById('clientPhone') as HTMLInputElement)?.value || '';
+
+     if (!clientName.trim()) {
+       alert('❌ Veuillez saisir le nom du client');
+       return;
+     }
+
      try {
        const res = await fetch('/api/ScannerResception', {
          method: 'PUT', // Méthode dédiée aux blocages
-         headers: { 'Content-Type': 'application/json' },
+         headers: { 
+           'Content-Type': 'application/json',
+           'user_id': user.id // Envoyer l'ID utilisateur
+         },
          body: JSON.stringify({
            id: livre.id,
            quantite_a_bloquer: quantite,
-           date_expiration: dateExpiration
+           date_expiration: dateExpiration,
+           name: clientName,
+           telephone: clientPhone
          }),
        });
 
@@ -318,6 +412,8 @@ import stylesCommande from './style/commande.module.css';
          const response = await fetch('/api/inventaire', { method: 'GET' });
          const result = await response.json();
          setInventaire(result.data || []);
+         // Rafraîchir les réservations
+         fetchReservations();
        } else {
          const error = await res.json();
          alert(`❌ Erreur lors de la réservation: ${error.error || error.message}`);
@@ -777,6 +873,20 @@ import stylesCommande from './style/commande.module.css';
               <div className={stylesCommande.featureIconLabel}>Vendre</div>
             </div>
                 
+            <div 
+              className={stylesCommande.featureIcon} 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('📅 Bouton Réservations cliqué !');
+                setReservationsOpened(true);
+              }}
+              style={{ cursor: 'pointer' }}
+            >
+              <span>📅</span>
+              <div className={stylesCommande.featureIconLabel}>Réservations</div>
+            </div>
+
             <div 
               className={stylesCommande.featureIcon} 
               onClick={(e) => {
@@ -1542,14 +1652,29 @@ import stylesCommande from './style/commande.module.css';
 
               {/* Champ spécifique à la réservation */}
               {modeModal === 'reservation' ? (
-                <TextInput
-                  label="📅 Date d'expiration de la réservation"
-                  type="date"
-                  value={dateReservation}
-                  onChange={(e) => setDateReservation(e.currentTarget.value)}
-                  mb="md"
-                  required
-                />
+                <>
+                  <TextInput
+                    label="👤 Nom du client"
+                    placeholder="Nom et prénom du client"
+                    mb="sm"
+                    required
+                    id="clientName"
+                  />
+                  <TextInput
+                    label="📞 Téléphone du client"
+                    placeholder="Numéro de téléphone"
+                    mb="sm"
+                    id="clientPhone"
+                  />
+                  <TextInput
+                    label="📅 Date d&apos;expiration de la réservation"
+                    type="date"
+                    value={dateReservation}
+                    onChange={(e) => setDateReservation(e.currentTarget.value)}
+                    mb="md"
+                    required
+                  />
+                </>
               ) : (
                 <>
                   {/* Type de réduction */}
@@ -1666,6 +1791,133 @@ import stylesCommande from './style/commande.module.css';
               </div>
             </div>
           )}
+        </Modal>
+
+        {/* Modale des réservations */}
+        <Modal 
+          opened={reservationsOpened} 
+          onClose={() => setReservationsOpened(false)} 
+          title="📅 Mes réservations" 
+          centered 
+          size="xl"
+        >
+          <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <Text size="lg" fw={600}>
+              📋 Mes réservations actives ({reservations.length})
+            </Text>
+            <Button 
+              onClick={fetchReservations}
+              color="blue"
+              size="sm"
+              leftSection="🔄"
+            >
+              Actualiser
+            </Button>
+          </div>
+
+          <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+            {reservations.length === 0 ? (
+              <Text c="dimmed" ta="center" py="xl">
+                Aucune réservation trouvée
+              </Text>
+            ) : (
+              <Table striped highlightOnHover>
+                <Table.Thead>
+                  <Table.Tr>
+                    <Table.Th>📚 Livre</Table.Th>
+                    <Table.Th>👤 Client</Table.Th>
+                    <Table.Th>📦 Quantité</Table.Th>
+                    <Table.Th>📅 Expire le</Table.Th>
+                    <Table.Th>🕒 Créée le</Table.Th>
+                    <Table.Th>⚡ Action</Table.Th>
+                  </Table.Tr>
+                </Table.Thead>
+                <Table.Tbody>
+                  {reservations.map((reservation) => {
+                    const isExpired = new Date(reservation.date_expiration) < new Date();
+                    const daysLeft = Math.ceil((new Date(reservation.date_expiration).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                    
+                    return (
+                                              <Table.Tr key={reservation.id}>
+                          <Table.Td>
+                            <div>
+                              <Text size="sm" fw={600}>
+                                {reservation.inventaire?.title || 'Titre non disponible'}
+                              </Text>
+                              <Text size="xs" c="dimmed">
+                                👤 {reservation.inventaire?.author || 'Auteur inconnu'}
+                              </Text>
+                              <Text size="xs" c="dimmed">
+                                📖 ISBN: {reservation.inventaire?.isbn || 'N/A'}
+                              </Text>
+                            </div>
+                          </Table.Td>
+                          <Table.Td>
+                            <div>
+                              <Text size="sm" fw={600}>
+                                {reservation.name || 'Non renseigné'}
+                              </Text>
+                              <Text size="xs" c="dimmed">
+                                📞 {reservation.telephone || 'Non renseigné'}
+                              </Text>
+                            </div>
+                          </Table.Td>
+                          <Table.Td>
+                            <Text size="sm" c="blue" fw={600}>
+                              {reservation.quantite_bloquee}x
+                            </Text>
+                          </Table.Td>
+                        <Table.Td>
+                          <div>
+                            <Text size="sm" c={isExpired ? "red" : daysLeft <= 2 ? "orange" : "green"}>
+                              {new Date(reservation.date_expiration).toLocaleDateString('fr-FR')}
+                            </Text>
+                            {!isExpired && (
+                              <Text size="xs" c={daysLeft <= 2 ? "orange" : "dimmed"}>
+                                {daysLeft > 0 ? `${daysLeft} jour(s) restant(s)` : 'Expire aujourd\'hui'}
+                              </Text>
+                            )}
+                            {isExpired && (
+                              <Text size="xs" c="red" fw={600}>
+                                ⚠️ Expirée
+                              </Text>
+                            )}
+                          </div>
+                        </Table.Td>
+                        <Table.Td>
+                          <Text size="xs" c="dimmed">
+                            {new Date(reservation.date_creation).toLocaleDateString('fr-FR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })}
+                          </Text>
+                        </Table.Td>
+                        <Table.Td>
+                          <Button
+                            size="xs"
+                            color="red"
+                            variant="outline"
+                            onClick={() => annulerReservation(reservation.id)}
+                          >
+                            🗑️ Annuler
+                          </Button>
+                        </Table.Td>
+                      </Table.Tr>
+                    );
+                  })}
+                </Table.Tbody>
+              </Table>
+            )}
+          </div>
+
+          <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
+            <Text size="sm" c="dimmed">
+              💡 Les réservations bloquent temporairement le stock. Vous pouvez les annuler pour remettre les livres en vente.
+            </Text>
+          </div>
         </Modal>
       </div>
     );
