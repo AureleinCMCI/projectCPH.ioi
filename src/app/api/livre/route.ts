@@ -7,6 +7,7 @@ type livre = {
   description?: string;
   price?: number;
   image?: string;
+  date_de_production?: string;
 };
 
 export async function GET(request: NextRequest) {

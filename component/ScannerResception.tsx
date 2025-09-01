@@ -29,7 +29,7 @@ export default function Resception() {
     title: '', author: '', price: '', quantite: '', isbn: '', 
     description: '', image: '', livre_id: '', livre_title: '', 
     name_user: '', info: '', user_id: '', date_reception: '',
-    additionalIsbns: [] as string[] // Nouveau champ pour les ISBNs additionnels
+    date_de_production: '', additionalIsbns: [] as string[] // Nouveau champ pour les ISBNs additionnels
   });
   const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -467,7 +467,8 @@ export default function Resception() {
           author: String(formData.author),
           description: formData.description,
           isbn: String(formData.isbn),
-          image: capturedImage
+          image: capturedImage,
+          date_de_production: formData.date_de_production
         }),
       });
       const livreData = await livreRes.json();
@@ -487,7 +488,8 @@ export default function Resception() {
           author: String(formData.author),
           quantite: Number(formData.quantite),
           price: Number(formData.price),
-          isbn: String(formData.isbn)
+          isbn: String(formData.isbn),
+          date_de_production: formData.date_de_production
         }),
       });
 
@@ -532,7 +534,8 @@ export default function Resception() {
           name_user: user.name,
           livre_id: livreId,
           info: 0,
-          livre_title: formData.title
+          livre_title: formData.title,
+          date_de_production: formData.date_de_production
         }),
       });
 
@@ -542,7 +545,7 @@ export default function Resception() {
          title: '', author: '', price: '', quantite: '', isbn: '', 
          description: '', image: '', livre_id: '', livre_title: '', 
          name_user: '', info: '', user_id: '', date_reception: '',
-         additionalIsbns: [] 
+         date_de_production: '', additionalIsbns: [] 
        });
        setResult('');
        setCapturedImage('');
@@ -1021,7 +1024,7 @@ export default function Resception() {
             window.location.href = '/commande';
           }
         }} 
-        title="Ajouter ou incrémenter un livre" 
+        title="Ajouter  un livre" 
         centered 
         size={isMobile ? "xs" : "xl"}
       >
@@ -1111,61 +1114,23 @@ export default function Resception() {
             style={{fontSize: '10px',}}
           />
 
+
           <TextInput 
-            label="Prix" 
-            name="price" 
-            value={formData.price} 
+            label="Quantité" 
+            name="quantite" 
+            value={formData.quantite} 
             onChange={handleFormChange} 
             required 
-            mb="sm" 
+            mb="sm"
             classNames={isMobile ? { input: styles.iosModalInput } : undefined}
             style={{fontSize: '10px',}}
           />
 
           <TextInput 
-            label="Titre du livre" 
-            name="title" 
-            value={formData.title} 
-            onChange={handleFormChange} 
-            required 
-            mb="sm" 
-            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
-            style={{fontSize: '10px',}}
-          />
-          <TextInput 
-            label="Auteur" 
-            name="author" 
-            value={formData.author} 
-            onChange={handleFormChange} 
-            required 
-            mb="sm" 
-            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
-            style={{fontSize: '10px',}}
-          />
-          <Textarea 
-            label="Description" 
-            name="description" 
-            value={formData.description} 
-            onChange={handleFormChange} 
-            minRows={1} 
-            mb="sm" 
-            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
-            style={{fontSize: '10px',}}
-          />
-          <TextInput 
-            label="Prix" 
-            name="price" 
-            value={formData.price} 
-            onChange={handleFormChange} 
-            required 
-            mb="sm" 
-            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
-            style={{fontSize: '10px',}}
-          />
-          <TextInput 
-            label="Quantité" 
-            name="quantite" 
-            value={formData.quantite} 
+            label="Date de production" 
+            name="date_de_production" 
+            type="date"
+            value={formData.date_de_production} 
             onChange={handleFormChange} 
             required 
             mb="sm"

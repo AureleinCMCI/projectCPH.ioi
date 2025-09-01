@@ -5,7 +5,8 @@ import Image from 'next/image';
 import { useEffect, useRef, useState } from 'react';
 import Webcam from 'react-webcam';
 // @ts-expect-error: Importation du module CSS sans types déclarés
-import styles from './style/hom.module.css';// @ts-expect-error: Importation du module CSS sans types déclarés
+import styles from './style/hom.module.css';
+// @ts-expect-error: Importation du module CSS sans types déclarés
 import stylesCompte from './style/monCompte.module.css';
 
 // Fonction utilitaire pour formater la date à la française (heure de Paris)
@@ -290,19 +291,6 @@ const listeCommandesUtilisateur = async () => {
 
       {/* Section montant principal */}
       <div className={stylesCompte.revolutAmount}>
-        
-        <div className={stylesCompte.monComptePhoto}>
-          <Image
-            src={avatarPreview || user?.photo || '/img/avatar.png'}
-            alt="avatar"
-            width={180}
-            height={180}
-            style={{ 
-              borderRadius: '50%',
-              border: '3px solidrgb(255, 89, 89)'
-            }}
-          />
-        </div>
         <div className={stylesCompte.nameAccout}>{user?.name}</div>
         
         {/* Section des actions avec icônes orange */}

@@ -11,6 +11,7 @@ type Inventaire = {
   isbn: number;
   quantite_reservee?: number;
   date_expiration_reservation?: string;
+  date_de_production?: string;
 };
 // affiche les infos 
 
@@ -35,10 +36,10 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient();
-    const { author, title, quantite, price , isbn} = await request.json() as Inventaire;
+    const { author, title, quantite, price, isbn, date_de_production} = await request.json() as Inventaire;
 
     // Insertion d'une nouvelle commande
-    const { data, error } = await supabase.from('inventaire').insert([{ title, author, quantite, price , isbn }]).select().maybeSingle();
+    const { data, error } = await supabase.from('inventaire').insert([{ title, author, quantite, price, isbn, date_de_production }]).select().maybeSingle();
 
 
 

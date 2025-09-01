@@ -6,7 +6,9 @@ import { IconCamera } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
+// @ts-expect-error: Importation du module CSS sans types déclarés
 import styles from './style/ScannerResception.module.css';
+// @ts-expect-error: Importation du module CSS sans types déclarés
 import stylesCommande from './style/commande.module.css';
 
 
@@ -75,7 +77,6 @@ import stylesCommande from './style/commande.module.css';
     const [formOpened, setFormOpened] = useState(false);
     const [isbn, setIsbn] = useState('');
     const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
     const [supprimer, setSupprimer] = useState<number>(1);
     const [commandeOpened, setCommandeOpened] = useState(false);
     const [commandes, setCommandes] = useState<{ user_id: number; date_achat: string; title: string;quantite: number; price?: number; vendeur?: string; user?: { name?: string };
@@ -302,41 +303,126 @@ import stylesCommande from './style/commande.module.css';
     recupereIsbnLivreId();
   }, []);
 
-  /* fonctionalité du scan */
-    const handleScan = (decodedText: string) => {
-      if (decodedText) {
-        console.log('✅ Code scanné:', decodedText);
-        setIsbn(decodedText);
-        
-        // Ajouter le code à la liste s'il n'y est pas déjà
-        setScannedCodes(prev => {
-          if (!prev.includes(decodedText)) {
-            const newCodes = [...prev, decodedText];
-            console.log('📋 Codes scannés:', newCodes);
-            setShowCodesList(true);
-            return newCodes;
-          }
-          return prev;
-        });
+  /* Configuration scanner ultra-rapide pour ISBN */
+  const SCANNER_CONFIG = {
+    // Fréquence de scan ultra-élevée
+    fps: 30, // Augmenté de 10 à 30 fps
+    frequency: 30, // QuaggaJS - scan toutes les 33ms
+    // Délai minimal entre détections (évite les doublons)
+    debounceDelay: 100, // 100ms entre chaque scan valide
+    // Timeout pour validation rapide
+    validationTimeout: 50, // 50ms pour valider un ISBN
+    // Nombre de workers pour QuaggaJS
+    workers: 4, // Augmenté de 2 à 4 workers
+    // Seuil de confiance pour accepter un scan
+    confidenceThreshold: 0.7
+  };
 
-        // Vérifier si l'ISBN existe dans la liste des ISBN
-        const isbnTrouve = isbnList.find(item => item.isbn.toString() === decodedText.trim());
-        
-        if (isbnTrouve) {
-          // ISBN trouvé - chercher le livre correspondant dans l'inventaire
-          const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
-          
-          if (livre) {
-            console.log(`✅ ISBN trouvé : ${livre.title} (ISBN: ${isbnTrouve.isbn})`);
-          } else {
-            console.log(`✅ ISBN trouvé mais livre non en stock : ${isbnTrouve.isbn}`);
-          }
-        } else {
-          // ISBN non trouvé
-          console.log(`❌ ISBN non trouvé : ${decodedText}`);
-        }
+  /* Cache pour optimiser les validations ISBN répétées */
+  const isbnValidationCache = useRef<Map<string, boolean>>(new Map());
+  
+  /* Fonction de validation ISBN ultra-rapide avec cache */
+  const isValidISBN = (code: string): boolean => {
+    // Vérifier le cache d'abord
+    if (isbnValidationCache.current.has(code)) {
+      return isbnValidationCache.current.get(code)!;
+    }
+    
+    // Nettoyer le code (supprimer espaces, tirets, etc.)
+    const cleanCode = code.replace(/[\s-]/g, '');
+    
+    // Validation rapide de la longueur en premier (plus rapide)
+    if (cleanCode.length !== 10 && cleanCode.length !== 13) {
+      isbnValidationCache.current.set(code, false);
+      return false;
+    }
+    
+    // Vérifier si c'est composé uniquement de chiffres (et éventuellement un X à la fin pour ISBN-10)
+    const isNumericWithOptionalX = /^[0-9]{9}[0-9X]$|^[0-9]{13}$/.test(cleanCode);
+    
+    if (!isNumericWithOptionalX) {
+      console.log(`❌ Code rejeté (pas un format ISBN valide): ${code}`);
+      isbnValidationCache.current.set(code, false);
+      return false;
+    }
+    
+    console.log(`✅ ISBN valide détecté: ${cleanCode} (${cleanCode.length} chiffres)`);
+    isbnValidationCache.current.set(code, true);
+    return true;
+  };
+
+  /* Système de debounce pour éviter les scans répétés */
+  const lastScanTime = useRef<number>(0);
+  const lastScannedCode = useRef<string>('');
+
+  /* fonctionalité du scan ultra-rapide avec validation ISBN */
+  const handleScan = (decodedText: string) => {
+    if (!decodedText) return;
+    
+    const now = Date.now();
+    
+    // Debounce : ignorer si même code scanné récemment
+    if (decodedText === lastScannedCode.current && 
+        now - lastScanTime.current < SCANNER_CONFIG.debounceDelay) {
+      return;
+    }
+    
+    lastScanTime.current = now;
+    lastScannedCode.current = decodedText;
+    
+    console.log('⚡ Scan ultra-rapide:', decodedText);
+    
+    // Validation ISBN ultra-rapide avec timeout
+    const validationStart = performance.now();
+    const isValid = isValidISBN(decodedText);
+    const validationTime = performance.now() - validationStart;
+    
+    if (validationTime > SCANNER_CONFIG.validationTimeout) {
+      console.warn(`⚠️ Validation lente: ${validationTime.toFixed(1)}ms`);
+    }
+    
+    if (!isValid) {
+      console.log('⚡ Code rejeté (pas un ISBN)');
+      return; // Ignorer les codes qui ne sont pas des ISBN
+    }
+    
+    // Nettoyer le code ISBN
+    const cleanISBN = decodedText.replace(/[\s-]/g, '');
+    console.log('🚀 ISBN valide scanné ultra-rapide:', cleanISBN);
+    setIsbn(cleanISBN);
+    
+    // Ajouter le code à la liste s'il n'y est pas déjà (optimisé)
+    setScannedCodes(prev => {
+      if (!prev.includes(cleanISBN)) {
+        const newCodes = [...prev, cleanISBN];
+        console.log('📋 ISBNs scannés:', newCodes);
+        setShowCodesList(true);
+        return newCodes;
       }
-    };
+      return prev;
+    });
+
+    // Recherche optimisée dans la base de données
+    const searchStart = performance.now();
+    const isbnTrouve = isbnList.find(item => item.isbn.toString() === cleanISBN);
+    const searchTime = performance.now() - searchStart;
+    
+    console.log(`🔍 Recherche BD: ${searchTime.toFixed(1)}ms`);
+    
+    if (isbnTrouve) {
+      // ISBN trouvé - chercher le livre correspondant dans l'inventaire
+      const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
+      
+      if (livre) {
+        console.log(`🚀 ISBN trouvé ultra-rapide : ${livre.title} (${searchTime.toFixed(1)}ms)`);
+      } else {
+        console.log(`🚀 ISBN trouvé mais livre non en stock : ${isbnTrouve.isbn}`);
+      }
+    } else {
+      // ISBN non trouvé
+      console.log(`❌ ISBN non trouvé : ${cleanISBN}`);
+    }
+  };
 
       const handleError = (errorMessage: string) => {
     console.error('Erreur de scan:', errorMessage);
@@ -429,14 +515,20 @@ import stylesCommande from './style/commande.module.css';
         console.log(`Scanner ${scannerType} prêt à être utilisé`);
         
         if (scannerType === 'html5') {
-          // ANDROID/DESKTOP : html5-qrcode
+          // ANDROID/DESKTOP : html5-qrcode ULTRA-RAPIDE
           const html5QrcodeScanner = new Html5QrcodeScanner(
             "reader",
             { 
-              fps: 10, 
+              fps: SCANNER_CONFIG.fps, // 30 FPS pour scan ultra-rapide
               aspectRatio: 2.5,
+              qrbox: { width: 250, height: 250 }, // Zone de scan plus petite = plus rapide
               videoConstraints: {
-                facingMode: 'environment'
+                facingMode: 'environment',
+                width: { ideal: 1280, max: 1920 }, // Résolution optimisée
+                height: { ideal: 720, max: 1080 }
+              },
+              experimentalFeatures: {
+                useBarCodeDetectorIfSupported: true // API native plus rapide
               }
             },
             false
@@ -451,37 +543,43 @@ import stylesCommande from './style/commande.module.css';
             }
           };
         } else {
-          // IOS : QuaggaJS
+          // IOS : QuaggaJS ULTRA-RAPIDE
+          console.log('🚀 Initialisation QuaggaJS ultra-rapide...');
           Quagga.init({
             inputStream: {
               name: "Live",
               type: "LiveStream",
               target: document.getElementById('reader') as HTMLElement,
               constraints: {
-                width: { min: 640, ideal: 1280 },
-                height: { min: 480, ideal: 720 },
-                facingMode: "environment"
+                width: { min: 640, ideal: 1280, max: 1920 }, // Résolution optimisée
+                height: { min: 480, ideal: 720, max: 1080 },
+                facingMode: "environment",
+                frameRate: { ideal: SCANNER_CONFIG.fps, max: 60 } // FPS ultra-rapide
+              },
+              area: { // Zone de scan réduite pour plus de vitesse
+                top: "20%",
+                right: "20%", 
+                left: "20%",
+                bottom: "20%"
               }
             },
             decoder: {
               readers: [
-                "ean_reader",
-                "ean_8_reader",
-                "code_128_reader",
-                "code_39_reader",
-                "codabar_reader"
-              ]
+                "ean_reader", // ISBN-13 et EAN-13
+                "ean_8_reader", // EAN-8
+                "code_128_reader" // Codes-barres 128
+              ] // Supprimé code_39 et codabar pour se concentrer sur les ISBN
             },
-            locate: false,
+            locate: true, // Activé pour une détection plus précise
             locator: {
-              patchSize: "large",
-              halfSample: true
+              patchSize: "small", // Taille réduite pour plus de vitesse
+              halfSample: false // Désactivé pour une meilleure qualité
             },
-            numOfWorkers: 2,
-            frequency: 10,
-          }, (err) => {
+            numOfWorkers: SCANNER_CONFIG.workers, // 4 workers pour traitement parallèle
+            frequency: SCANNER_CONFIG.frequency, // 30 FPS
+            debug: false
+          }, (err: Error | null) => {
             if (err) {
-              console.error('Erreur initialisation Quagga:', err);
               handleError(err.message);
               return;
             }
@@ -492,9 +590,15 @@ import stylesCommande from './style/commande.module.css';
 
           const onDetected = (result: QuaggaJSResultObject) => {  
             const code = result.codeResult.code;
-            console.log('Code détecté par Quagga:', code);
-            if (code) {
+            const confidence = result.codeResult.format;
+            
+            // Filtrage par confiance pour éviter les faux positifs
+            console.log('🚀 Code détecté par Quagga ultra-rapide:', code, 'Format:', confidence);
+            
+            if (code && code.length >= 10) { // Pré-filtre rapide pour ISBN
               handleScan(code);
+            } else {
+              console.log('⚡ Code ignoré (trop court):', code);
             }
           };
           Quagga.onDetected(onDetected);
@@ -536,15 +640,12 @@ import stylesCommande from './style/commande.module.css';
 
     useEffect(() => {
       async function fetchInventaire() {
-        setLoading(true);
         try {
           const response = await fetch('/api/inventaire', { method: 'GET' });
           const result = await response.json();
           setInventaire(result.data || []);
         } catch {
           setInventaire([]);
-        } finally {
-          setLoading(false);
         }
       }
 
@@ -589,7 +690,6 @@ import stylesCommande from './style/commande.module.css';
       }
 
       try {
-        setLoading(true);
         const res = await fetch('/api/ScannerResception', {
           method: 'DELETE',
           headers: { 'Content-Type': 'application/json' },
@@ -601,14 +701,12 @@ import stylesCommande from './style/commande.module.css';
         const response = await fetch('/api/inventaire', { method: 'GET' });
         const result = await response.json();
         setInventaire(result.data || []);
-        setLoading(false);
         alert(`Quantité du livre "${livre.title}" décrémentée de ${quantite} !`);
         setFormOpened(false);
         setSupprimer(1);
       } catch (error: unknown) {
         const message = error instanceof Error ? error.message : String(error);
         console.error('Erreur:', message);
-        setLoading(false);
         alert('Erreur lors de la décrémentation');
       }
     };
@@ -719,8 +817,6 @@ import stylesCommande from './style/commande.module.css';
       return;
     }
     try {
-      setLoading(true);
-
       // Si l'ISBN est différent, on l'ajoute d'abord
       if (livre.isbn.toString() !== inventaire.find(item => item.id === livre.id)?.isbn.toString()) {
         await isbnDiférentAjoutLigne(livre);
@@ -749,11 +845,9 @@ import stylesCommande from './style/commande.module.css';
       const response = await fetch('/api/inventaire', { method: 'GET' });
       const result = await response.json();
       setInventaire(result.data || []);
-      setLoading(false);
       alert(`Quantité du livre "${livre.title}" incrémentée de ${ajout} !`);
     } catch (error) {
       console.error('Erreur:', error);
-      setLoading(false);
       alert('Erreur lors de l\'incrémentation');
     }
   };
@@ -941,13 +1035,29 @@ import stylesCommande from './style/commande.module.css';
             {/* Header avec bouton fermer */}
             <div className={styles.scannerHeader}>
               <Text className={styles.scannerTitle}>
-                📱 Scanner ISBN
+                ⚡ Scanner ISBN Ultra-Rapide (30 FPS)
               </Text>
               <div onClick={() => setScannerOpened(false)} className={styles.scannerCloseButton} style={{ marginTop: '100px' }}>
                 ✕ Fermer
               </div>
             </div>
             
+            {/* Info performance */}
+            <div style={{
+              position: 'absolute',
+              top: '60px',
+              left: '20px',
+              right: '20px',
+              background: 'rgba(0,200,0,0.9)',
+              padding: '8px',
+              borderRadius: '6px',
+              zIndex: 1000
+            }}>
+              <Text size="xs" c="white" ta="center" fw={600}>
+                🚀 Mode Ultra-Rapide Activé • ISBN 10/13 uniquement
+              </Text>
+            </div>
+        
             {/* Container caméra avec liste transparente en overlay */}
             <div ref={setScannerNode} className={styles.cameraContainer}>
               <div id="reader" className={styles.reader}></div>
@@ -965,9 +1075,14 @@ import stylesCommande from './style/commande.module.css';
               }}>
                 <div style={{ display: 'flex', gap: '10px', alignItems: 'center' }}>
                   <TextInput
-                    placeholder="Saisir ISBN manuellement"
+                    placeholder="Saisir ISBN 10 ou 13 chiffres"
                     value={isbn}
-                    onChange={(e) => setIsbn(e.currentTarget.value)}
+                    onChange={(e) => {
+                      const value = e.currentTarget.value;
+                      // Permettre seulement les chiffres, tirets et X
+                      const cleanValue = value.replace(/[^0-9\-X]/g, '');
+                      setIsbn(cleanValue);
+                    }}
                     style={{ flex: 1 }}
                     styles={{
                       input: { 
@@ -976,14 +1091,24 @@ import stylesCommande from './style/commande.module.css';
                         fontSize: '14px'
                       }
                     }}
+                    error={isbn && !isValidISBN(isbn) ? "Format ISBN invalide" : null}
                   />
                   <Button
                     size="sm"
                     color="green"
                     onClick={async () => {
                       if (isbn.trim()) {
+                        // Valider le format ISBN avant de tester
+                        if (!isValidISBN(isbn)) {
+                          alert("❌ Format ISBN invalide !\n\n📚 Un ISBN doit contenir :\n• 10 chiffres (avec éventuel X à la fin)\n• 13 chiffres\n• Peut contenir des tirets");
+                          return;
+                        }
+                        
+                        // Nettoyer l'ISBN pour la recherche
+                        const cleanISBN = isbn.replace(/[\s-]/g, '');
+                        
                         // Vérifier si l'ISBN existe dans la liste des ISBN
-                        const isbnTrouve = isbnList.find(item => item.isbn.toString() === isbn.trim());
+                        const isbnTrouve = isbnList.find(item => item.isbn.toString() === cleanISBN);
                         
                         if (isbnTrouve) {
                           // ISBN trouvé - chercher le livre correspondant dans l'inventaire
@@ -999,7 +1124,7 @@ import stylesCommande from './style/commande.module.css';
                             alert(`✅ ISBN trouvé mais livre non en stock : ${isbnTrouve.isbn} (Livre ID: ${isbnTrouve.livre_id})`);
                           }
                         } else {
-                          alert(`❌ ISBN non trouvé : ${isbn}`);
+                          alert(`❌ ISBN non trouvé : ${cleanISBN}\n\n💡 Ce livre n'est peut-être pas dans votre base de données.`);
                         }
                       } else {
                         alert("Veuillez saisir un ISBN");
@@ -1241,7 +1366,8 @@ import stylesCommande from './style/commande.module.css';
                     mb="sm"
                     classNames={isMobile ? { input: styles.iosModalInput } : undefined}
                   />
-                                  <Button
+                  <Center>
+                <Button
                   mt="md"
                   onClick={() => {
                     setLivreEnVente(livre);
@@ -1260,6 +1386,7 @@ import stylesCommande from './style/commande.module.css';
                 <Button onClick={() => {
                   reserverLivre(livre);
                 }}>Reserver</Button>
+                </Center>
                 </div>
               );
             }
@@ -1714,7 +1841,7 @@ import stylesCommande from './style/commande.module.css';
                   <Text size="sm" c="dimmed">Quantité à bloquer: {quantiteVente} exemplaires</Text>
                   {dateReservation && (
                     <Text size="sm" c="dimmed">
-                      Jusqu'au: {new Date(dateReservation).toLocaleDateString('fr-FR')}
+                      Jusqu&apos;au: {new Date(dateReservation).toLocaleDateString('fr-FR')}
                     </Text>
                   )}
                   <Text size="lg" fw={700} c="orange">

@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     // Récupérer la quantité actuelle
     const { data: produit, error: fetchError } = await supabase
       .from('inventaire')
-      .select('quantite')
+      .select('quantite,date_de_production')
       .eq('id', id)
       .maybeSingle();
 

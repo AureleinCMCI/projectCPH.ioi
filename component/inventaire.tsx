@@ -13,6 +13,7 @@ type InventaireItem = {
   quantite: number;
   price: number;
   isbn: number;
+  date_de_production?: string;
 };
 type HistoriqueItem = {
   id: number;
@@ -27,10 +28,13 @@ type HistoriqueItem = {
 
 export default function Inventaire() {
 
+  const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
   const [opened, setOpened] = useState(false);
   const [historique, setHistorique] = useState<HistoriqueItem[]>([]);
   const [user, setUser] = useState<{ admin?: boolean } | null>(null);
   /*Si l'utilisateur n'est pas connecté, il est redirigé vers la page de connexion*/
+  const [search, setSearch] = useState('');
   useEffect(() => {
     const token = localStorage.getItem('jwt');
     if (!token) {
@@ -116,7 +120,7 @@ export default function Inventaire() {
       {/* Section orange en haut - exactement comme l'image */}
       <div className={styles.revolutAmount}>
         <div className={styles.inventaireTitle}>
-          <div className={styles.titleLine} style={{position: 'fixed', top: '100px', left: '0', right: '0' , bottom: '400px'}}>INVENTAIRE</div>
+          <div className={styles.titleLine} style={{ position: 'fixed', top: '100px', left: '0', right: '0' , bottom: '0'}}>INVENTAIRE</div>
         </div>
       </div>
 
