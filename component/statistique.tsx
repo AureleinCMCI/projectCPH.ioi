@@ -3,9 +3,8 @@
 import { Badge, Button, Card, Center, Grid, Group, Loader, Modal, Paper, ScrollArea, Select, Stack, Table, Text } from '@mantine/core';
 import { IconCurrencyEuro, IconDownload, IconPackage, IconShoppingCart, IconTrendingDown, IconTrendingUp, IconUsers, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
+// @ts-expect-error: Importation du module CSS sans types déclarés
 import styles from './style/statistique.module.css';
-
-
 
 type StatsGlobales = {
   totalVentes: number;
@@ -23,6 +22,7 @@ type Commande = {
   date_achat: string;
   quantite: number;
   title: string;
+  price?: number; // Prix réel de vente (avec réductions)
 };
 
 type Reception = {
@@ -166,8 +166,13 @@ export default function Statistique() {
         const totalVentes = commandes.data?.reduce((acc: number, cmd: Commande) => acc + cmd.quantite, 0) || 0;
         const totalReceptions = receptions.user?.reduce((acc: number, rec: Reception) => acc + rec.quantite, 0) || 0;
         const totalMontant = commandes.data?.reduce((acc: number, cmd: Commande) => {
-          const livre = inventaire.data?.find((item: InventaireItem) => item.title === cmd.title);
-          return acc + (livre?.price || 0) * cmd.quantite;
+          // Utiliser le prix réel de vente ou fallback sur l'inventaire
+          if (cmd.price) {
+            return acc + (cmd.price * cmd.quantite);
+          } else {
+            const livre = inventaire.data?.find((item: InventaireItem) => item.title === cmd.title);
+            return acc + (livre?.price || 0) * cmd.quantite;
+          }
         }, 0) || 0;
         const totalLivres = inventaire.data?.reduce((acc: number, item: InventaireItem) => acc + item.quantite, 0) || 0;
         
@@ -187,8 +192,13 @@ export default function Statistique() {
         
         // Calculer le chiffre d'affaires du mois actuel
         const chiffreAffairesMoisActuel = commandesMoisActuel.reduce((acc: number, cmd: Commande) => {
-          const livre = inventaire.data?.find((item: InventaireItem) => item.title === cmd.title);
-          return acc + (livre?.price || 0) * cmd.quantite;
+          // Utiliser le prix réel de vente ou fallback sur l'inventaire
+          if (cmd.price) {
+            return acc + (cmd.price * cmd.quantite);
+          } else {
+            const livre = inventaire.data?.find((item: InventaireItem) => item.title === cmd.title);
+            return acc + (livre?.price || 0) * cmd.quantite;
+          }
         }, 0);
         
         // Calculer les réceptions du mois actuel pour comparaison
@@ -310,7 +320,12 @@ export default function Statistique() {
   };
 
   // Fonction pour obtenir le prix d'un livre
-  const getPrixLivre = (title: string): number => {
+  const getPrixLivre = (title: string, commande?: Commande): number => {
+    // Priorité au prix réel de la commande
+    if (commande?.price) {
+      return commande.price;
+    }
+    // Sinon utiliser le prix de l'inventaire
     const livre = inventaire.find(item => item.title === title);
     return livre?.price || 0;
   };
@@ -360,7 +375,7 @@ export default function Statistique() {
       const donneesCSV = ventesFiltrees
         .sort((a, b) => new Date(b.date_achat).getTime() - new Date(a.date_achat).getTime())
         .map(commande => {
-          const prixUnitaire = getPrixLivre(commande.title || '');
+          const prixUnitaire = getPrixLivre(commande.title || '', commande);
           const total = prixUnitaire * (commande.quantite || 0);
           const date = new Date(commande.date_achat);
           
@@ -507,7 +522,7 @@ export default function Statistique() {
       // Message de confirmation
       const moisOption = optionsMois.find(m => m.value === moisFiltreCA);
       const nomMois = moisFiltreCA === 'tous' ? 'tous les mois' : moisOption?.label || 'mois inconnu';
-      const caTotal = commandesFiltrees.reduce((acc, cmd) => acc + (getPrixLivre(cmd.title) * cmd.quantite), 0);
+      const caTotal = commandesFiltrees.reduce((acc, cmd) => acc + (getPrixLivre(cmd.title, cmd) * cmd.quantite), 0);
       const confirmation = `Téléchargement CA de ${formatNumber(caTotal)}€ pour ${nomMois}`;
       console.log(confirmation);
 
@@ -518,7 +533,7 @@ export default function Statistique() {
       const donneesCSV = commandesFiltrees
         .sort((a, b) => new Date(b.date_achat).getTime() - new Date(a.date_achat).getTime())
         .map(commande => {
-          const prixUnitaire = getPrixLivre(commande.title || '');
+          const prixUnitaire = getPrixLivre(commande.title || '', commande);
           const total = prixUnitaire * (commande.quantite || 0);
           const date = new Date(commande.date_achat);
           
@@ -644,19 +659,6 @@ export default function Statistique() {
   };
   return (
     <div className={styles.StatistiqueStyle}>
-      {/* Header avec icône statistiques */}
-      <div className={styles.revolutAmount}>
-        <div className={styles.revolutLabel}>📊 Statistiques</div>
-        <div className={styles.revolutValue}>Vue des statistiques en temps réel</div>
-        <div className={styles.revolutQuickActions}>
-          <div className={styles.quickAction}>
-            <div className={styles.revolutdiv}>
-              <span>🔄</span>
-              <div className={styles.quickActionLabel}>Mise à jour auto</div>
-            </div>
-          </div>
-        </div>
-      </div>
       <Grid gutter="md" style={{ padding: '0 20px', marginBottom: '20px' }}>
         <Grid.Col span={{ base: 12, sm: 6, lg: 3 }}>
           <Card 
@@ -841,7 +843,7 @@ export default function Statistique() {
               </div>
               <div style={{ textAlign: 'center' }}>
                 <Text size="xl" fw={700} c="green">
-                  {formatNumber(getVentesFiltrees().reduce((acc, cmd) => acc + (getPrixLivre(cmd.title) * cmd.quantite), 0))}€
+                  {formatNumber(getVentesFiltrees().reduce((acc, cmd) => acc + (getPrixLivre(cmd.title, cmd) * cmd.quantite), 0))}€
                 </Text>
                 <Text size="sm" c="dimmed">Chiffre d&apos;affaires</Text>
               </div>
@@ -877,7 +879,7 @@ export default function Statistique() {
                   getVentesFiltrees()
                     .sort((a, b) => new Date(b.date_achat).getTime() - new Date(a.date_achat).getTime())
                     .map((commande, index) => {
-                      const prixUnitaire = getPrixLivre(commande.title);
+                      const prixUnitaire = getPrixLivre(commande.title, commande);
                       const total = prixUnitaire * commande.quantite;
                       const date = new Date(commande.date_achat);
                       
@@ -1123,7 +1125,7 @@ export default function Statistique() {
             <Group justify="space-around" align="center">
               <div style={{ textAlign: 'center' }}>
                 <Text size="xl" fw={700} c="red">
-                  {formatNumber(getCommandesCAFiltrees().reduce((acc, cmd) => acc + (getPrixLivre(cmd.title) * cmd.quantite), 0))}€
+                  {formatNumber(getCommandesCAFiltrees().reduce((acc, cmd) => acc + (getPrixLivre(cmd.title, cmd) * cmd.quantite), 0))}€
                 </Text>
                 <Text size="sm" c="dimmed">Chiffre d&apos;affaires</Text>
               </div>
@@ -1165,7 +1167,7 @@ export default function Statistique() {
                   getCommandesCAFiltrees()
                     .sort((a, b) => new Date(b.date_achat).getTime() - new Date(a.date_achat).getTime())
                     .map((commande, index) => {
-                      const prixUnitaire = getPrixLivre(commande.title);
+                      const prixUnitaire = getPrixLivre(commande.title, commande);
                       const total = prixUnitaire * commande.quantite;
                       const date = new Date(commande.date_achat);
                       

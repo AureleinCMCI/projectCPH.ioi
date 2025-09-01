@@ -3,6 +3,7 @@
 import { Button, Center, Modal, Table } from '@mantine/core';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
+// @ts-expect-error: Importation du module CSS sans types déclarés
 import styles from './style/inventaire.module.css';
 
 type InventaireItem = {
@@ -26,13 +27,10 @@ type HistoriqueItem = {
 
 export default function Inventaire() {
 
-  const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
   const [opened, setOpened] = useState(false);
   const [historique, setHistorique] = useState<HistoriqueItem[]>([]);
   const [user, setUser] = useState<{ admin?: boolean } | null>(null);
   /*Si l'utilisateur n'est pas connecté, il est redirigé vers la page de connexion*/
-  const [search, setSearch] = useState('');
   useEffect(() => {
     const token = localStorage.getItem('jwt');
     if (!token) {
@@ -118,7 +116,7 @@ export default function Inventaire() {
       {/* Section orange en haut - exactement comme l'image */}
       <div className={styles.revolutAmount}>
         <div className={styles.inventaireTitle}>
-          <div className={styles.titleLine} style={{marginBottom: '370px' }}>INVENTAIRE</div>
+          <div className={styles.titleLine} style={{position: 'fixed', top: '100px', left: '0', right: '0' , bottom: '400px'}}>INVENTAIRE</div>
         </div>
       </div>
 

@@ -6,6 +6,7 @@ import { IconCamera } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
+// @ts-expect-error: Importation du module CSS sans types déclarés
 import { default as scannerStyles, default as styles } from './style/ScannerResception.module.css';
 
 type InventaireItem = { id: number; livre_id: number; title: string; author: string; quantite: number; price: number; isbn: number; livre?: { image?: string };};
@@ -725,14 +726,30 @@ export default function Resception() {
       {/* Icônes flottantes décoratives */}
       <div className={styles.floatingBooks}>
         {/* Livres flottants */}
-        <div className={styles.floatingBook} style={{ top: '10%', left: '15%', animationDelay: '0s' }}>📚</div>
-        <div className={styles.floatingBook} style={{ top: '20%', right: '20%', animationDelay: '1s' }}>📖</div>
-        <div className={styles.floatingBook} style={{ top: '35%', left: '10%', animationDelay: '2s' }}>📗</div>
-        <div className={styles.floatingBook} style={{ top: '45%', right: '15%', animationDelay: '3s' }}>📘</div>
-        <div className={styles.floatingBook} style={{ top: '15%', left: '50%', animationDelay: '1.5s' }}>📙</div>
-        <div className={styles.floatingBook} style={{ top: '30%', right: '45%', animationDelay: '2.5s' }}>📕</div>
-        <div className={styles.floatingBook} style={{ top: '50%', left: '25%', animationDelay: '0.5s' }}>📔</div>
-        <div className={styles.floatingBook} style={{ top: '40%', right: '35%', animationDelay: '3.5s' }}>📒</div>
+        <div className={styles.floatingBook} style={{ top: '10%', left: '15%', animationDelay: '0s' }}>
+              <img src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '20%', right: '20%', animationDelay: '1s' }}>
+              <img src="/41--eGipgSL.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '35%', left: '10%', animationDelay: '2s' }}>
+              <img src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '45%', right: '15%', animationDelay: '3s' }}>
+              <img src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '15%', left: '50%', animationDelay: '1.5s' }}>
+              <img src="/41--eGipgSL.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '30%', right: '45%', animationDelay: '2.5s' }}>
+              <img src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '50%', left: '25%', animationDelay: '0.5s' }}>
+              <img src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '40%', right: '35%', animationDelay: '3.5s' }}>
+              <img src="/28635380.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
         
         {/* Machines de production flottantes */}
         <div className={styles.floatingDollar} style={{ top: '25%', left: '35%', animationDelay: '0.8s' }}>⚙️</div>

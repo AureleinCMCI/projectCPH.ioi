@@ -17,13 +17,16 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient();
-    const { livre_id, quantite , user_id , vendeur , title} = await request.json();
+    const { livre_id, quantite , user_id , vendeur , title, prix_final} = await request.json();
 
-    const { data, error } = await supabase.from('commande').insert([{ livre_id , quantite, user_id , vendeur , title}]).select();
-
-    if (error) {
-      return new Response(JSON.stringify({ error: error.message }), { status: 400 });
-    }
+    const { data, error } = await supabase.from('commande').insert([{ 
+      livre_id, 
+      quantite, 
+      user_id, 
+      vendeur, 
+      title,
+      price: prix_final // Le prix avec réduction devient le prix de vente
+    }]).select();
 
     return new Response(
       JSON.stringify({ message: 'Quantité mise à jour', produit: data, success: true }),

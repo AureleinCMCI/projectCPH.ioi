@@ -1,7 +1,7 @@
 'use client';
 
 import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
-import { Button, Center, Modal, Radio, Table, Text, TextInput } from '@mantine/core';
+import { Button, Center, Modal, NumberInput, Radio, Table, Text, TextInput } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
@@ -18,6 +18,8 @@ import stylesCommande from './style/commande.module.css';
     quantite: number;
     price: number;
     isbn: number;
+    quantite_reservee?: number;
+    date_expiration_reservation?: string;
     livre?: { image?: string };
   };
 
@@ -76,7 +78,7 @@ import stylesCommande from './style/commande.module.css';
     const [loading, setLoading] = useState<boolean>(true);
     const [supprimer, setSupprimer] = useState<number>(1);
     const [commandeOpened, setCommandeOpened] = useState(false);
-    const [commandes, setCommandes] = useState<{ user_id: number; date_achat: string; title: string;quantite: number; vendeur?: string; user?: { name?: string };
+    const [commandes, setCommandes] = useState<{ user_id: number; date_achat: string; title: string;quantite: number; price?: number; vendeur?: string; user?: { name?: string };
     }[]>([]);
     const [isMobile, setIsMobile] = useState(false); // Détection mobile
     const [scanner, setScanner] = useState<Html5QrcodeScanner | boolean | null>(null);
@@ -101,6 +103,8 @@ import stylesCommande from './style/commande.module.css';
     const [quantiteVente, setQuantiteVente] = useState(1);
     const [typeReduction, setTypeReduction] = useState<'euros' | 'pourcentage'>('euros');
     const [valeurReduction, setValeurReduction] = useState(0);
+    const [modeModal, setModeModal] = useState<'vente' | 'reservation'>('vente');
+    const [dateReservation, setDateReservation] = useState('');
 
     
     // Détection automatique du type d'appareil et choix du scanner
@@ -273,8 +277,56 @@ import stylesCommande from './style/commande.module.css';
     }
   };
   
-  /*fin du scan */
+     /* reserver un livre */
+   const reserverLivre = (livre: InventaireItem) => {
+     setLivreEnVente(livre);
+     setQuantiteVente(500); // Quantité par défaut pour réservation
+     setValeurReduction(0);
+     setTypeReduction('euros');
+     setModeModal('reservation'); // Mode réservation
+     
+     // Date par défaut : 7 jours à partir d'aujourd'hui
+     const dateFuture = new Date();
+     dateFuture.setDate(dateFuture.getDate() + 7);
+     setDateReservation(dateFuture.toISOString().split('T')[0]);
+     
+     setReductionOpened(true); // Ouvre le modal
+   };
 
+   /* fonction pour bloquer les livres dans l'inventaire via ScannerResception */
+   const reserverLivresInventaire = async (livre: InventaireItem, quantite: number, dateExpiration: string) => {
+     if (!user) {
+       alert("Utilisateur non connecté !");
+       return;
+     }
+
+     try {
+       const res = await fetch('/api/ScannerResception', {
+         method: 'PUT', // Méthode dédiée aux blocages
+         headers: { 'Content-Type': 'application/json' },
+         body: JSON.stringify({
+           id: livre.id,
+           quantite_a_bloquer: quantite,
+           date_expiration: dateExpiration
+         }),
+       });
+
+       if (res.ok) {
+         alert(`✅ ${quantite} exemplaires de "${livre.title}" réservés jusqu'au ${new Date(dateExpiration).toLocaleDateString('fr-FR')} !`);
+         setReductionOpened(false);
+         // Rafraîchir l'inventaire
+         const response = await fetch('/api/inventaire', { method: 'GET' });
+         const result = await response.json();
+         setInventaire(result.data || []);
+       } else {
+         const error = await res.json();
+         alert(`❌ Erreur lors de la réservation: ${error.error || error.message}`);
+       }
+     } catch (error) {
+       console.error('Erreur:', error);
+       alert('❌ Erreur de connexion');
+     }
+   };
   /* parametre du scanner */
     useEffect(() => {
       if (scannerOpened && scannerReady && scannerRef.current) {
@@ -420,12 +472,23 @@ import stylesCommande from './style/commande.module.css';
         alert("Veuillez saisir une quantité à supprimer supérieure à 0.");
         return;
       }
+      
+      // Calculer la quantité disponible (stock - réservations)
+      const quantiteReservee = livre.quantite_reservee || 0;
+      const quantiteDisponible = livre.quantite - quantiteReservee;
+      
       if (livre.quantite <= 0) {
         alert("Ce livre n'est pas en stock !");
         return;
       }
-      if (quantite > livre.quantite) {
-        alert("La quantité à supprimer est supérieure à la quantité en stock !");
+      
+      if (quantiteDisponible <= 0) {
+        alert(`❌ Impossible de vendre "${livre.title}" ! Tous les exemplaires (${quantiteReservee}) sont réservés.`);
+        return;
+      }
+      
+      if (quantite > quantiteDisponible) {
+        alert(`❌ Stock insuffisant pour "${livre.title}" !\n📦 Stock total: ${livre.quantite}\n🔒 Réservé: ${quantiteReservee}\n✅ Disponible: ${quantiteDisponible}\n🛒 Demandé: ${quantite}`);
         return;
       }
 
@@ -454,7 +517,7 @@ import stylesCommande from './style/commande.module.css';
       }
     };
 
-    const ajouterCommande = async (livre: InventaireItem, quantite: number) => {
+    const ajouterCommande = async (livre: InventaireItem, quantite: number, prixFinal?: number) => {
       if (!user) {
         alert("Utilisateur non connecté !");
         return;
@@ -470,6 +533,7 @@ import stylesCommande from './style/commande.module.css';
             user_id: user.id,
             vendeur: user.name,
             title: livre.title,
+            prix_final: prixFinal || (livre.price * quantite), // Utiliser le prix avec réduction ou le prix normal
           }),
         });
 
@@ -639,14 +703,30 @@ import stylesCommande from './style/commande.module.css';
           {/* Icônes de livres et dollars flottantes décoratives */}
           <div className={stylesCommande.floatingBooks}>
             {/* Livres flottants */}
-            <div className={stylesCommande.floatingBook} style={{ top: '10%', left: '15%', animationDelay: '0s' }}>📚</div>
-            <div className={stylesCommande.floatingBook} style={{ top: '20%', right: '20%', animationDelay: '1s' }}>📖</div>
-            <div className={stylesCommande.floatingBook} style={{ top: '35%', left: '10%', animationDelay: '2s' }}>📗</div>
-            <div className={stylesCommande.floatingBook} style={{ top: '45%', right: '15%', animationDelay: '3s' }}>📘</div>
-            <div className={stylesCommande.floatingBook} style={{ top: '15%', left: '50%', animationDelay: '1.5s' }}>📙</div>
-            <div className={stylesCommande.floatingBook} style={{ top: '30%', right: '45%', animationDelay: '2.5s' }}>📕</div>
-            <div className={stylesCommande.floatingBook} style={{ top: '50%', left: '25%', animationDelay: '0.5s' }}>📔</div>
-            <div className={stylesCommande.floatingBook} style={{ top: '40%', right: '35%', animationDelay: '3.5s' }}>📒</div>
+            <div className={styles.floatingBook} style={{ top: '10%', left: '15%', animationDelay: '0s' }}>
+              <img src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '20%', right: '20%', animationDelay: '1s' }}>
+              <img src="/41--eGipgSL.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '35%', left: '10%', animationDelay: '2s' }}>
+              <img src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '45%', right: '15%', animationDelay: '3s' }}>
+              <img src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '15%', left: '50%', animationDelay: '1.5s' }}>
+              <img src="/41--eGipgSL.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '30%', right: '45%', animationDelay: '2.5s' }}>
+              <img src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '50%', left: '25%', animationDelay: '0.5s' }}>
+              <img src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '40%', right: '35%', animationDelay: '3.5s' }}>
+              <img src="/28635380.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
             
             {/* Dollars flottants */}
             <div className={stylesCommande.floatingDollar} style={{ top: '25%', left: '35%', animationDelay: '0.8s' }}>💵</div>
@@ -1058,6 +1138,8 @@ import stylesCommande from './style/commande.module.css';
                     setQuantiteVente(supprimer);
                     setValeurReduction(0);
                     setTypeReduction('euros');
+                    setModeModal('vente'); // Mode vente
+                    setDateReservation(''); // Reset date
                     setFormOpened(false);
                     setReductionOpened(true);
                   }}
@@ -1065,6 +1147,9 @@ import stylesCommande from './style/commande.module.css';
                 >
                   Procéder à la vente
                 </Button>
+                <Button onClick={() => {
+                  reserverLivre(livre);
+                }}>Reserver</Button>
                 </div>
               );
             }
@@ -1215,8 +1300,8 @@ import stylesCommande from './style/commande.module.css';
                       </Table.Td>
                       <Table.Td>
                         <Text size="sm" c="green">
-                          {/* Calculer le prix unitaire depuis l'inventaire */}
-                          {(() => {
+                          {/* Utiliser le prix réel de vente ou fallback sur l'inventaire */}
+                          {commande.price ? `${commande.price.toFixed(2)}€` : (() => {
                             const livre = inventaire.find(item => item.title === commande.title);
                             return livre ? `${livre.price}€` : 'N/A';
                           })()}
@@ -1224,7 +1309,8 @@ import stylesCommande from './style/commande.module.css';
                       </Table.Td>
                       <Table.Td>
                         <Text size="sm" fw={700} c="green">
-                          {(() => {
+                          {/* Calculer le total avec le prix réel de vente */}
+                          {commande.price ? `${(commande.price * commande.quantite).toFixed(2)}€` : (() => {
                             const livre = inventaire.find(item => item.title === commande.title);
                             return livre ? `${(livre.price * commande.quantite).toFixed(2)}€` : 'N/A';
                           })()}
@@ -1417,7 +1503,7 @@ import stylesCommande from './style/commande.module.css';
         <Modal 
           opened={reductionOpened} 
           onClose={() => setReductionOpened(false)} 
-          title="💰 Appliquer une réduction" 
+          title={modeModal === 'reservation' ? "📅 Réserver des livres" : "💰 Appliquer une réduction"} 
           centered 
           size="sm"
         >
@@ -1438,49 +1524,99 @@ import stylesCommande from './style/commande.module.css';
                 </Text>
               </div>
 
-              {/* Type de réduction */}
-              <Text size="sm" fw={600} mb="xs">Type de réduction :</Text>
-              <Radio.Group
-                value={typeReduction}
-                onChange={(value) => setTypeReduction(value as 'euros' | 'pourcentage')}
-                mb="md"
-              >
-                <Radio value="euros" label="💵 En euros" />
-                <Radio value="pourcentage" label="📊 En pourcentage" />
-              </Radio.Group>
-
-              {/* Valeur de la réduction */}
-              <TextInput
-                label={`Valeur de la réduction ${typeReduction === 'euros' ? '(€)' : '(%)'}`}
-                type="number"
-                min={0}
-                max={typeReduction === 'pourcentage' ? 100 : livreEnVente.price * quantiteVente}
-                value={valeurReduction}
-                onChange={(e) => setValeurReduction(Number(e.currentTarget.value))}
-                placeholder={`Saisir la réduction en ${typeReduction === 'euros' ? 'euros' : 'pourcentage'}`}
+              {/* Sélection de la quantité */}
+              <NumberInput
+                label={modeModal === 'reservation' ? "📦 Quantité à réserver" : "📚 Quantité à vendre"}
+                value={quantiteVente}
+                onChange={(value) => setQuantiteVente(Number(value) || 1)}
+                min={1}
+                max={modeModal === 'reservation' ? 10000 : (livreEnVente.quantite - (livreEnVente.quantite_reservee || 0))}
+                step={modeModal === 'reservation' ? 10 : 1}
+                placeholder={modeModal === 'reservation' ? "Ex: 500, 1000, 2000..." : "Quantité"}
+                description={modeModal === 'reservation' ? 
+                  `Stock total: ${livreEnVente.quantite} exemplaires` : 
+                  `Stock disponible: ${livreEnVente.quantite - (livreEnVente.quantite_reservee || 0)} exemplaires (${livreEnVente.quantite_reservee || 0} réservés)`
+                }
                 mb="md"
               />
 
-              {/* Aperçu du prix final */}
-              <div style={{ 
-                backgroundColor: '#e3f2fd', 
-                padding: '15px', 
-                borderRadius: '8px', 
-                marginBottom: '20px' 
-              }}>
-                <Text size="sm" c="dimmed">Prix original: {(livreEnVente.price * quantiteVente).toFixed(2)}€</Text>
-                {valeurReduction > 0 && (
-                  <Text size="sm" c="red">
-                    Réduction: -{typeReduction === 'euros' 
-                      ? `${valeurReduction.toFixed(2)}€` 
-                      : `${valeurReduction}% (${((livreEnVente.price * quantiteVente * valeurReduction) / 100).toFixed(2)}€)`
-                    }
+              {/* Champ spécifique à la réservation */}
+              {modeModal === 'reservation' ? (
+                <TextInput
+                  label="📅 Date d'expiration de la réservation"
+                  type="date"
+                  value={dateReservation}
+                  onChange={(e) => setDateReservation(e.currentTarget.value)}
+                  mb="md"
+                  required
+                />
+              ) : (
+                <>
+                  {/* Type de réduction */}
+                  <Text size="sm" fw={600} mb="xs">Type de réduction :</Text>
+                  <Radio.Group
+                    value={typeReduction}
+                    onChange={(value) => setTypeReduction(value as 'euros' | 'pourcentage')}
+                    mb="md"
+                  >
+                    <Radio value="euros" label="💵 En euros" />
+                    <Radio value="pourcentage" label="📊 En pourcentage" />
+                  </Radio.Group>
+
+                  {/* Valeur de la réduction */}
+                  <TextInput
+                    label={`Valeur de la réduction ${typeReduction === 'euros' ? '(€)' : '(%)'}`}
+                    type="number"
+                    min={0}
+                    max={typeReduction === 'pourcentage' ? 100 : livreEnVente.price * quantiteVente}
+                    value={valeurReduction}
+                    onChange={(e) => setValeurReduction(Number(e.currentTarget.value))}
+                    placeholder={`Saisir la réduction en ${typeReduction === 'euros' ? 'euros' : 'pourcentage'}`}
+                    mb="md"
+                  />
+                </>
+              )}
+
+              {/* Aperçu du prix final ou info réservation */}
+              {modeModal === 'reservation' ? (
+                <div style={{ 
+                  backgroundColor: '#fff3cd', 
+                  padding: '15px', 
+                  borderRadius: '8px', 
+                  marginBottom: '20px' 
+                }}>
+                  <Text size="sm" fw={600} c="orange">📦 Réservation</Text>
+                  <Text size="sm" c="dimmed">Quantité à bloquer: {quantiteVente} exemplaires</Text>
+                  {dateReservation && (
+                    <Text size="sm" c="dimmed">
+                      Jusqu'au: {new Date(dateReservation).toLocaleDateString('fr-FR')}
+                    </Text>
+                  )}
+                  <Text size="lg" fw={700} c="orange">
+                    📅 Stock bloqué temporairement
                   </Text>
-                )}
-                <Text size="lg" fw={700} c="green">
-                  💰 Prix final: {calculerPrixAvecReduction(livreEnVente.price, quantiteVente).toFixed(2)}€
-                </Text>
-              </div>
+                </div>
+              ) : (
+                <div style={{ 
+                  backgroundColor: '#e3f2fd', 
+                  padding: '15px', 
+                  borderRadius: '8px', 
+                  marginBottom: '20px' 
+                }}>
+                  <Text size="sm" c="dimmed">Prix original: {(livreEnVente.price * quantiteVente).toFixed(2)}€</Text>
+                  {valeurReduction > 0 && (
+                    <Text size="sm" c="red">
+                      Réduction: -{typeReduction === 'euros' 
+                        ? `${valeurReduction.toFixed(2)}€` 
+                        : `${valeurReduction}% (${((livreEnVente.price * quantiteVente * valeurReduction) / 100).toFixed(2)}€)`
+                      }
+                    </Text>
+                  )}
+                  <Text size="lg" fw={700} c="green">
+                    💰 Prix final: {calculerPrixAvecReduction(livreEnVente.price, quantiteVente).toFixed(2)}€
+                  </Text>
+                </div>
+              )}
 
               {/* Boutons d'action */}
               <div style={{ display: 'flex', gap: '10px' }}>
@@ -1492,30 +1628,40 @@ import stylesCommande from './style/commande.module.css';
                   Annuler
                 </Button>
                 <Button
-                  color="green"
+                  color={modeModal === 'reservation' ? 'orange' : 'green'}
                   onClick={async () => {
                     if (livreEnVente) {
-                      await decrementInventaire(livreEnVente, quantiteVente);
-                      await ajouterCommande(livreEnVente, quantiteVente);
-                      
-                      const prixFinal = calculerPrixAvecReduction(livreEnVente.price, quantiteVente);
-                      const prixOriginal = livreEnVente.price * quantiteVente;
-                      
-                      if (valeurReduction > 0) {
-                        const economie = prixOriginal - prixFinal;
-                        alert(`✅ Vente effectuée !\n💰 Prix final: ${prixFinal.toFixed(2)}€\n🎉 Économie: ${economie.toFixed(2)}€`);
+                      if (modeModal === 'reservation') {
+                        // Mode réservation : bloquer le stock
+                        if (!dateReservation) {
+                          alert('❌ Veuillez sélectionner une date d\'expiration');
+                          return;
+                        }
+                        await reserverLivresInventaire(livreEnVente, quantiteVente, dateReservation);
                       } else {
-                        alert(`✅ Vente effectuée pour ${prixFinal.toFixed(2)}€`);
+                        // Mode vente : procéder à la vente
+                        const prixFinal = calculerPrixAvecReduction(livreEnVente.price, quantiteVente);
+                        const prixOriginal = livreEnVente.price * quantiteVente;
+                        
+                        await decrementInventaire(livreEnVente, quantiteVente);
+                        await ajouterCommande(livreEnVente, quantiteVente, prixFinal);
+                        
+                        if (valeurReduction > 0) {
+                          const economie = prixOriginal - prixFinal;
+                          alert(`✅ Vente effectuée !\n💰 Prix final: ${prixFinal.toFixed(2)}€\n🎉 Économie: ${economie.toFixed(2)}€`);
+                        } else {
+                          alert(`✅ Vente effectuée pour ${prixFinal.toFixed(2)}€`);
+                        }
+                        
+                        setReductionOpened(false);
+                        setLivreEnVente(null);
+                        setValeurReduction(0);
                       }
-                      
-                      setReductionOpened(false);
-                      setLivreEnVente(null);
-                      setValeurReduction(0);
                     }
                   }}
                   style={{ flex: 1 }}
                 >
-                  ✅ Confirmer la vente
+                  {modeModal === 'reservation' ? '📅 Confirmer la réservation' : '✅ Confirmer la vente'}
                 </Button>
               </div>
             </div>
