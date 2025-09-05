@@ -66,7 +66,7 @@ export async function POST(request: NextRequest) {
 export async function PUT(request: NextRequest) {
   try {
     const supabase = createClient();
-    const { action, livre_id, quantite_reservee, date_expiration_reservation, user_id } = await request.json();
+    const { action, livre_id, quantite_reservee, date_expiration_reservation } = await request.json();
 
     if (action === 'reserver') {
       // Vérifier que le livre existe et a assez de stock disponible

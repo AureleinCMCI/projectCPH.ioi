@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
     const supabase = createClient();
     const { livre_id, quantite , user_id , vendeur , title, prix_final} = await request.json();
 
-    const { data, error } = await supabase.from('commande').insert([{ 
+    const { data } = await supabase.from('commande').insert([{ 
       livre_id, 
       quantite, 
       user_id, 

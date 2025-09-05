@@ -164,25 +164,70 @@ export default function Resception() {
     checkPendingIsbn();
   }, []);
 
+  /* Cache pour optimiser les validations ISBN répétées */
+  const isbnValidationCache = useRef<Map<string, boolean>>(new Map());
+  
+  /* Fonction de validation ISBN ultra-rapide avec cache */
+  const isValidISBN = (code: string): boolean => {
+    // Vérifier le cache d'abord
+    if (isbnValidationCache.current.has(code)) {
+      return isbnValidationCache.current.get(code)!;
+    }
+    
+    // Nettoyer le code (supprimer espaces, tirets, etc.)
+    const cleanCode = code.replace(/[\s-]/g, '');
+    
+    // Validation rapide de la longueur en premier (plus rapide)
+    if (cleanCode.length !== 10 && cleanCode.length !== 13) {
+      isbnValidationCache.current.set(code, false);
+      return false;
+    }
+    
+    // Vérifier si c'est composé uniquement de chiffres (et éventuellement un X à la fin pour ISBN-10)
+    const isNumericWithOptionalX = /^[0-9]{9}[0-9X]$|^[0-9]{13}$/.test(cleanCode);
+    
+    if (!isNumericWithOptionalX) {
+      console.log(`❌ Code rejeté (pas un format ISBN valide): ${code}`);
+      isbnValidationCache.current.set(code, false);
+      return false;
+    }
+    
+    console.log(`✅ ISBN valide détecté: ${cleanCode} (${cleanCode.length} chiffres)`);
+    isbnValidationCache.current.set(code, true);
+    return true;
+  };
+
   // Gestionnaires pour html5-qrcode
   const handleScan = async (decodedText: string) => {
-    if (decodedText) {
-      console.log('✅ Code scanné:', decodedText);
-      
-      // Ajouter le code à la liste s'il n'y est pas déjà
-      setScannedCodes(prev => {
-        if (!prev.includes(decodedText)) {
-          const newCodes = [...prev, decodedText];
-          console.log('📋 Codes scannés:', newCodes);
-          setShowCodesList(true); // Afficher immédiatement
-          return newCodes;
-        }
-        return prev;
-      });
-      
-      // ❌ NE PAS fermer le scanner ici !
-      // Le scanner continue à tourner
+    if (!decodedText) return;
+    
+    console.log('⚡ Code scanné:', decodedText);
+    
+    // Validation ISBN ultra-rapide
+    const isValid = isValidISBN(decodedText);
+    
+    if (!isValid) {
+      console.log('⚡ Code rejeté (pas un ISBN 10 ou 13)');
+      return; // Ignorer les codes qui ne sont pas des ISBN
     }
+    
+    // Nettoyer le code ISBN
+    const cleanISBN = decodedText.replace(/[\s-]/g, '');
+    console.log('🚀 ISBN valide scanné:', cleanISBN);
+    
+    // Ajouter le code à la liste s'il n'y est pas déjà
+    setScannedCodes(prev => {
+      if (!prev.includes(cleanISBN)) {
+        const newCodes = [...prev, cleanISBN];
+        console.log('📋 ISBNs scannés:', newCodes);
+        setShowCodesList(true); // Afficher immédiatement
+        return newCodes;
+      }
+      return prev;
+    });
+    
+    // ❌ NE PAS fermer le scanner ici !
+    // Le scanner continue à tourner
   };
 
   const handleError = (errorMessage: string) => {
@@ -397,7 +442,7 @@ export default function Resception() {
         }
       });
     }
-  }, [scannerOpened, scannerReady, scannerType]);
+  }, [scannerOpened, scannerReady, scannerType, handleScan]);
   useEffect(() => {
     if (!scannerOpened && scanner) {
       console.log('Scanner fermé, nettoyage des ressources...');
@@ -960,9 +1005,14 @@ export default function Resception() {
             <div className={scannerStyles.infoPanel}>
               <div className={scannerStyles.controlsContainer}>
                 <TextInput
-                  placeholder="ISBN manuel"
+                  placeholder="ISBN 10 ou 13 chiffres"
                   value={isbn}
-                  onChange={(e) => setIsbn(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.currentTarget.value;
+                    // Permettre seulement les chiffres, tirets et X
+                    const cleanValue = value.replace(/[^0-9\-X]/g, '');
+                    setIsbn(cleanValue);
+                  }}
                   className={scannerStyles.isbnInput}
                   styles={{
                     input: { 
@@ -973,31 +1023,51 @@ export default function Resception() {
                       minHeight: '44px' // Taille minimale recommandée pour iOS
                     }
                   }}
+                  error={isbn && !isValidISBN(isbn) ? "Format ISBN invalide" : null}
                 />
                 <Button 
                   onClick={() => {
                     if (isbn.trim()) {
-                      // Vérifier si l'ISBN existe dans l'inventaire
-                      const livre = inventaire.find(item => item.isbn.toString() === isbn.trim());
+                      // Valider le format ISBN avant de tester
+                      if (!isValidISBN(isbn)) {
+                        alert("❌ Format ISBN invalide !\n\n📚 Un ISBN doit contenir :\n• 10 chiffres (avec éventuel X à la fin)\n• 13 chiffres\n• Peut contenir des tirets");
+                        return;
+                      }
                       
-                      if (livre) {
-                        // ✅ ISBN trouvé : ouvrir la popup d'incrémentation
-                        setQuantiteToAdd(1);
-                        setTimeout(() => setIncrementModalOpened(true), 500);
-                                             } else {
-                         // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout
-                         setFormData(prev => ({ 
-                           ...prev, 
-                           isbn: isbn,
-                           additionalIsbns: [] // Pas d'ISBNs additionnels pour une saisie manuelle
-                         }));
-                         setTimeout(() => setFormOpened(true), 500);
-                       }
+                      // Nettoyer l'ISBN pour la recherche
+                      const cleanISBN = isbn.replace(/[\s-]/g, '');
+                      
+                      // Vérifier si l'ISBN existe dans la liste des ISBN
+                      const isbnTrouve = isbnList.find(item => item.isbn.toString() === cleanISBN);
+                      
+                      if (isbnTrouve) {
+                        // ISBN trouvé - chercher le livre correspondant dans l'inventaire
+                        const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
+                        
+                        if (livre) {
+                          alert(`✅ ISBN trouvé : ${livre.title} (ISBN: ${isbnTrouve.isbn}, Livre ID: ${isbnTrouve.livre_id})`);
+                          setIsbn(livre.isbn.toString());
+                          setQuantiteToAdd(1);
+                          setScannerOpened(false);
+                          setTimeout(() => setIncrementModalOpened(true), 500);
+                        } else {
+                          alert(`✅ ISBN trouvé mais livre non en stock : ${isbnTrouve.isbn} (Livre ID: ${isbnTrouve.livre_id})`);
+                        }
+                      } else {
+                        // ISBN non trouvé : ouvrir le formulaire d'ajout
+                        setFormData(prev => ({ 
+                          ...prev, 
+                          isbn: cleanISBN,
+                          additionalIsbns: [] // Pas d'ISBNs additionnels pour une saisie manuelle
+                        }));
+                        setScannerOpened(false);
+                        setTimeout(() => setFormOpened(true), 500);
+                      }
                     } else {
                       alert("Veuillez saisir un ISBN");
                     }
                   }}
-                  disabled={!isbn}
+                  disabled={!isbn || !isValidISBN(isbn)}
                   color="green"
                   size="md"
                 >
@@ -1252,7 +1322,7 @@ export default function Resception() {
       <Modal 
         opened={incrementModalOpened} 
         onClose={() => { setIncrementModalOpened(false); setQuantiteToAdd(1); }} 
-        title="Incrémenter l'inventaire" 
+        title="Ajouté à l'inventaire" 
         centered 
         size={isMobile ? "xs" : "md"}
       >
@@ -1262,7 +1332,7 @@ export default function Resception() {
             return (
               <div style={{ width: 400, maxWidth: '80vw', margin: '0 auto' }}>
                 <Text color="green" ta="center" size="lg" mb="xl">
-                  📚 Livre trouvé - Incrémenter l&apos;inventaire
+                  📚 Livre trouvé - Ajouté à  l&apos;inventaire
                 </Text>
                 
                 <TextInput 
@@ -1327,7 +1397,7 @@ export default function Resception() {
                     }
                   }}
                 >
-                  ✅ Incrémenter l&apos;inventaire
+                  ✅ Ajouté à l&apos;inventaire
                 </Button>
               </div>
             );
