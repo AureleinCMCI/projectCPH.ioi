@@ -1,24 +1,40 @@
 "use client";
 import { Text } from "@mantine/core";
 import { IconChartBar, IconHome2, IconMenu2, IconSettings, IconWallet, IconX } from "@tabler/icons-react";
-
+import { jwtDecode } from 'jwt-decode';
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { useState } from "react";
-
+import { useEffect, useState } from "react";
 
 export function BottomNavBar() {
   const pathname = usePathname();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
+  // Vérifier le statut admin de l'utilisateur
+  useEffect(() => {
+    const token = localStorage.getItem('jwt');
+    if (token) {
+      try {
+        const userData = jwtDecode<{ id: string; name: string; admin?: boolean }>(token);
+        setIsAdmin(userData.admin === true);
+        console.log('👤 Utilisateur admin:', userData.admin);
+      } catch (error) {
+        console.error('Erreur décodage JWT:', error);
+        setIsAdmin(false);
+      }
+    }
+  }, []);
+
+  // Créer les onglets avec condition pour Statistiques
   const tabs = [
     { label: "Home", icon: IconHome2, href: "/acceuil" },
     { label: "Commande", icon: IconWallet, href: "/commande" },
     { label: "Mon Compte", href: "/compte", isUser: true },
     { label: "Inventaire", icon: IconSettings, href: "/inventaire" },
-    { label: "Statistiques", icon: IconChartBar, href: "/statistique" }
+    ...(isAdmin ? [{ label: "Statistiques", icon: IconChartBar, href: "/statistique" }] : [])
   ];
 
   const toggleMenu = () => {
