@@ -6,9 +6,9 @@ import { IconCamera } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
-// @ts-expect-error: Importation du module CSS sans types déclarés
+
 import styles from './style/ScannerResception.module.css';
-// @ts-expect-error: Importation du module CSS sans types déclarés
+
 import stylesCommande from './style/commande.module.css';
 
 

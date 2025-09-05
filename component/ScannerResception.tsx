@@ -6,7 +6,7 @@ import { IconCamera } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
-// @ts-expect-error: Importation du module CSS sans types déclarés
+
 import { default as scannerStyles, default as styles } from './style/ScannerResception.module.css';
 
 type InventaireItem = { id: number; livre_id: number; title: string; author: string; quantite: number; price: number; isbn: number; livre?: { image?: string };};

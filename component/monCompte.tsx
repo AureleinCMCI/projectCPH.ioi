@@ -2,9 +2,9 @@
 import { Button, Modal, Table } from '@mantine/core';
 import { jwtDecode } from 'jwt-decode';
 import { useEffect, useState } from 'react';
-// @ts-expect-error: Importation du module CSS sans types déclarés
+
 import styles from './style/hom.module.css';
-// @ts-expect-error: Importation du module CSS sans types déclarés
+
 import stylesCompte from './style/monCompte.module.css';
 
 // Fonction utilitaire pour formater la date à la française (heure de Paris)

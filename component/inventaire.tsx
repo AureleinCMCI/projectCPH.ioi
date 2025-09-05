@@ -3,7 +3,6 @@
 import { Button, Center, Modal, Table } from '@mantine/core';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-// @ts-expect-error: Importation du module CSS sans types déclarés
 import styles from './style/inventaire.module.css';
 
 type HistoriqueItem = {
