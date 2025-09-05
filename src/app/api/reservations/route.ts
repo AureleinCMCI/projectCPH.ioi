@@ -26,6 +26,58 @@ export async function GET() {
     return new Response(JSON.stringify({ data }), { status: 200 });
   }
   
+// POST - Vendre une réservation (supprime sans remettre le stock)
+export async function POST(request: NextRequest) {
+  try {
+    const supabase = createClient();
+    const { action, id, user_id } = await request.json();
+
+    if (action === 'vente') {
+      if (!id || !user_id) {
+        return new Response(JSON.stringify({ error: "id et user_id requis" }), { status: 400 });
+      }
+
+      // Récupérer les détails de la réservation avant suppression (pour info)
+      const { data: reservation, error: fetchError } = await supabase
+        .from('reservations')
+        .select('inventaire_id, quantite_bloquee')
+        .eq('id', id)
+        .eq('user_id', user_id)
+        .single();
+
+      if (fetchError || !reservation) {
+        return new Response(JSON.stringify({ error: "Réservation non trouvée" }), { status: 404 });
+      }
+
+      // Supprimer la réservation SANS remettre le stock (c'est vendu !)
+      const { error: deleteError } = await supabase
+        .from('reservations')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', user_id);
+
+      if (deleteError) {
+        return new Response(JSON.stringify({ error: deleteError.message }), { status: 400 });
+      }
+
+      return new Response(
+        JSON.stringify({ 
+          message: `✅ Vente effectuée ! ${reservation.quantite_bloquee} exemplaires vendus`,
+          success: true 
+        }),
+        { status: 200 }
+      );
+    }
+
+    return new Response(JSON.stringify({ error: "Action non supportée" }), { status: 400 });
+  } catch (err) {
+    console.error('Erreur:', err);
+    return new Response(
+      JSON.stringify({ error: "Erreur serveur", details: err }),
+      { status: 500 }
+    );
+  }
+}
 
 // DELETE - Annuler une réservation
 export async function DELETE(request: NextRequest) {

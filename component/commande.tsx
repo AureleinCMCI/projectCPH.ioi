@@ -276,6 +276,38 @@ import stylesCommande from './style/commande.module.css';
       }
     };
 
+    const vendreReservation = async (reservationId: number) => {
+      if (!user) return;
+      
+      if (!confirm('💰 Confirmer la vente ? La réservation sera supprimée sans remettre le stock.')) {
+        return;
+      }
+
+      try {
+        // Suppression directe de la réservation SANS remettre le stock
+        const res = await fetch('/api/reservations', {
+          method: 'POST', // On va créer une route spécifique pour la vente
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            action: 'vente',
+            id: reservationId,
+            user_id: user.id
+          }),
+        });
+
+        if (res.ok) {
+          alert('✅ Vente effectuée ! Réservation supprimée.');
+          fetchReservations(); // Rafraîchir la liste
+        } else {
+          const error = await res.json();
+          alert(`❌ Erreur: ${error.error || error.message}`);
+        }
+      } catch (error) {
+        console.error('Erreur:', error);
+        alert('❌ Erreur de connexion');
+      }
+    };
+
     const setScannerNode = useCallback((node: HTMLDivElement | null) => {
       scannerRef.current = node;
       setScannerReady(!!node);
@@ -2030,6 +2062,16 @@ import stylesCommande from './style/commande.module.css';
                             onClick={() => annulerReservation(reservation.id)}
                           >
                             🗑️ Annuler
+                          </Button>
+                        </Table.Td>
+                        <Table.Td>
+                          <Button
+                            size="xs"
+                            color="green"
+                            variant="outline"
+                            onClick={() => vendreReservation(reservation.id)}
+                          >
+                            📦 vendre
                           </Button>
                         </Table.Td>
                       </Table.Tr>

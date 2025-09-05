@@ -1,9 +1,7 @@
 'use client';
 import { Button, Modal, Table } from '@mantine/core';
 import { jwtDecode } from 'jwt-decode';
-import Image from 'next/image';
-import { useEffect, useRef, useState } from 'react';
-import Webcam from 'react-webcam';
+import { useEffect, useState } from 'react';
 // @ts-expect-error: Importation du module CSS sans types déclarés
 import styles from './style/hom.module.css';
 // @ts-expect-error: Importation du module CSS sans types déclarés
@@ -23,8 +21,6 @@ type JwtPayload = {
   id: string;
   name: string;
   admin: boolean;
-  avatar?: string;
-  photo?: string;
   [key: string]: unknown;
 };
 
@@ -38,19 +34,12 @@ type Commande = {
 };
 
 export default function UpdateProfile() {
-  // const [name, setName] = useState<string>(''); // supprimé car non utilisé
   const [userId, setUserId] = useState<string | null>(null);
   const [user, setUser] = useState<JwtPayload | null>(null);
   const [commandes, setCommandes] = useState<Commande[]>([]);
   const [commandeOpened, setCommandeOpened] = useState(false);
-  const [avatarOpened, setAvatarOpened] = useState(false);
   const [infoOpened, setInfoOpened] = useState(false);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const webcamRef = useRef<Webcam>(null);
-  const [showWebcam, setShowWebcam] = useState(false);
   const [livresVendus, setLivresVendus] = useState<Commande[]>([]);
-  const [userPhotos, setUserPhotos] = useState<Array<{id: string, url: string, created_at: string, isActive?: boolean}>>([]);
-  const [showPhotoGallery, setShowPhotoGallery] = useState(false);
 
 
    
@@ -59,7 +48,6 @@ export default function UpdateProfile() {
     name: string;
     password: string;
     updated_at?: string;
-    photo?: string;
     admin?: boolean;
   };
   const [userDetails, setUserDetails] = useState<Profile | null>(null);
@@ -73,7 +61,6 @@ export default function UpdateProfile() {
         const decoded = jwtDecode<JwtPayload>(token);
         setUserId(decoded.id);
         setUser(decoded);
-        // setName(decoded.name); // supprimé car non utilisé
       } catch {
         setUserId(null);
         setUser(null);
@@ -102,157 +89,6 @@ export default function UpdateProfile() {
     localStorage.removeItem('jwt');
     window.location.reload();
   };
-  /* Récupère la photo de l'utilisateur connecté */
-  const fetchAvatar = async () => {
-    if (!userId) return;
-    try {
-      const response = await fetch(`/api/acount?id=${userId}`, { method: 'GET' });
-      const result = await response.json();
-      console.log('Résultat fetchAvatar:', result); // Debug
-      
-      if (result.data && result.data.photo && !avatarPreview) {
-        // Parser le champ photo qui peut contenir un tableau ou une seule photo
-        try {
-          const photosArray = JSON.parse(result.data.photo);
-          console.log('Photos parsées:', photosArray); // Debug
-          
-          // Trouver la photo active ou prendre la première
-          const activePhoto = photosArray.find((p: { isActive: boolean }  ) => p.isActive) || photosArray[0];
-          if (activePhoto) {
-            console.log('Photo active trouvée:', activePhoto); // Debug
-            setAvatarPreview(activePhoto.url);
-          }
-        } catch {
-          console.log('Parsing JSON échoué, photo simple:', result.data.photo); // Debug
-          // Si c'est une seule photo (ancien format)
-          setAvatarPreview(result.data.photo);
-        }
-      } else {
-        console.log('Pas de photo trouvée ou avatarPreview déjà défini'); // Debug
-      }
-    } catch (error) {
-      console.error('Erreur lors de la récupération de la photo:', error);
-    }
-  };
-
-  /* Récupère toutes les photos de l'utilisateur */
-  const fetchUserPhotos = async () => {
-    if (!userId) return;
-    try {
-      const response = await fetch(`/api/acount?id=${userId}&type=photos`, { method: 'GET' });
-      const result = await response.json();
-      if (result.data) {
-        setUserPhotos(result.data);
-      }
-    } catch {
-      console.error('Erreur lors de la récupération des photos', userId);
-    }
-  };
-
-  /* Choisir une photo existante comme avatar */
-  const selectExistingPhoto = async (photoUrl: string) => {
-    if (!userId) return;
-    try {
-      console.log('Sélection de la photo:', photoUrl); // Debug
-      
-      // Mettre à jour le flag isActive de toutes les photos
-      const response = await fetch('/api/acount', {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          id: userId,
-          photo: photoUrl  // L'API va mettre isActive=true pour cette photo et false pour les autres
-        })
-      });
-      
-      if (response.ok) {
-        console.log('Photo sélectionnée avec succès'); // Debug
-        setAvatarPreview(photoUrl);
-        setShowPhotoGallery(false);
-        await fetchUserPhotos(); // Rafraîchir la liste des photos
-        alert('Photo sélectionnée comme avatar !');
-      } else {
-        const errorData = await response.json();
-        console.error('Erreur API:', errorData); // Debug
-        alert('Erreur lors de la sélection de la photo');
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur lors de la sélection de la photo');
-    }
-  };
-
-
-/*change de photo de profil */
-const handleCameraCapture = async (imageSrc: string) => {
-  if (!userId) return;
-  
-  console.log('Début handleCameraCapture, userId:', userId); // Debug
-  
-  // Convertir l'image base64 en Blob
-  const response = await fetch(imageSrc);
-  const blob = await response.blob();
-  const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
-  
-  console.log('Fichier créé:', file.name, file.size, 'bytes'); // Debug
-  
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('id', userId);
-  
-  console.log('FormData créé avec id:', userId); // Debug
-  
-  try {
-    console.log('Envoi de la requête POST...'); // Debug
-    const response = await fetch('/api/acount', {
-      method: 'POST', // Changé de PUT à POST pour insérer
-      body: formData
-    });
-    
-    console.log('Réponse reçue, status:', response.status); // Debug
-    
-    if (response.ok) {
-      const responseData = await response.json();
-      console.log('Réponse OK, données:', responseData); // Debug
-      
-      // Forcer le rafraîchissement de l'avatar
-      setAvatarPreview(null); // Vider l'ancienne
-      setTimeout(() => {
-        setAvatarPreview(imageSrc); // Mettre la nouvelle
-      }, 100);
-      
-      setShowWebcam(false);
-      await fetchAvatar(); // Rafraîchir depuis la base
-      await fetchUserPhotos(); // Rafraîchir la liste des photos
-      alert('Nouvelle photo ajoutée avec succès !');
-    } else {
-      const errorData = await response.json();
-      console.error('Erreur API:', errorData); // Debug
-      alert('Erreur lors de la mise à jour de la photo');
-    }
-  } catch (error) {
-    console.error('Erreur:', error);
-    alert('Erreur lors de la mise à jour de la photo');
-  }
-};
-
-// Puis remplacez l'appel par :
-
-
-
-// Fonction pour prendre une photo avec la caméra
-
-
-/* fin change de photo de profil */
-  useEffect(() => {
-    if (userId) {
-      fetchAvatar();
-      fetchUserPhotos(); // Charger aussi la liste des photos
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
 
   const infoCompte = async () => {
     if (!userId) return;
@@ -291,7 +127,7 @@ const listeCommandesUtilisateur = async () => {
 
       {/* Section montant principal */}
       <div className={stylesCompte.revolutAmount}>
-        <div className={stylesCompte.nameAccout}>{user?.name}</div>
+        <div style={{ textAlign: 'center'  , color: 'white' , fontSize: '25px' , opacity: '0.7' , marginTop: '10px' }} className={stylesCompte.nameAccout}>{user?.name}</div>
         
         {/* Section des actions avec icônes orange */}
         <div className={stylesCompte.actionsSection}>
@@ -318,98 +154,6 @@ const listeCommandesUtilisateur = async () => {
       {/* Navbar en haut */}
      
 
-      {/* Modal pour changer l'avatar */}
-      <Modal opened={avatarOpened} onClose={() => setAvatarOpened(false)} title="Changer l'avatar" centered>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          {showWebcam ? (
-            <>
-              <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                videoConstraints={{ facingMode: 'user' }}
-                style={{ width: 250, borderRadius: 8 }}
-              />
-              <Button mt="md" onClick={() => {
-                if (webcamRef && webcamRef.current) {
-                  const imageSrc = webcamRef.current.getScreenshot();
-                  if (imageSrc) {
-                    handleCameraCapture(imageSrc);
-                  }
-                }
-              }} color="blue">
-                📸 Prendre la photo
-              </Button>
-              <Button mt="md" variant="outline" color="gray" onClick={() => setShowWebcam(false)}>
-                🔄 Retour
-              </Button>
-            </>
-          ) : (
-            <>
-              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Choisissez une option :</h4>
-              </div>
-              
-              <Button 
-                onClick={() => setShowWebcam(true)} 
-                color="blue" 
-                size="lg"
-                style={{ width: '200px' }}
-                leftSection="📱"
-              >
-                Prendre une photo
-              </Button>
-              
-              <div style={{ margin: '20px 0', color: '#666' }}>ou</div>
-              
-              <input
-                type="file"
-                accept="image/*"
-                capture="user"
-                onChange={(e) => {
-                  const file = e.target.files && e.target.files[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      if (reader.result) {
-                        handleCameraCapture(reader.result as string);
-                      }
-                    };
-                    reader.readAsDataURL(file);
-                  }
-                }}
-                style={{ display: 'none' }}
-                id="file-input"
-              />
-              <label htmlFor="file-input">
-                <Button 
-                  variant="outline" 
-                  color="gray" 
-                  size="lg"
-                  style={{ width: '200px', cursor: 'pointer' }}
-                  leftSection="📁"
-                  component="span"
-                >
-                  Choisir un fichier
-                </Button>
-              </label>
-            </>
-          )}
-          
-          {avatarPreview && (
-            <div style={{ marginTop: '20px', textAlign: 'center' }}>
-              <h5 style={{ margin: '0 0 10px 0', color: '#333' }}>Aperçu :</h5>
-              <Image
-                src={avatarPreview}
-                alt="Aperçu avatar"
-                width={130}
-                height={130}
-                className={stylesCompte.avatarCompte}
-              />
-            </div>
-          )}
-        </div>
-      </Modal>
 
              {/* Modal des commandes */}
        <Modal opened={commandeOpened} onClose={() => setCommandeOpened(false)} title="Mes Commandes" centered size="xl">
@@ -445,13 +189,6 @@ const listeCommandesUtilisateur = async () => {
        <Modal style={{ backgroundColor: 'transparent' }} opened={infoOpened} onClose={() => setInfoOpened(false)} title="Informations du Compte" centered>
          <div style={{ padding: '20px' }}>
            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px' }}>
-             <Image
-               src={avatarPreview || user?.photo || '/img/avatar.png'}
-               alt="avatar"
-               width={80}
-               height={80}
-               style={{ borderRadius: '50%' }}
-             />
              <div>
                <h3 style={{ margin: '0 0 10px 0', color: '#333' }}>{user?.name}</h3>
                <p style={{ margin: '0', color: '#666' }}>ID: {user?.id}</p>
@@ -494,82 +231,10 @@ const listeCommandesUtilisateur = async () => {
              >
                Déconnexion
              </Button>
-                           <Button 
-                onClick={() => setAvatarOpened(true)} 
-                variant="outline"
-                className={stylesCompte.moncomptedetailbutton}
-              >
-                Prendre une Photo
-              </Button>
-              <Button 
-                onClick={() => {
-                  fetchUserPhotos();
-                  setShowPhotoGallery(true);
-                }} 
-                variant="outline"
-                className={stylesCompte.moncomptedetailbutton}
-              >
-                Choisir une Photo
-              </Button>
            </div>
          </div>
                </Modal>
 
-        {/* Modal de la galerie de photos */}
-        <Modal opened={showPhotoGallery} onClose={() => setShowPhotoGallery(false)} title="Galerie de Photos" centered size="xl">
-          <div style={{ padding: '20px' }}>
-            {userPhotos.length === 0 ? (
-              <p style={{ textAlign: 'center', color: '#666' }}>Aucune photo disponible</p>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '20px' }}>
-                {userPhotos.map((photo, index) => (
-                  <div key={photo.id} style={{ textAlign: 'center' }}>
-                    <Image
-                      src={photo.url}
-                      alt={`Photo ${index + 1}`}
-                      width={150}
-                      height={150}
-                      style={{ 
-                        borderRadius: '8px', 
-                        cursor: 'pointer',
-                        border: photo.isActive ? '3px solid #007bff' : '2px solid transparent',
-                        transition: 'border-color 0.2s'
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!photo.isActive) {
-                          e.currentTarget.style.borderColor = '#007bff';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!photo.isActive) {
-                          e.currentTarget.style.borderColor = 'transparent';
-                        }
-                      }}
-                      onClick={() => selectExistingPhoto(photo.url)}
-                    />
-                    <p style={{ marginTop: '8px', fontSize: '12px', color: '#666' }}>
-                      {new Date(photo.created_at).toLocaleDateString('fr-FR')}
-                    </p>
-                    {photo.isActive && (
-                      <p style={{ marginTop: '4px', fontSize: '10px', color: '#007bff', fontWeight: 'bold' }}>
-                        Photo active
-                      </p>
-                    )}
-                    <Button
-                      size="xs"
-                      variant={photo.isActive ? "filled" : "outline"}
-                      color={photo.isActive ? "blue" : "gray"}
-                      onClick={() => selectExistingPhoto(photo.url)}
-                      style={{ marginTop: '8px' }}
-                    >
-                      {photo.isActive ? 'Active' : 'Choisir'}
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        </Modal>
         
      </div>
    );

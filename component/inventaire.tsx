@@ -6,15 +6,6 @@ import { useEffect, useState } from 'react';
 // @ts-expect-error: Importation du module CSS sans types déclarés
 import styles from './style/inventaire.module.css';
 
-type InventaireItem = {
-  id: number;
-  title: string;
-  author: string;
-  quantite: number;
-  price: number;
-  isbn: number;
-  date_de_production?: string;
-};
 type HistoriqueItem = {
   id: number;
   date_reception: string;
@@ -28,13 +19,10 @@ type HistoriqueItem = {
 
 export default function Inventaire() {
 
-  const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
   const [opened, setOpened] = useState(false);
   const [historique, setHistorique] = useState<HistoriqueItem[]>([]);
   const [user, setUser] = useState<{ admin?: boolean } | null>(null);
   /*Si l'utilisateur n'est pas connecté, il est redirigé vers la page de connexion*/
-  const [search, setSearch] = useState('');
   useEffect(() => {
     const token = localStorage.getItem('jwt');
     if (!token) {
@@ -72,16 +60,7 @@ export default function Inventaire() {
     fetchUser();
   }, []);
 
-  /*Récupération des livres en stock*/
-  useEffect(() => {
-    async function fetchInventaire() {
-      const response = await fetch('/api/inventaire');
-      const result = await response.json();
-      setInventaire(result.data || []);
-      setLoading(false);
-    }
-    fetchInventaire();
-  }, []);
+
 
   /*Récupération de l'historique des réceptions*/
   useEffect(() => {

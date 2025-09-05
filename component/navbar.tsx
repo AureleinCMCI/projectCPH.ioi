@@ -1,28 +1,17 @@
 "use client";
 import { Text } from "@mantine/core";
 import { IconChartBar, IconHome2, IconMenu2, IconSettings, IconWallet, IconX } from "@tabler/icons-react";
-import { jwtDecode } from "jwt-decode";
+
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useEffect, useState } from "react";
+
+import { useState } from "react";
+
 
 export function BottomNavBar() {
   const pathname = usePathname();
-  const [userPhoto, setUserPhoto] = useState<string | null>(null);
   const [isMenuOpen, setIsMenuOpen] = useState(false);
-
-  useEffect(() => {
-    const token = localStorage.getItem('jwt');
-    if (token) {
-      try {
-        const decoded = jwtDecode<{ id: string; name: string; photo?: string }>(token);
-        setUserPhoto(decoded.photo || null);
-      } catch {
-        setUserPhoto(null);
-      }
-    }
-  }, []);
 
   const tabs = [
     { label: "Home", icon: IconHome2, href: "/acceuil" },
@@ -98,7 +87,7 @@ export function BottomNavBar() {
           textAlign: 'center'
         }}>
           <Image 
-            src={userPhoto || '/img/avatar.png'} 
+            src="/jeuxdelavie.jpg" 
             alt="avatar" 
             width={60}
             height={60}
@@ -109,7 +98,7 @@ export function BottomNavBar() {
             }}
           />
           <Text size="lg" fw={600} style={{ color: 'white', marginBottom: '5px' }}>
-            Menu Navigation
+            CPH CMCI
           </Text>
         </div>
 
