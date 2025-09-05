@@ -3,7 +3,6 @@
 import { useRouter } from 'next/navigation';
 import React, { ChangeEvent, FormEvent, useState } from 'react';
 import Webcam from "react-webcam";
-// @ts-expect-error: Importation du module CSS sans types déclarés
 
 import style from './style/login.module.css';
 
