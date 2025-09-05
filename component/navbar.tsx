@@ -13,19 +13,37 @@ export function BottomNavBar() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isAdmin, setIsAdmin] = useState(false);
 
-  // Vérifier le statut admin de l'utilisateur
+  // Vérifier le statut admin de l'utilisateur en consultant la base de données
   useEffect(() => {
-    const token = localStorage.getItem('jwt');
-    if (token) {
+    const fetchUserAdmin = async () => {
+      const token = localStorage.getItem('jwt');
+      if (!token) {
+        setIsAdmin(false);
+        return;
+      }
+      
       try {
-        const userData = jwtDecode<{ id: string; name: string; admin?: boolean }>(token);
-        setIsAdmin(userData.admin === true);
-        console.log('👤 Utilisateur admin:', userData.admin);
+        // Décoder le JWT pour récupérer l'ID utilisateur
+        const decoded = jwtDecode<{ id: string; name: string }>(token);
+        
+        // Consulter la base de données pour récupérer le statut admin
+        const response = await fetch(`/api/acount?id=${decoded.id}`, { method: 'GET' });
+        const result = await response.json();
+        
+        if (result.data && result.data.admin) {
+          setIsAdmin(result.data.admin === "true" || result.data.admin === true);
+          console.log('👤 Utilisateur admin depuis BDD:', result.data.admin);
+        } else {
+          setIsAdmin(false);
+          console.log('👤 Utilisateur non-admin depuis BDD');
+        }
       } catch (error) {
-        console.error('Erreur décodage JWT:', error);
+        console.error('Erreur vérification admin:', error);
         setIsAdmin(false);
       }
-    }
+    };
+    
+    fetchUserAdmin();
   }, []);
 
   // Créer les onglets avec condition pour Statistiques
