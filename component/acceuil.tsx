@@ -1,11 +1,10 @@
 'use client';
 
-import { jwtDecode } from 'jwt-decode';
-import { useEffect, useState } from 'react';
-// @ts-expect-error: Importation du module CSS sans types déclarés
-import stylesAcceuil from './style/acceuil.module.css';
-import Link from 'next/link';
 import { Center } from '@mantine/core';
+import { jwtDecode } from 'jwt-decode';
+import Link from 'next/link';
+import { useEffect, useState } from 'react';
+import stylesAcceuil from './style/acceuil.module.css';
 
 /*Si l'utilisateur est connecté, il peut accéder à la page d'accueil si il n'est 
 pas connecté , l'url de la page d'acceuil renvoie vers la page de connexion*/
