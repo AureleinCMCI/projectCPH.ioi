@@ -1066,9 +1066,6 @@ import stylesCommande from './style/commande.module.css';
           <div className={styles.scannerFullScreen}>
             {/* Header avec bouton fermer */}
             <div className={styles.scannerHeader}>
-              <Text className={styles.scannerTitle}>
-                ⚡ Scanner ISBN Ultra-Rapide (30 FPS)
-              </Text>
               <div onClick={() => setScannerOpened(false)} className={styles.scannerCloseButton} style={{ marginTop: '100px' }}>
                 ✕ Fermer
               </div>
@@ -1085,9 +1082,6 @@ import stylesCommande from './style/commande.module.css';
               borderRadius: '6px',
               zIndex: 1000
             }}>
-              <Text size="xs" c="white" ta="center" fw={600}>
-                🚀 Mode Ultra-Rapide Activé • ISBN 10/13 uniquement
-              </Text>
             </div>
         
             {/* Container caméra avec liste transparente en overlay */}
