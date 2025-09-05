@@ -3,7 +3,6 @@
 import { Badge, Button, Card, Center, Grid, Group, Loader, Modal, Paper, ScrollArea, Select, Stack, Table, Text } from '@mantine/core';
 import { IconCurrencyEuro, IconDownload, IconPackage, IconShoppingCart, IconTrendingDown, IconTrendingUp, IconUsers, IconX } from '@tabler/icons-react';
 import { useEffect, useRef, useState } from 'react';
-// @ts-expect-error: Importation du module CSS sans types déclarés
 import styles from './style/statistique.module.css';
 
 type StatsGlobales = {

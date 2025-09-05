@@ -10,7 +10,7 @@ import stylesAcceuil from './style/acceuil.module.css';
 pas connecté , l'url de la page d'acceuil renvoie vers la page de connexion*/
 
 export default function Hom() {
-  const [userName, setUserName] = useState<string>('');
+  const [, setUserName] = useState<string>('');
 
   useEffect(() => {
     const token = localStorage.getItem('jwt');
@@ -39,7 +39,7 @@ export default function Hom() {
   <div className={stylesAcceuil.subtitle}>Gestion de Livres</div>
 
   <div className={stylesAcceuil.description}>
-    Système complet de gestion d'inventaire, commandes et réceptions de livres avec scanner de codes-barres intégré.
+    Système complet de gestion d&apos;inventaire, commandes et réceptions de livres avec scanner de codes-barres intégré.
   </div>
   <Center>
     <Link href="/commande" className={stylesAcceuil.ctaButton}>
