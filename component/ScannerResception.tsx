@@ -951,38 +951,31 @@ export default function Resception() {
   );
 
   const [showCamera, setShowCamera] = useState(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [capturedImage, setCapturedImage] = useState('');
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
 
-  useEffect(() => {
-    if (showCamera && videoRef.current) {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode } }).then(stream => {
-        if (videoRef.current) videoRef.current.srcObject = stream;
-      });
-    }
-    const localVideo = videoRef.current;
-    return () => {
-      if (localVideo && localVideo.srcObject) {
-        (localVideo.srcObject as MediaStream).getTracks().forEach(track => track.stop());
+  const handleTakePhoto = () => {
+    // Créer un input file caché pour accéder à l'appareil photo
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment'; // Force la caméra arrière sur mobile
+    
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const dataUrl = event.target?.result as string;
+          setCapturedImage(dataUrl);
+          setFormData(prev => ({ ...prev, image: dataUrl }));
+          setShowCamera(false);
+        };
+        reader.readAsDataURL(file);
       }
     };
-  }, [showCamera, facingMode]);
-
-  const handleCapture = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d')?.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL('image/jpeg');
-    setCapturedImage(dataUrl);
-    setFormData(prev => ({ ...prev, image: dataUrl }));
-    setShowCamera(false);
-    if (video.srcObject) {
-      (video.srcObject as MediaStream).getTracks().forEach(track => track.stop());
-    }
+    
+    // Déclencher le clic sur l'input
+    input.click();
   };
 
   let user: { id: string; name: string; avatar?: string } | null = null;
@@ -1425,9 +1418,9 @@ export default function Resception() {
           />
 
           <TextInput 
-            label="Date de production" 
+            label="Date de production (Mois/Année)" 
             name="date_de_production" 
-            type="date"
+            type="month"
             value={formData.date_de_production} 
             onChange={handleFormChange} 
             required 
@@ -1436,29 +1429,13 @@ export default function Resception() {
             style={{fontSize: '10px',}}
           />
           <center>
-            <Button  mt="sm"  onClick={e => { e.preventDefault(); setShowCamera(true); }}   className={isMobile ? styles.iosModalButton : ''} style={{fontSize: '10px',}}  >
-              prendre photo
+            <Button  mt="sm"  onClick={e => { e.preventDefault(); handleTakePhoto(); }}   className={isMobile ? styles.iosModalButton : ''} style={{fontSize: '10px',}}  >
+              📸 Prendre photo
             </Button>
             <Button  mt="sm"   type="submit"   className={isMobile ? styles.iosModalButton : ''} style={{fontSize: '10px', marginLeft: '10px'}} >
              Ajouter le livre
             </Button>
             </center>
-          {showCamera && (
-            <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <video ref={videoRef} autoPlay style={{ width: 320, height: 240, borderRadius: 12, background: '#000' }} />
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: 16, gap: 24 }}>
-                <Button variant="outline" color="gray" radius="xl" size="md" style={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { e.preventDefault(); setFacingMode(facingMode === 'user' ? 'environment' : 'user'); }} title="Retourner la caméra" >
-                  {facingMode === 'user' ? '🔄 Arrière' : '🔄 Avant'}
-                </Button>
-                <Button color="teal" radius="xl" size="xl" style={{ width: 64, height: 64, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, boxShadow: '0 2px 8px #0002' }} onClick={e => { e.preventDefault(); handleCapture(); }} title="Prendre la photo" >
-                  📸
-                </Button>
-                <Button color="red" radius="xl" size="md" style={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { e.preventDefault(); setShowCamera(false); }} title="Annuler" >
-                  ✖
-                </Button>
-              </div>
-            </div>
-          )}
           {capturedImage && (
             <div style={{ marginTop: 10 }}>
               <Text size="sm" color="dimmed" mb="xs">Aperçu de la photo :</Text>

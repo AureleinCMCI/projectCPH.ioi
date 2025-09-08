@@ -2076,7 +2076,23 @@ interface BarcodeDetectorInterface {
                   Annuler
                 </Button>
                 <Button
-                  color={modeModal === 'reservation' ? 'orange' : 'green'}
+                  color={modeModal === 'reservation' ? 'orange' : (livreEnVente && livreEnVente.quantite <= 0) ? 'blue' : 'green'}
+                  disabled={modeModal === 'vente' ? (() => {
+                    if (!livreEnVente) return true;
+                    
+                    // Si le livre est à 0 en stock, on active le bouton pour rediriger
+                    if (livreEnVente.quantite <= 0) return false;
+                    
+                    // Calculer la quantité disponible (stock - réservations)
+                    const quantiteReservee = livreEnVente.quantite_reservee || 0;
+                    const quantiteDisponible = livreEnVente.quantite - quantiteReservee;
+                    
+                    // Désactiver si quantité insuffisante (mais pas si stock = 0)
+                    if (quantiteDisponible <= 0) return true;
+                    if (quantiteVente > quantiteDisponible) return true;
+                    
+                    return false;
+                  })() : false}
                   onClick={async () => {
                     if (livreEnVente) {
                       if (modeModal === 'reservation') {
@@ -2087,6 +2103,21 @@ interface BarcodeDetectorInterface {
                         }
                         await reserverLivresInventaire(livreEnVente, quantiteVente, dateReservation);
                       } else {
+                        // Si le livre est à 0 en stock, rediriger vers ScannerResception avec les infos du livre
+                        if (livreEnVente.quantite <= 0) {
+                          alert('📦 Livre épuisé ! Redirection vers la page d\'ajout de stock...');
+                          setReductionOpened(false);
+                          setLivreEnVente(null);
+                          setValeurReduction(0);
+                          
+                          // Passer les informations du livre à ScannerResception (comme lignes 1004-1008)
+                          localStorage.setItem('autoOpenForm', 'true');
+                          localStorage.setItem('returnToCommande', 'true');
+                          localStorage.setItem('scannedIsbns', JSON.stringify([livreEnVente.isbn.toString()]));
+                          window.location.href = '/inventaire/ScannerResception';
+                          return;
+                        }
+                        
                         // Mode vente : procéder à la vente
                         const prixFinal = calculerPrixAvecReduction(livreEnVente.price, quantiteVente);
                         const prixOriginal = livreEnVente.price * quantiteVente;
@@ -2107,9 +2138,21 @@ interface BarcodeDetectorInterface {
                       }
                     }
                   }}
+                  title={modeModal === 'vente' && livreEnVente ? (() => {
+                    if (livreEnVente.quantite <= 0) return "📦 Ajouter ce livre au stock";
+                    
+                    const quantiteReservee = livreEnVente.quantite_reservee || 0;
+                    const quantiteDisponible = livreEnVente.quantite - quantiteReservee;
+                    
+                    if (quantiteDisponible <= 0) return `❌ Tous les exemplaires (${quantiteReservee}) sont réservés`;
+                    if (quantiteVente > quantiteDisponible) 
+                      return `❌ Stock insuffisant !\n📦 Disponible: ${quantiteDisponible}\n🛒 Demandé: ${quantiteVente}`;
+                    return "✅ Confirmer la vente";
+                  })() : undefined}
                   style={{ flex: 1 }}
                 >
-                  {modeModal === 'reservation' ? '📅 Confirmer la réservation' : '✅ Confirmer la vente'}
+                  {modeModal === 'reservation' ? '📅 Confirmer la réservation' : 
+                   (livreEnVente && livreEnVente.quantite <= 0) ? '📦 Ajouter au stock' : '✅ Confirmer la vente'}
                 </Button>
               </div>
             </div>
@@ -2234,6 +2277,27 @@ interface BarcodeDetectorInterface {
                             color="green"
                             variant="outline"
                             onClick={() => vendreReservation(reservation.id)}
+                            disabled={(() => {
+                              // Trouver le livre correspondant dans l'inventaire
+                              const livre = inventaire.find(item => item.id === reservation.inventaire_id);
+                              if (!livre) return true; // Désactiver si livre non trouvé
+                              
+                              // Vérifier si la quantité réservée dépasse le stock
+                              if (reservation.quantite_bloquee > livre.quantite) return true;
+                              
+                              // Vérifier si le livre est en stock
+                              if (livre.quantite <= 0) return true;
+                              
+                              return false; // Activer le bouton sinon
+                            })()}
+                            title={(() => {
+                              const livre = inventaire.find(item => item.id === reservation.inventaire_id);
+                              if (!livre) return "Livre non trouvé dans l'inventaire";
+                              if (livre.quantite <= 0) return "Livre épuisé";
+                              if (reservation.quantite_bloquee > livre.quantite) 
+                                return `Stock insuffisant (${livre.quantite} disponibles)`;
+                              return "Vendre cette réservation";
+                            })()}
                           >
                             📦 vendre
                           </Button>
