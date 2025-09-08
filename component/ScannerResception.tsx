@@ -11,6 +11,28 @@ import { default as scannerStyles, default as styles } from './style/ScannerResc
 
 type InventaireItem = { id: number; livre_id: number; title: string; author: string; quantite: number; price: number; isbn: number; livre?: { image?: string };};
 
+// Interface pour BarcodeDetector (API native du navigateur)
+interface BarcodeDetectorInterface {
+  new (options: { formats: string[] }): {
+    detect(video: HTMLVideoElement): Promise<Array<{ rawValue: string }>>;
+  };
+}
+
+/* Configuration scanner ultra-rapide pour ISBN */
+const SCANNER_CONFIG = {
+  // Fréquence de scan ultra-élevée
+  fps: 30, // Augmenté de 10 à 30 fps
+  frequency: 30, // QuaggaJS - scan toutes les 33ms
+  // Délai minimal entre détections (évite les doublons)
+  debounceDelay: 100, // 100ms entre chaque scan valide
+  // Timeout pour validation rapide
+  validationTimeout: 50, // 50ms pour valider un ISBN
+  // Nombre de workers pour QuaggaJS
+  workers: 4, // Augmenté de 2 à 4 workers
+  // Seuil de confiance pour accepter un scan
+  confidenceThreshold: 0.7
+};
+
 export default function Resception() {
   // États pour le formulaire d'ajout
   const [formOpened, setFormOpened] = useState(false);
@@ -197,38 +219,73 @@ export default function Resception() {
     return true;
   };
 
-  // Gestionnaires pour html5-qrcode
-  const handleScan = async (decodedText: string) => {
+  /* fonctionalité du scan ultra-rapide avec validation ISBN */
+  const handleScan = useCallback((decodedText: string) => {
     if (!decodedText) return;
     
-    console.log('⚡ Code scanné:', decodedText);
+    const now = Date.now();
     
-    // Validation ISBN ultra-rapide
+    // Debounce : ignorer si même code scanné récemment
+    if (decodedText === lastScannedCode.current && 
+        now - lastScanTime.current < SCANNER_CONFIG.debounceDelay) {
+      return;
+    }
+    
+    lastScanTime.current = now;
+    lastScannedCode.current = decodedText;
+    
+    console.log('⚡ Scan ultra-rapide:', decodedText);
+    
+    // Validation ISBN ultra-rapide avec timeout
+    const validationStart = performance.now();
     const isValid = isValidISBN(decodedText);
+    const validationTime = performance.now() - validationStart;
+    
+    if (validationTime > SCANNER_CONFIG.validationTimeout) {
+      console.warn(`⚠️ Validation lente: ${validationTime.toFixed(1)}ms`);
+    }
     
     if (!isValid) {
-      console.log('⚡ Code rejeté (pas un ISBN 10 ou 13)');
+      console.log('⚡ Code rejeté (pas un ISBN)');
       return; // Ignorer les codes qui ne sont pas des ISBN
     }
     
     // Nettoyer le code ISBN
     const cleanISBN = decodedText.replace(/[\s-]/g, '');
-    console.log('🚀 ISBN valide scanné:', cleanISBN);
+    console.log('🚀 ISBN valide scanné ultra-rapide:', cleanISBN);
     
-    // Ajouter le code à la liste s'il n'y est pas déjà
+    // Ajouter le code à la liste s'il n'y est pas déjà (optimisé)
     setScannedCodes(prev => {
       if (!prev.includes(cleanISBN)) {
         const newCodes = [...prev, cleanISBN];
         console.log('📋 ISBNs scannés:', newCodes);
-        setShowCodesList(true); // Afficher immédiatement
+        setShowCodesList(true);
         return newCodes;
       }
       return prev;
     });
+
+    // Recherche optimisée dans la base de données
+    const searchStart = performance.now();
+    const isbnTrouve = isbnList.find(item => item.isbn.toString() === cleanISBN);
+    const searchTime = performance.now() - searchStart;
     
-    // ❌ NE PAS fermer le scanner ici !
-    // Le scanner continue à tourner
-  };
+    console.log(`🔍 Recherche BD: ${searchTime.toFixed(1)}ms`);
+    
+    if (isbnTrouve) {
+      // ISBN trouvé - chercher le livre correspondant dans l'inventaire
+      const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
+      
+      if (livre) {
+        console.log(`🚀 ISBN trouvé ultra-rapide : ${livre.title} (${searchTime.toFixed(1)}ms)`);
+      } else {
+        console.log(`🚀 ISBN trouvé mais livre non en stock : ${isbnTrouve.isbn}`);
+      }
+    } else {
+      // ISBN non trouvé
+      console.log(`❌ ISBN non trouvé : ${cleanISBN}`);
+    }
+  }, [isbnList, inventaire]);
 
   const handleError = (errorMessage: string) => {
     console.error('Erreur de scan:', errorMessage);
@@ -299,47 +356,60 @@ export default function Resception() {
     }
   };
 
-  // Fonction pour demander les permissions de caméra
-  const requestCameraPermission = async () => {
-    try {
-      console.log('🔐 Demande de permission caméra...');
-      
-      // Vérifier si l'API MediaDevices est disponible
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        throw new Error('API MediaDevices non supportée');
-      }
 
-      // Demander la permission avec des contraintes spécifiques pour Android
+
+  /* Système de debounce pour éviter les scans répétés */
+  const lastScanTime = useRef<number>(0);
+  const lastScannedCode = useRef<string>('');
+
+  // Fonction de diagnostic pour vérifier la compatibilité
+  const checkCompatibility = useCallback(async () => {
+    console.log('=== Diagnostic Scanner ===');
+    console.log('User Agent:', navigator.userAgent);
+    console.log('Est mobile:', isMobile);
+    
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      console.log('Appareils vidéo disponibles:', videoDevices);
+      
+      if (videoDevices.length === 0) {
+        console.warn('Aucun appareil vidéo détecté');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la détection des appareils:', error);
+    }
+  }, [isMobile]);
+
+  // Fonction pour forcer l'accès à la caméra sur Android
+  const forceCameraAccessAndroid = async () => {
+    try {
+      console.log('🔐 Tentative d\'accès forcé à la caméra sur Android...');
+      
+      // Détecter si c'est Android
+      const isAndroid = /android/i.test(navigator.userAgent);
+      if (!isAndroid) {
+        console.log('📱 Pas Android, accès normal');
+        return true;
+      }
+      
+      // Sur Android, essayer d'accéder directement à la caméra
       const stream = await navigator.mediaDevices.getUserMedia({
         video: {
-          facingMode: { ideal: 'environment' }, // Force la caméra arrière
-          width: { ideal: 1280, min: 640 },
-          height: { ideal: 720, min: 480 },
-          aspectRatio: { ideal: 16/9 }
+          facingMode: 'environment',
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 }
         }
       });
-
-      console.log('✅ Permission caméra accordée');
       
-      // Arrêter le stream temporaire pour libérer la caméra
+      console.log('✅ Accès caméra Android forcé réussi');
+      
+      // Arrêter immédiatement le stream pour libérer la caméra
       stream.getTracks().forEach(track => track.stop());
       
       return true;
     } catch (error) {
-      console.error('❌ Erreur permission caméra:', error);
-      
-      if (error instanceof Error) {
-        if (error.name === 'NotAllowedError') {
-          alert('❌ Permission caméra refusée ! Veuillez autoriser l\'accès à la caméra dans les paramètres de votre navigateur.');
-        } else if (error.name === 'NotFoundError') {
-          alert('❌ Aucune caméra trouvée sur cet appareil.');
-        } else if (error.name === 'NotReadableError') {
-          alert('❌ Caméra déjà utilisée par une autre application.');
-        } else {
-          alert(`❌ Erreur caméra: ${error.message}`);
-        }
-      }
-      
+      console.warn('⚠️ Accès forcé Android échoué:', error);
       return false;
     }
   };
@@ -349,32 +419,150 @@ export default function Resception() {
     if (scannerOpened && scannerReady && scannerRef.current) {
       console.log(`Scanner ${scannerType} prêt à être utilisé`);
       
-      // Demander d'abord la permission caméra
-      requestCameraPermission().then(permissionGranted => {
-        if (!permissionGranted) {
-          console.log('❌ Permission caméra refusée, fermeture du scanner');
-          setScannerOpened(false);
-          return;
-        }
+      // Détecter Android pour utiliser une approche différente
+      const isAndroid = /android/i.test(navigator.userAgent);
+      
+      if (isAndroid && scannerType === 'html5') {
+        // APPROCHE SPÉCIALE POUR ANDROID - Contourner le bouton de permission
+        console.log('🤖 Android détecté - Utilisation de l\'approche directe');
         
-        if (scannerType === 'html5') {
-          // ANDROID/DESKTOP : html5-qrcode avec contraintes optimisées
+        // Créer un scanner personnalisé pour Android
+        const initAndroidScanner = async () => {
+          try {
+            // Accéder directement à la caméra
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                facingMode: 'environment',
+                width: { ideal: 1280, max: 1920 },
+                height: { ideal: 720, max: 1080 }
+              }
+            });
+            
+            // Créer un élément vidéo
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            video.style.width = '100%';
+            video.style.height = '100%';
+            video.style.objectFit = 'cover';
+            video.autoplay = true;
+            video.playsInline = true;
+            
+            // Ajouter au container
+            const reader = document.getElementById('reader');
+            if (reader) {
+              reader.innerHTML = '';
+              reader.appendChild(video);
+            }
+            
+            // Utiliser l'API native de détection de codes-barres si disponible
+            if ('BarcodeDetector' in window) {
+              const BarcodeDetector = (window as unknown as { BarcodeDetector: BarcodeDetectorInterface }).BarcodeDetector;
+              const barcodeDetector = new BarcodeDetector({
+                formats: ['ean_13', 'ean_8', 'code_128']
+              });
+              
+              const detectBarcodes = async () => {
+                try {
+                  const barcodes = await barcodeDetector.detect(video);
+                  if (barcodes.length > 0) {
+                    const code = barcodes[0].rawValue;
+                    console.log('📱 Code détecté via BarcodeDetector:', code);
+                    handleScan(code);
+                  }
+                } catch (error) {
+                  console.log('Détection BarcodeDetector:', error);
+                }
+                requestAnimationFrame(detectBarcodes);
+              };
+              
+              video.addEventListener('loadedmetadata', () => {
+                detectBarcodes();
+              });
+            }
+            
+            setScanner(true);
+            
+            // Fonction de nettoyage pour Android
+            const cleanup = () => {
+              stream.getTracks().forEach(track => track.stop());
+              if (reader) {
+                reader.innerHTML = '';
+              }
+              setScanner(null);
+            };
+            
+            // Retourner la fonction de nettoyage
+            return cleanup;
+            
+          } catch (error) {
+            console.error('Erreur scanner Android direct:', error);
+            // Fallback vers html5-qrcode normal
+            console.log('🔄 Fallback vers scanner normal...');
+            // Utiliser html5-qrcode en fallback
+            const html5QrcodeScanner = new Html5QrcodeScanner(
+              "reader",
+              { 
+                fps: SCANNER_CONFIG.fps,
+                aspectRatio: 2.5,
+                qrbox: { width: 250, height: 250 },
+                videoConstraints: {
+                  facingMode: 'environment',
+                  width: { ideal: 1280, max: 1920 },
+                  height: { ideal: 720, max: 1080 }
+                }
+              },
+              false
+            );
+            html5QrcodeScanner.render(handleScan, handleError);
+            setScanner(html5QrcodeScanner);
+          }
+        };
+        
+        initAndroidScanner();
+        
+      } else {
+        // APPROCHE NORMALE POUR AUTRES PLATEFORMES
+        const initNormalScanner = () => {
+          // Essayer d'abord l'accès forcé à la caméra sur Android
+          forceCameraAccessAndroid().then(() => {
+            if (scannerType === 'html5') {
+          // ANDROID/DESKTOP : html5-qrcode ULTRA-RAPIDE avec accès forcé à la caméra
           const html5QrcodeScanner = new Html5QrcodeScanner(
             "reader",
             { 
-              fps: 10, 
+              fps: SCANNER_CONFIG.fps, // 30 FPS pour scan ultra-rapide
               aspectRatio: 2.5,
+              qrbox: { width: 250, height: 250 }, // Zone de scan plus petite = plus rapide
               videoConstraints: {
-                facingMode: { ideal: 'environment' }, // Force la caméra arrière
-                width: { ideal: 1280, min: 640 },
-                height: { ideal: 720, min: 480 },
-                aspectRatio: { ideal: 16/9 }
-              }
+                facingMode: 'environment',
+                width: { ideal: 1280, max: 1920 }, // Résolution optimisée
+                height: { ideal: 720, max: 1080 }
+              },
+              experimentalFeatures: {
+                useBarCodeDetectorIfSupported: true // API native plus rapide
+              },
+              // CONFIGURATION SPÉCIALE POUR ANDROID - ÉVITER LE BOUTON DE PERMISSION
+              showTorchButtonIfSupported: false,
+              showZoomSliderIfSupported: false,
+              defaultZoomValueIfSupported: 1,
+              rememberLastUsedCamera: true,
+              //supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
+              // Désactiver l'interface de permission (propriété non supportée, on la retire)
+              // Forcer l'utilisation de la caméra sans demander
+              useBarCodeDetectorIfSupported: true
             },
-            false
+            false // verbose = false pour moins de logs
           );
 
-          html5QrcodeScanner.render(handleScan, handleError);
+          // Rendre le scanner avec gestion d'erreur personnalisée
+          html5QrcodeScanner.render(
+            handleScan, 
+            (error) => {
+              console.error('Erreur de scan HTML5:', error);
+              // Ne pas afficher l'erreur à l'utilisateur, juste logger
+              handleError(error);
+            }
+          );
           setScanner(html5QrcodeScanner);
 
           return () => {
@@ -383,79 +571,119 @@ export default function Resception() {
             }
           };
         } else {
-          // iOS : QuaggaJS avec contraintes optimisées
-          Quagga.init({
-            inputStream: {
-              name: "Live",
-              type: "LiveStream",
-              target: document.getElementById('reader') as HTMLElement,
-              constraints: {
-                width: { min: 640, ideal: 1280 },
-                height: { min: 480, ideal: 720 },
-                facingMode: { ideal: "environment" }, // Force la caméra arrière
-                aspectRatio: { ideal: 16/9 }
-              }
+        // IOS : QuaggaJS ULTRA-RAPIDE avec accès forcé à la caméra
+        console.log('🚀 Initialisation QuaggaJS ultra-rapide...');
+        Quagga.init({
+          inputStream: {
+            name: "Live",
+            type: "LiveStream",
+            target: document.getElementById('reader') as HTMLElement,
+            constraints: {
+              width: { min: 640, ideal: 1280, max: 1920 }, // Résolution optimisée
+              height: { min: 480, ideal: 720, max: 1080 },
+              facingMode: "environment",
+              frameRate: { ideal: SCANNER_CONFIG.fps, max: 60 } // FPS ultra-rapide
             },
-            decoder: {
-              readers: [
-                "ean_reader",
-                "ean_8_reader",
-                "code_128_reader",
-                "code_39_reader",
-                "codabar_reader",
-                "i2of5_reader"
-              ]
-            },
-            locate: false,
-            locator: {
-              patchSize: "large",
-              halfSample: true
-            },
-            numOfWorkers: 2,
-            frequency: 10
-          }, (err) => {
-            if (err) {
-              console.error('Erreur initialisation Quagga:', err);
-              handleError(err.message);
-              return;
+            area: { // Zone de scan réduite pour plus de vitesse
+              top: "20%",
+              right: "20%", 
+              left: "20%",
+              bottom: "20%"
             }
-            console.log("✅ QuaggaJS initialisé avec succès");
-            Quagga.start();
-            setScanner(true);
-          });
+          },
+          decoder: {
+            readers: [
+              "ean_reader", // ISBN-13 et EAN-13
+              "ean_8_reader", // EAN-8
+              "code_128_reader" // Codes-barres 128
+            ] // Supprimé code_39 et codabar pour se concentrer sur les ISBN
+          },
+          locate: true, // Activé pour une détection plus précise
+          locator: {
+            patchSize: "small", // Taille réduite pour plus de vitesse
+            halfSample: false // Désactivé pour une meilleure qualité
+          },
+          numOfWorkers: SCANNER_CONFIG.workers, // 4 workers pour traitement parallèle
+          frequency: SCANNER_CONFIG.frequency, // 30 FPS
+          debug: false
+        }, (err: Error | null) => {
+          if (err) {
+            console.error('Erreur initialisation Quagga:', err);
+            handleError(err.message);
+            return;
+          }
+          console.log("✅ QuaggaJS initialisé avec succès");
+          Quagga.start();
+          setScanner(true);
+        });
+
+        const onDetected = (result: QuaggaJSResultObject) => {  
+          const code = result.codeResult.code;
+          const confidence = result.codeResult.format;
           
-          const onDetected = (result: QuaggaJSResultObject) => {  
-            const code = result.codeResult.code;
-            console.log('Code détecté par Quagga:', code);
-            if (code) {
-              handleScan(code);
-            }
-          };
+          // Filtrage par confiance pour éviter les faux positifs
+          console.log('🚀 Code détecté par Quagga ultra-rapide:', code, 'Format:', confidence);
           
-          Quagga.onDetected(onDetected);
-          return () => {
-            console.log('Nettoyage QuaggaJS...');
-            Quagga.offDetected(onDetected as QuaggaJSResultCallbackFunction);
-            Quagga.stop();
-            setScanner(null);
-          };
+          if (code && code.length >= 10) { // Pré-filtre rapide pour ISBN
+            handleScan(code);
+          } else {
+            console.log('⚡ Code ignoré (trop court):', code);
+          }
+        };
+        Quagga.onDetected(onDetected);
+        return () => {
+          console.log('Nettoyage QuaggaJS...');
+          Quagga.offDetected(onDetected as QuaggaJSResultCallbackFunction);
+          Quagga.stop();
+          setScanner(null);
+        };
         }
       });
+        };
+        
+        initNormalScanner();
+      }
     }
   }, [scannerOpened, scannerReady, scannerType, handleScan]);
+  // Nettoyage quand le scanner se ferme
   useEffect(() => {
     if (!scannerOpened && scanner) {
       console.log('Scanner fermé, nettoyage des ressources...');
       
-      if (scannerType === 'html5') {
-        (scanner as Html5QrcodeScanner).clear();
-      } else {
-        Quagga.stop();
+      try {
+        if (scannerType === 'html5') {
+          // Vérifier que scanner est bien une instance de Html5QrcodeScanner
+          if (scanner && typeof scanner === 'object' && 'clear' in scanner) {
+            (scanner as Html5QrcodeScanner).clear();
+            console.log('✅ Scanner HTML5 nettoyé');
+          } else if (scanner === true) {
+            // Scanner Android direct - nettoyer le DOM
+            const reader = document.getElementById('reader');
+            if (reader) {
+              reader.innerHTML = '';
+            }
+            console.log('✅ Scanner Android nettoyé');
+          }
+        } else {
+          // Scanner QuaggaJS
+          Quagga.stop();
+          console.log('✅ Scanner QuaggaJS nettoyé');
+        }
+      } catch (error) {
+        console.error('Erreur lors du nettoyage du scanner:', error);
       }
       
       setScanner(null);
     }
   }, [scannerOpened, scanner, scannerType]);
+
+  // Diagnostic quand le scanner s'ouvre
+  useEffect(() => {
+    if (scannerOpened) {
+      console.log('🎯 Scanner ouvert - diagnostic en cours...');
+      checkCompatibility();
+    }
+  }, [scannerOpened, checkCompatibility]);
 
   // Récupération de l'inventaire et de la liste des ISBNs au chargement
   useEffect(() => {
