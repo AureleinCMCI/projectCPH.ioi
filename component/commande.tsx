@@ -11,6 +11,13 @@ import styles from './style/ScannerResception.module.css';
 
 import stylesCommande from './style/commande.module.css';
 
+// Interface pour BarcodeDetector
+interface BarcodeDetectorInterface {
+  new (options: { formats: string[] }): {
+    detect(video: HTMLVideoElement): Promise<Array<{ rawValue: string }>>
+  };
+}
+
 
   type InventaireItem = {
     id: number;
@@ -84,6 +91,7 @@ import stylesCommande from './style/commande.module.css';
     const [isMobile, setIsMobile] = useState(false); // Détection mobile
     const [scanner, setScanner] = useState<Html5QrcodeScanner | boolean | null>(null);
     const [scannerType, setScannerType] = useState<'html5' | 'quagga'>('html5');
+    const [androidCleanup, setAndroidCleanup] = useState<(() => void) | null>(null);
     const [showCodesList, setShowCodesList] = useState(false);
     const [scannedCodes, setScannedCodes] = useState<string[]>([]);
     const [isbnList, setIsbnList] = useState<{ isbn: number; livre_id: number }[]>([]);
@@ -541,13 +549,153 @@ import stylesCommande from './style/commande.module.css';
        alert('❌ Erreur de connexion');
      }
    };
+  // Fonction pour forcer l'accès à la caméra sur Android
+  const forceCameraAccessAndroid = async () => {
+    try {
+      console.log('🔐 Tentative d\'accès forcé à la caméra sur Android...');
+      
+      // Détecter si c'est Android
+      const isAndroid = /android/i.test(navigator.userAgent);
+      if (!isAndroid) {
+        console.log('📱 Pas Android, accès normal');
+        return true;
+      }
+      
+      // Sur Android, essayer d'accéder directement à la caméra
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 }
+        }
+      });
+      
+      console.log('✅ Accès caméra Android forcé réussi');
+      
+      // Arrêter le stream immédiatement (on l'utilise juste pour débloquer les permissions)
+      stream.getTracks().forEach(track => track.stop());
+      return true;
+      
+    } catch (error) {
+      console.error('❌ Échec de l\'accès forcé à la caméra Android:', error);
+      return false;
+    }
+  };
+
   /* parametre du scanner */
     useEffect(() => {
       if (scannerOpened && scannerReady && scannerRef.current) {
         console.log(`Scanner ${scannerType} prêt à être utilisé`);
         
-        if (scannerType === 'html5') {
-          // ANDROID/DESKTOP : html5-qrcode ULTRA-RAPIDE
+        // Détecter Android pour utiliser une approche différente
+        const isAndroid = /android/i.test(navigator.userAgent);
+        
+        if (isAndroid && scannerType === 'html5') {
+          // APPROCHE SPÉCIALE POUR ANDROID - Contourner le bouton de permission
+          console.log('🤖 Android détecté - Utilisation de l\'approche directe');
+          
+          // Créer un scanner personnalisé pour Android
+          const initAndroidScanner = async () => {
+            try {
+              // Accéder directement à la caméra
+              const stream = await navigator.mediaDevices.getUserMedia({
+                video: {
+                  facingMode: 'environment',
+                  width: { ideal: 1280, max: 1920 },
+                  height: { ideal: 720, max: 1080 }
+                }
+              });
+              
+              // Créer un élément vidéo
+              const video = document.createElement('video');
+              video.srcObject = stream;
+              video.style.width = '100%';
+              video.style.height = '100%';
+              video.style.objectFit = 'cover';
+              video.autoplay = true;
+              video.playsInline = true;
+              
+              // Ajouter au container
+              const reader = document.getElementById('reader');
+              if (reader) {
+                reader.innerHTML = '';
+                reader.appendChild(video);
+              }
+              
+              // Utiliser l'API native de détection de codes-barres si disponible
+              if ('BarcodeDetector' in window) {
+                const BarcodeDetector = (window as unknown as { BarcodeDetector: BarcodeDetectorInterface }).BarcodeDetector;
+                const barcodeDetector = new BarcodeDetector({
+                  formats: ['ean_13', 'ean_8', 'code_128']
+                });
+                
+                const detectBarcodes = async () => {
+                  try {
+                    const barcodes = await barcodeDetector.detect(video);
+                    if (barcodes.length > 0) {
+                      const code = barcodes[0].rawValue;
+                      console.log('📱 Code détecté via BarcodeDetector:', code);
+                      handleScan(code);
+                    }
+                  } catch (error) {
+                    console.log('Détection BarcodeDetector:', error);
+                  }
+                  requestAnimationFrame(detectBarcodes);
+                };
+                
+                video.addEventListener('loadedmetadata', () => {
+                  detectBarcodes();
+                });
+              }
+              
+              setScanner(true);
+              
+              // Fonction de nettoyage pour Android
+              const cleanup = () => {
+                stream.getTracks().forEach(track => track.stop());
+                if (reader) {
+                  reader.innerHTML = '';
+                }
+                setScanner(null);
+                setAndroidCleanup(null);
+              };
+              
+              // Stocker la fonction de nettoyage
+              setAndroidCleanup(() => cleanup);
+              
+            } catch (error) {
+              console.error('Erreur scanner Android direct:', error);
+              // Fallback vers html5-qrcode normal
+              console.log('🔄 Fallback vers scanner normal...');
+              // Utiliser html5-qrcode en fallback
+              const html5QrcodeScanner = new Html5QrcodeScanner(
+                "reader",
+                { 
+                  fps: SCANNER_CONFIG.fps,
+                  aspectRatio: 2.5,
+                  qrbox: { width: 250, height: 250 },
+                  videoConstraints: {
+                    facingMode: 'environment',
+                    width: { ideal: 1280, max: 1920 },
+                    height: { ideal: 720, max: 1080 }
+                  }
+                },
+                false
+              );
+              html5QrcodeScanner.render(handleScan, handleError);
+              setScanner(html5QrcodeScanner);
+            }
+          };
+          
+          initAndroidScanner();
+          
+        } else {
+          // APPROCHE NORMALE POUR AUTRES PLATEFORMES
+          const initNormalScanner = () => {
+            // Essayer d'abord l'accès forcé à la caméra sur Android
+            forceCameraAccessAndroid().then(() => {
+              if (scannerType === 'html5') {
+          // ANDROID/DESKTOP : html5-qrcode ULTRA-RAPIDE avec accès forcé à la caméra
           const html5QrcodeScanner = new Html5QrcodeScanner(
             "reader",
             { 
@@ -561,12 +709,26 @@ import stylesCommande from './style/commande.module.css';
               },
               experimentalFeatures: {
                 useBarCodeDetectorIfSupported: true // API native plus rapide
-              }
+              },
+              // CONFIGURATION SPÉCIALE POUR ANDROID - ÉVITER LE BOUTON DE PERMISSION
+              showTorchButtonIfSupported: false,
+              showZoomSliderIfSupported: false,
+              defaultZoomValueIfSupported: 1,
+              rememberLastUsedCamera: true,
+              useBarCodeDetectorIfSupported: true
             },
-            false
+            false // verbose = false pour moins de logs
           );
 
-          html5QrcodeScanner.render(handleScan, handleError);
+          // Rendre le scanner avec gestion d'erreur personnalisée
+          html5QrcodeScanner.render(
+            handleScan, 
+            (error) => {
+              console.error('Erreur de scan HTML5:', error);
+              // Ne pas afficher l'erreur à l'utilisateur, juste logger
+              handleError(error);
+            }
+          );
           setScanner(html5QrcodeScanner);
 
           return () => {
@@ -641,26 +803,35 @@ import stylesCommande from './style/commande.module.css';
             setScanner(null);
           };
         }
+            });
+          };
+          
+          // Appeler la fonction d'initialisation normale  
+          initNormalScanner();
+        }
       }
     }, [scannerOpened, scannerReady, scannerType]);
   /* fin scan */
-
-
 
     // Nettoyage quand le scanner se ferme
     useEffect(() => {
       if (!scannerOpened && scanner) {
         console.log('Scanner fermé, nettoyage des ressources...');
         
-        if (scannerType === 'html5') {
-          (scanner as Html5QrcodeScanner).clear();
-        } else {
+        // Si on a une fonction de nettoyage Android
+        if (androidCleanup) {
+          androidCleanup();
+        } else if (scannerType === 'html5' && scanner instanceof Html5QrcodeScanner) {
+          // Seulement si c'est une vraie instance de Html5QrcodeScanner
+          scanner.clear();
+        } else if (scannerType === 'quagga') {
           Quagga.stop();
         }
         
         setScanner(null);
+        setAndroidCleanup(null);
       }
-    }, [scannerOpened, scanner, scannerType]);
+    }, [scannerOpened, scanner, scannerType, androidCleanup]);
 
     // Diagnostic quand le scanner s'ouvre
     useEffect(() => {
@@ -1077,7 +1248,6 @@ import stylesCommande from './style/commande.module.css';
               top: '60px',
               left: '20px',
               right: '20px',
-              background: 'rgba(0,200,0,0.9)',
               padding: '8px',
               borderRadius: '6px',
               zIndex: 1000
