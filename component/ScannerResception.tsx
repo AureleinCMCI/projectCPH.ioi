@@ -1416,7 +1416,16 @@ export default function Resception() {
             classNames={isMobile ? { input: styles.iosModalInput } : undefined}
             style={{fontSize: '10px',}}
           />
-
+          <TextInput 
+            label="Prix" 
+            name="price" 
+            value={formData.price} 
+            onChange={handleFormChange} 
+            required 
+            mb="sm"
+            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+            style={{fontSize: '10px',}}
+          />
           <TextInput 
             label="Date de production (Mois/Année)" 
             name="date_de_production" 
