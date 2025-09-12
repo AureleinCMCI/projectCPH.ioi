@@ -71,6 +71,72 @@ export default function Resception() {
   const [bookDetailsModalOpened, setBookDetailsModalOpened] = useState(false);
   const [selectedBook, setSelectedBook] = useState<InventaireItem | null>(null);
   const [inventaireModalOpened, setInventaireModalOpened] = useState(false);
+  
+  // États pour l'ajout de plusieurs ISBN dans la modale
+  const [newIsbn, setNewIsbn] = useState('');
+  const [bookAdditionalIsbns, setBookAdditionalIsbns] = useState<string[]>([]);
+  const [isAddingIsbn, setIsAddingIsbn] = useState(false);
+
+  // Fonction pour ajouter un nouvel ISBN au livre sélectionné
+  const addIsbnToBook = async () => {
+    if (!selectedBook || !newIsbn.trim()) {
+      alert('Veuillez saisir un ISBN valide');
+      return;
+    }
+
+    const cleanIsbn = newIsbn.trim();
+    
+    // Vérifier si l'ISBN n'existe pas déjà dans la liste complète
+    if (bookAdditionalIsbns.includes(cleanIsbn)) {
+      alert('Cet ISBN existe déjà pour ce livre');
+      return;
+    }
+
+    setIsAddingIsbn(true);
+    try {
+      // Appeler l'API pour ajouter l'ISBN
+      const response = await fetch('/api/isbn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          isbn: cleanIsbn,
+          livre_id: selectedBook.livre_id
+        }),
+      });
+
+      if (response.ok) {
+        // Ajouter à la liste locale
+        setBookAdditionalIsbns(prev => [...prev, cleanIsbn]);
+        setNewIsbn('');
+        alert('✅ ISBN ajouté avec succès !');
+      } else {
+        throw new Error('Erreur lors de l\'ajout');
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout de l\'ISBN:', error);
+      alert('❌ Erreur lors de l\'ajout de l\'ISBN');
+    } finally {
+      setIsAddingIsbn(false);
+    }
+  };
+
+  // Fonction pour charger les ISBN existants depuis la base de données
+  const loadExistingIsbns = async (livre_id: number) => {
+    try {
+      const response = await fetch(`/api/isbn?livre_id=${livre_id}`);
+      if (response.ok) {
+        const result = await response.json();
+        const isbns = result.data || [];
+        // Récupérer TOUS les ISBN pour ce livre (y compris le principal)
+        const allIsbns = isbns.map((item: { isbn: number }) => item.isbn.toString());
+        setBookAdditionalIsbns(allIsbns);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des ISBN:', error);
+    }
+  };
+
+  // Plus de fonction de suppression - on garde tous les ISBN !
 
   // Ajouter un nouvel état pour la liste des codes scannés
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
@@ -950,7 +1016,6 @@ export default function Resception() {
     (item.author ?? '').toLowerCase().includes(search.toLowerCase())
   );
 
-  const [showCamera, setShowCamera] = useState(false);
   const [capturedImage, setCapturedImage] = useState('');
 
   const handleTakePhoto = () => {
@@ -968,7 +1033,6 @@ export default function Resception() {
           const dataUrl = event.target?.result as string;
           setCapturedImage(dataUrl);
           setFormData(prev => ({ ...prev, image: dataUrl }));
-          setShowCamera(false);
         };
         reader.readAsDataURL(file);
       }
@@ -1090,10 +1154,13 @@ export default function Resception() {
                   key={item.id} 
                   className={styles.transaction}
                   style={{ cursor: 'pointer' }}
-                  onClick={() => {
+                  onClick={async () => {
                     setSelectedBook(item);
+                    setNewIsbn(''); // Réinitialiser le champ d'ajout
                     setInventaireModalOpened(false);
                     setBookDetailsModalOpened(true);
+                    // Charger les ISBN existants depuis la base de données
+                    await loadExistingIsbns(item.livre_id);
                   }}
                 >
                   <div className={styles.transactionIcon}>
@@ -1630,6 +1697,8 @@ export default function Resception() {
         onClose={() => { 
           setBookDetailsModalOpened(false); 
           setSelectedBook(null); 
+          setBookAdditionalIsbns([]); // Réinitialiser les ISBN additionnels
+          setNewIsbn(''); // Réinitialiser le champ d'ajout
         }} 
         title="Détails du livre" 
         centered 
@@ -1668,7 +1737,7 @@ export default function Resception() {
             </div>
             
             <TextInput 
-              label="ISBN" 
+              label="ISBN principal" 
               value={selectedBook.isbn} 
               readOnly 
               mb="sm"
@@ -1702,12 +1771,77 @@ export default function Resception() {
               mb="md"
             />
             
+            {/* Section pour l'ajout d'ISBN */}
+            <div style={{ 
+              border: '1px solid #e9ecef', 
+              borderRadius: '8px', 
+              padding: '15px', 
+              marginBottom: '15px',
+              backgroundColor: '#f8f9fa'
+            }}>
+              <Text size="sm" fw={500} mb="sm" color="blue">
+                📚 Gestion des ISBN
+              </Text>
+              
+              {/* Affichage de tous les ISBN pour ce livre */}
+              {bookAdditionalIsbns.length > 0 && (
+                <div style={{ marginBottom: '10px' }}>
+                  <Text size="xs" color="dimmed" mb="xs">
+                    📚 Tous les ISBN de ce livre ({bookAdditionalIsbns.length}) :
+                  </Text>
+                  {bookAdditionalIsbns.map((isbn, index) => (
+                    <div key={index} style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '8px', 
+                      marginBottom: '5px',
+                      padding: '5px 8px',
+                      backgroundColor: 'white',
+                      borderRadius: '4px',
+                      border: '1px solid #dee2e6'
+                    }}>
+                      <Text size="sm" style={{ flex: 1 }}>{isbn}</Text>
+                      <Text size="xs" color="green">✓</Text>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Formulaire d'ajout d'ISBN */}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'end' }}>
+                <TextInput 
+                  label="Nouvel ISBN"
+                  placeholder="Saisir un nouvel ISBN"
+                  value={newIsbn}
+                  onChange={(e) => setNewIsbn(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      addIsbnToBook();
+                    }
+                  }}
+                  style={{ flex: 1 }}
+                  size="sm"
+                />
+                <Button
+                  color="green"
+                  size="sm"
+                  loading={isAddingIsbn}
+                  onClick={addIsbnToBook}
+                  disabled={!newIsbn.trim()}
+                >
+                  ➕
+                </Button>
+              </div>
+            </div>
+            
             <Button
               color="blue"
               fullWidth
               onClick={() => {
                 setBookDetailsModalOpened(false);
                 setSelectedBook(null);
+                setBookAdditionalIsbns([]); // Réinitialiser les ISBN additionnels
+                setNewIsbn(''); // Réinitialiser le champ d'ajout
                 // Ouvrir la modale d'incrémentation avec ce livre
                 setIsbn(selectedBook.isbn.toString());
                 setQuantiteToAdd(1);
