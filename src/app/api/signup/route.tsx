@@ -47,3 +47,55 @@ export async function POST(request: NextRequest): Promise<Response> {
     return new Response(JSON.stringify({ error: "Erreur serveur", details: err instanceof Error ? err.message : 'Erreur inconnue' }), { status: 500 });
   }
 }
+/*update password*/
+export async function PUT(request: NextRequest) {
+  try {
+    const { name, password } = await request.json();
+    
+    if (!name || !password) {
+      return new Response(JSON.stringify({ error: "Nom d'utilisateur et mot de passe requis" }), { status: 400 });
+    }
+
+    if (password.length < 6) {
+      return new Response(JSON.stringify({ error: "Le mot de passe doit contenir au moins 6 caractères" }), { status: 400 });
+    }
+
+    const supabase = createClient();
+    
+    // 1. Vérifier que l'utilisateur existe
+    const { data: user, error: userError } = await supabase
+      .from('USER')
+      .select('id, name')
+      .eq('name', name)
+      .maybeSingle();
+
+    if (userError) {
+      return new Response(JSON.stringify({ error: "Erreur lors de la vérification de l'utilisateur" }), { status: 400 });
+    }
+
+    if (!user) {
+      return new Response(JSON.stringify({ error: "Utilisateur non trouvé" }), { status: 404 });
+    }
+
+    // 2. HASHER le mot de passe avant de le stocker
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    // 3. Mettre à jour le mot de passe
+    const { error: updateError } = await supabase
+      .from('USER')
+      .update({ password: hashedPassword })
+      .eq('id', user.id);
+      
+    if (updateError) {
+      return new Response(JSON.stringify({ error: updateError.message }), { status: 400 });
+    }
+    
+    return new Response(JSON.stringify({ 
+      message: `Mot de passe mis à jour pour ${user.name}`, 
+      success: true 
+    }), { status: 200 });
+  } catch (err) {
+    console.error('Erreur lors du changement de mot de passe:', err);
+    return new Response(JSON.stringify({ error: "Erreur serveur" }), { status: 500 });
+  }
+}

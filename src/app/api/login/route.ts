@@ -30,11 +30,17 @@ export async function POST(request: NextRequest): Promise<Response> {
     }
 
     // Vérification du mot de passe hashé
+    console.log('🔒 Mot de passe saisi:', password);
+    console.log('🔒 Hash en base:', data.password?.substring(0, 20) + '...');
+    
     const passwordMatch = await bcrypt.compare(password, data.password);
+    console.log('🔑 Correspondance mot de passe:', passwordMatch);
 
     if (!passwordMatch) {
+      console.log('❌ Hash ne correspond pas, test en clair...');
       // Si le hash ne correspond pas, on tente la comparaison en clair
       if (password === data.password) {
+        console.log('✅ Mot de passe en clair correspond, migration du hash...');
         // Si c'est bon, on migre le mot de passe en base
         const hashedPassword = await bcrypt.hash(password, 10);
         await supabase
@@ -42,6 +48,7 @@ export async function POST(request: NextRequest): Promise<Response> {
           .update({ password: hashedPassword })
           .eq('id', data.id);
       } else {
+        console.log('❌ Mot de passe incorrect (ni hash ni clair)');
         return new Response(JSON.stringify({ error: 'Nom ou mot de passe incorrect', success: false }), { status: 401 });
       }
     }
