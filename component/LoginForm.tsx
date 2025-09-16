@@ -111,8 +111,8 @@ export const LoginForm: React.FC = () => {
     }
 
     try {
-      const res = await fetch('/api/resetPassword', {
-        method: 'POST',
+      const res = await fetch('/api/signup', {
+        method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: username,

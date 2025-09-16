@@ -93,7 +93,7 @@ export default function UpdateProfile() {
   const infoCompte = async () => {
     if (!userId) return;
     try {
-      const response = await fetch(`/api/acount?id=${userId}`, { method: 'GET' });
+      const response = await fetch(`/api/account?id=${userId}`, { method: 'GET' });
       const result = await response.json();
       if (result.data) {
         setUserDetails(result.data);

@@ -27,7 +27,7 @@ export function BottomNavBar() {
         const decoded = jwtDecode<{ id: string; name: string }>(token);
         
         // Consulter la base de données pour récupérer le statut admin
-        const response = await fetch(`/api/acount?id=${decoded.id}`, { method: 'GET' });
+        const response = await fetch(`/api/account?id=${decoded.id}`, { method: 'GET' });
         const result = await response.json();
         
         if (result.data && result.data.admin) {

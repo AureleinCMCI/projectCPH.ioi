@@ -48,6 +48,9 @@ export async function POST(request: NextRequest): Promise<Response> {
   }
 }
 /*update password*/
+
+
+/*update password de l'utilisateur par nom */
 export async function PUT(request: NextRequest) {
   try {
     const { name, password } = await request.json();
@@ -61,7 +64,7 @@ export async function PUT(request: NextRequest) {
     }
 
     const supabase = createClient();
-    
+
     // 1. Vérifier que l'utilisateur existe
     const { data: user, error: userError } = await supabase
       .from('USER')
@@ -77,7 +80,7 @@ export async function PUT(request: NextRequest) {
       return new Response(JSON.stringify({ error: "Utilisateur non trouvé" }), { status: 404 });
     }
 
-    // 2. HASHER le mot de passe avant de le stocker
+    // 2. HASHER le mot de passe
     const hashedPassword = await bcrypt.hash(password, 10);
     
     // 3. Mettre à jour le mot de passe
@@ -94,7 +97,11 @@ export async function PUT(request: NextRequest) {
       message: `Mot de passe mis à jour pour ${user.name}`, 
       success: true 
     }), { status: 200 });
-  } catch (err) {
+  } catch (err: unknown) {
+    if (err instanceof Error) {
+      console.error('Erreur lors du changement de mot de passe:', err.message);
+      return new Response(JSON.stringify({ error: err.message }), { status: 400 });
+    }
     console.error('Erreur lors du changement de mot de passe:', err);
     return new Response(JSON.stringify({ error: "Erreur serveur" }), { status: 500 });
   }

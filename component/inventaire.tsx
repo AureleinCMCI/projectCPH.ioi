@@ -52,7 +52,7 @@ export default function Inventaire() {
       const token = localStorage.getItem('jwt');
       if (!token) return;
       const decoded = JSON.parse(atob(token.split('.')[1]));
-      const response = await fetch(`/api/acount?id=${decoded.id}`, { method: 'GET' });
+      const response = await fetch(`/api/account?id=${decoded.id}`, { method: 'GET' });
       const result = await response.json();
       setUser(result.data);
     };
@@ -118,7 +118,7 @@ export default function Inventaire() {
           <div className={styles.featureIcons}>
             {user?.admin === true && (
               <div className={styles.featureIcon}>
-                <Link href="/inventaire/ScannerResception" passHref legacyBehavior>
+                <Link href="/inventaire/ScannerResception">
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
                     <span>➕</span>
                     <div className={styles.featureIconLabel}>Ajouter</div>
