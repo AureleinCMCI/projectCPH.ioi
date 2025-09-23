@@ -2,7 +2,7 @@
 
 import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
 import { Button, Center, Loader, Modal, Paper, Text, Textarea, TextInput } from '@mantine/core';
-import { IconCamera } from '@tabler/icons-react';
+import { IconCamera, IconEdit } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
@@ -76,6 +76,53 @@ export default function Resception() {
   const [newIsbn, setNewIsbn] = useState('');
   const [bookAdditionalIsbns, setBookAdditionalIsbns] = useState<string[]>([]);
   const [isAddingIsbn, setIsAddingIsbn] = useState(false);
+  
+  // État pour le mode édition de la quantité
+  const [isEditingQuantity, setIsEditingQuantity] = useState(false);
+  const [tempQuantity, setTempQuantity] = useState<number>(0);
+
+  // Fonctions pour gérer l'édition de la quantité
+  const handleEditQuantity = () => {
+    if (selectedBook) {
+      setTempQuantity(selectedBook.quantite);
+      setIsEditingQuantity(true);
+    }
+  };
+
+  const handleSaveQuantity = async () => {
+    if (!selectedBook) return;
+    
+    try {
+      const response = await fetch('/api/ScannerResception', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          id: selectedBook.id, 
+          ajout: tempQuantity - selectedBook.quantite 
+        }),
+      });
+
+      if (response.ok) {
+        // Mettre à jour l'état local
+        setSelectedBook(prev => prev ? { ...prev, quantite: tempQuantity } : null);
+        setInventaire(prev => prev.map(book => 
+          book.id === selectedBook.id ? { ...book, quantite: tempQuantity } : book
+        ));
+        setIsEditingQuantity(false);
+        alert('Quantité mise à jour avec succès !');
+      } else {
+        throw new Error('Erreur lors de la mise à jour');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur lors de la mise à jour de la quantité');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingQuantity(false);
+    setTempQuantity(0);
+  };
 
   // Fonction pour ajouter un nouvel ISBN au livre sélectionné
   const addIsbnToBook = async () => {
@@ -119,7 +166,6 @@ export default function Resception() {
       setIsAddingIsbn(false);
     }
   };
-
   // Fonction pour charger les ISBN existants depuis la base de données
   const loadExistingIsbns = async (livre_id: number) => {
     try {
@@ -1159,6 +1205,9 @@ export default function Resception() {
                     setNewIsbn(''); // Réinitialiser le champ d'ajout
                     setInventaireModalOpened(false);
                     setBookDetailsModalOpened(true);
+                    // Réinitialiser l'état d'édition
+                    setIsEditingQuantity(false);
+                    setTempQuantity(0);
                     // Charger les ISBN existants depuis la base de données
                     await loadExistingIsbns(item.livre_id);
                   }}
@@ -1766,9 +1815,41 @@ export default function Resception() {
             
             <TextInput 
               label="Quantité en stock" 
-              value={selectedBook.quantite} 
-              readOnly 
+              value={isEditingQuantity ? tempQuantity : selectedBook.quantite} 
+              readOnly={!isEditingQuantity}
+              onChange={(e) => isEditingQuantity && setTempQuantity(parseInt(e.target.value) || 0)}
               mb="md"
+              rightSection={
+                isEditingQuantity ? (
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <Button 
+                      size="xs" 
+                      variant="filled" 
+                      color="green"
+                      onClick={handleSaveQuantity}
+                    >
+                      ✓
+                    </Button>
+                    <Button 
+                      size="xs" 
+                      variant="filled" 
+                      color="red"
+                      onClick={handleCancelEdit}
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                ) : (
+                  <Button 
+                    size="xs" 
+                    variant="light" 
+                    onClick={handleEditQuantity}
+                    leftSection={<IconEdit size={14} />}
+                  >
+                    Modifier
+                  </Button>
+                )
+              }
             />
             
             {/* Section pour l'ajout d'ISBN */}

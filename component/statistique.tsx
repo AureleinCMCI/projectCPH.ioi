@@ -190,10 +190,11 @@ export default function Statistique() {
          const totalReceptions = receptions.user?.reduce((acc: number, rec: Reception) => acc + rec.quantite, 0) || 0;
          const totalReservations = reservations.data?.reduce((acc: number, res: Reservation) => acc + res.quantite_bloquee, 0) || 0;
         const totalMontant = commandes.data?.reduce((acc: number, cmd: Commande) => {
-          // Utiliser le prix réel de vente ou fallback sur l'inventaire
+          // Le prix stocké est déjà le prix total (prix unitaire * quantité)
           if (cmd.price) {
-            return acc + (cmd.price * cmd.quantite);
+            return acc + cmd.price;
           } else {
+            // Fallback : calculer le prix total si pas de prix stocké
             const livre = inventaire.data?.find((item: InventaireItem) => item.title === cmd.title);
             return acc + (livre?.price || 0) * cmd.quantite;
           }
@@ -216,10 +217,11 @@ export default function Statistique() {
         
         // Calculer le chiffre d'affaires du mois actuel
         const chiffreAffairesMoisActuel = commandesMoisActuel.reduce((acc: number, cmd: Commande) => {
-          // Utiliser le prix réel de vente ou fallback sur l'inventaire
+          // Le prix stocké est déjà le prix total (prix unitaire * quantité)
           if (cmd.price) {
-            return acc + (cmd.price * cmd.quantite);
+            return acc + cmd.price;
           } else {
+            // Fallback : calculer le prix total si pas de prix stocké
             const livre = inventaire.data?.find((item: InventaireItem) => item.title === cmd.title);
             return acc + (livre?.price || 0) * cmd.quantite;
           }
@@ -401,8 +403,8 @@ export default function Statistique() {
       const donneesCSV = ventesFiltrees
         .sort((a, b) => new Date(b.date_achat).getTime() - new Date(a.date_achat).getTime())
         .map(commande => {
-          const prixUnitaire = getPrixLivre(commande.title || '', commande);
-          const total = prixUnitaire * (commande.quantite || 0);
+          const prixTotal = getPrixLivre(commande.title || '', commande);
+          const prixUnitaire = commande.quantite ? prixTotal / commande.quantite : 0;
           const date = new Date(commande.date_achat);
           
           return [
@@ -410,7 +412,7 @@ export default function Statistique() {
             `"${(commande.title || 'Titre inconnu').replace(/"/g, '""')}"`, // Échapper les guillemets
             commande.quantite || 0,
             prixUnitaire,
-            total
+            prixTotal
           ];
         });
 
@@ -548,7 +550,7 @@ export default function Statistique() {
       // Message de confirmation
       const moisOption = optionsMois.find(m => m.value === moisFiltreCA);
       const nomMois = moisFiltreCA === 'tous' ? 'tous les mois' : moisOption?.label || 'mois inconnu';
-      const caTotal = commandesFiltrees.reduce((acc, cmd) => acc + (getPrixLivre(cmd.title, cmd) * cmd.quantite), 0);
+      const caTotal = commandesFiltrees.reduce((acc, cmd) => acc + getPrixLivre(cmd.title, cmd), 0);
       const confirmation = `Téléchargement CA de ${formatNumber(caTotal)}€ pour ${nomMois}`;
       console.log(confirmation);
 
@@ -559,8 +561,8 @@ export default function Statistique() {
       const donneesCSV = commandesFiltrees
         .sort((a, b) => new Date(b.date_achat).getTime() - new Date(a.date_achat).getTime())
         .map(commande => {
-          const prixUnitaire = getPrixLivre(commande.title || '', commande);
-          const total = prixUnitaire * (commande.quantite || 0);
+          const prixTotal = getPrixLivre(commande.title || '', commande);
+          const prixUnitaire = commande.quantite ? prixTotal / commande.quantite : 0;
           const date = new Date(commande.date_achat);
           
           return [
@@ -568,7 +570,7 @@ export default function Statistique() {
             `"${(commande.title || 'Titre inconnu').replace(/"/g, '""')}"`,
             commande.quantite || 0,
             prixUnitaire,
-            total
+            prixTotal
           ];
         });
 
@@ -899,7 +901,7 @@ export default function Statistique() {
               </div>
               <div style={{ textAlign: 'center' }}>
                 <Text size="xl" fw={700} c="green">
-                  {formatNumber(getVentesFiltrees().reduce((acc, cmd) => acc + (getPrixLivre(cmd.title, cmd) * cmd.quantite), 0))}€
+                  {formatNumber(getVentesFiltrees().reduce((acc, cmd) => acc + getPrixLivre(cmd.title, cmd), 0))}€
                 </Text>
                 <Text size="sm" c="dimmed">Chiffre d&apos;affaires</Text>
               </div>
@@ -935,8 +937,8 @@ export default function Statistique() {
                   getVentesFiltrees()
                     .sort((a, b) => new Date(b.date_achat).getTime() - new Date(a.date_achat).getTime())
                     .map((commande, index) => {
-                      const prixUnitaire = getPrixLivre(commande.title, commande);
-                      const total = prixUnitaire * commande.quantite;
+                      const prixTotal = getPrixLivre(commande.title, commande);
+                      const prixUnitaire = commande.quantite ? prixTotal / commande.quantite : 0;
                       const date = new Date(commande.date_achat);
                       
                       return (
@@ -974,7 +976,7 @@ export default function Statistique() {
                           </Table.Td>
                           <Table.Td style={{ textAlign: 'center' }}>
                             <Text size="sm" fw={700} c="green">
-                              {formatNumber(total)}€
+                              {formatNumber(prixTotal)}€
                             </Text>
                           </Table.Td>
                         </Table.Tr>
@@ -1181,7 +1183,7 @@ export default function Statistique() {
             <Group justify="space-around" align="center">
               <div style={{ textAlign: 'center' }}>
                 <Text size="xl" fw={700} c="red">
-                  {formatNumber(getCommandesCAFiltrees().reduce((acc, cmd) => acc + (getPrixLivre(cmd.title, cmd) * cmd.quantite), 0))}€
+                  {formatNumber(getCommandesCAFiltrees().reduce((acc, cmd) => acc + getPrixLivre(cmd.title, cmd), 0))}€
                 </Text>
                 <Text size="sm" c="dimmed">Chiffre d&apos;affaires</Text>
               </div>
@@ -1223,8 +1225,8 @@ export default function Statistique() {
                   getCommandesCAFiltrees()
                     .sort((a, b) => new Date(b.date_achat).getTime() - new Date(a.date_achat).getTime())
                     .map((commande, index) => {
-                      const prixUnitaire = getPrixLivre(commande.title, commande);
-                      const total = prixUnitaire * commande.quantite;
+                      const prixTotal = getPrixLivre(commande.title, commande);
+                      const prixUnitaire = commande.quantite ? prixTotal / commande.quantite : 0;
                       const date = new Date(commande.date_achat);
                       
                       return (
@@ -1262,7 +1264,7 @@ export default function Statistique() {
                           </Table.Td>
                           <Table.Td style={{ textAlign: 'center' }}>
                             <Text size="sm" fw={700} c="red">
-                              {formatNumber(total)}€
+                              {formatNumber(prixTotal)}€
                             </Text>
                           </Table.Td>
                         </Table.Tr>

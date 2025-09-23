@@ -76,7 +76,7 @@ export default function Inventaire() {
   const downloadCSV = () => {
     const header = ["Date", "Utilisateur", "Titre", "Quantité"];
     const rows = historique.map(item => [
-      item.date_reception,
+      new Date(item.date_reception).toLocaleDateString('fr-FR'),
       item.name_user,
       item.livre_title,
       item.quantite
@@ -153,7 +153,7 @@ export default function Inventaire() {
               <Table.Tbody>
                 {historique.map((item) => (
                   <Table.Tr key={item.id}>
-                    <Table.Td>{item.date_reception}</Table.Td>
+                    <Table.Td>{new Date(item.date_reception).toLocaleDateString('fr-FR')}</Table.Td>
                     <Table.Td>{item.quantite}</Table.Td>
                     <Table.Td>{item.livre_title}</Table.Td>
                     <Table.Td>{item.name_user}</Table.Td>

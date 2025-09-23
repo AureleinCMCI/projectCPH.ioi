@@ -904,7 +904,6 @@ interface BarcodeDetectorInterface {
         const response = await fetch('/api/inventaire', { method: 'GET' });
         const result = await response.json();
         setInventaire(result.data || []);
-        alert(`Quantité du livre "${livre.title}" décrémentée de ${quantite} !`);
         setFormOpened(false);
         setSupprimer(1);
       } catch (error: unknown) {
@@ -939,7 +938,6 @@ interface BarcodeDetectorInterface {
         const response = await fetch('/api/inventaire', { method: 'GET' });
         const result = await response.json();
         setInventaire(result.data || []);
-        alert(`Commande ajoutée pour le livre "${livre.title}" avec la quantité ${quantite} !`);
         setFormOpened(false);
       } catch (e: unknown) {
         const message = e instanceof Error ? e.message : String(e);
@@ -2147,11 +2145,11 @@ interface BarcodeDetectorInterface {
                     if (quantiteDisponible <= 0) return `❌ Tous les exemplaires (${quantiteReservee}) sont réservés`;
                     if (quantiteVente > quantiteDisponible) 
                       return `❌ Stock insuffisant !\n📦 Disponible: ${quantiteDisponible}\n🛒 Demandé: ${quantiteVente}`;
-                    return "✅ Confirmer la vente";
+                    return "✅Confirmer";
                   })() : undefined}
                   style={{ flex: 1 }}
                 >
-                  {modeModal === 'reservation' ? '📅 Confirmer la réservation' : 
+                   {modeModal === 'reservation' ? '📅 Confirmer la réservation' : 
                    (livreEnVente && livreEnVente.quantite <= 0) ? '📦 Ajouter au stock' : '✅ Confirmer la vente'}
                 </Button>
               </div>
