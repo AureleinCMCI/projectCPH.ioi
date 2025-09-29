@@ -1,9 +1,9 @@
 'use client';
 
 import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
-import { Button, Center, Modal, NumberInput, Radio, Table, Text, TextInput } from '@mantine/core';
+import { Button, Center, Image, Modal, NumberInput, Radio, Table, Text, TextInput } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
-import { Html5QrcodeScanner } from 'html5-qrcode';
+import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -51,11 +51,6 @@ interface BarcodeDetectorInterface {
       day: '2-digit',
       month: '2-digit',
       year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false,
-      timeZone: 'Europe/Paris'
     };
     // Format: 16/07/2025, 14:08:56
     const parts = new Intl.DateTimeFormat('fr-FR', options).formatToParts(date);
@@ -114,7 +109,8 @@ interface BarcodeDetectorInterface {
     const [valeurReduction, setValeurReduction] = useState(0);
     const [modeModal, setModeModal] = useState<'vente' | 'reservation'>('vente');
     const [dateReservation, setDateReservation] = useState('');
-
+    const [panierOpened, setPanierOpened] = useState(false);
+    const [panier, setPanier] = useState<InventaireItem[]>([]);
     // État pour la modale des réservations
     const [reservationsOpened, setReservationsOpened] = useState(false);
     const [reservations, setReservations] = useState<{
@@ -139,7 +135,117 @@ interface BarcodeDetectorInterface {
       };
     }[]>([]);
 
+    // État pour la modale du panier
     
+    // Fonctions de gestion du localStorage pour le panier
+    const sauvegarderPanier = (nouveauPanier: InventaireItem[]) => {
+      try {
+        localStorage.setItem('panier_livres', JSON.stringify(nouveauPanier));
+        console.log('💾 Panier sauvegardé dans localStorage');
+      } catch (error) {
+        console.error('❌ Erreur lors de la sauvegarde du panier:', error);
+      }
+    };
+
+    const chargerPanier = (): InventaireItem[] => {
+      try {
+        const panierSauvegarde = localStorage.getItem('panier_livres');
+        if (panierSauvegarde) {
+          const panierParse = JSON.parse(panierSauvegarde);
+          console.log('📦 Panier chargé depuis localStorage:', panierParse);
+          return panierParse;
+        }
+      } catch (error) {
+        console.error('❌ Erreur lors du chargement du panier:', error);
+      }
+      return [];
+    };
+
+    const viderPanier = () => {
+      setPanier([]);
+      localStorage.removeItem('panier_livres');
+      console.log('🗑️ Panier vidé et supprimé du localStorage');
+    };
+
+    // Fonction pour valider la vente de tous les livres du panier
+    const validerVentePanier = async () => {
+      if (panier.length === 0) {
+        alert('❌ Le panier est vide !');
+        return;
+      }
+
+      if (!user) {
+        alert('❌ Utilisateur non connecté !');
+        return;
+      }
+
+      try {
+        let ventesReussies = 0;
+        let ventesEchouees = 0;
+        const erreurs: string[] = [];
+
+        // Traiter chaque livre du panier avec votre logique normale
+        for (const livre of panier) {
+          try {
+            // Vérifier le stock disponible
+            const quantiteReservee = livre.quantite_reservee || 0;
+            const quantiteDisponible = livre.quantite - quantiteReservee;
+
+            if (quantiteDisponible <= 0) {
+              erreurs.push(`❌ "${livre.title}" : Stock insuffisant (${quantiteDisponible} disponibles)`);
+              ventesEchouees++;
+              continue;
+            }
+
+            // Utiliser votre logique normale de vente
+            // 1. Décrémenter l'inventaire
+            await decrementInventaire(livre, 1);
+            
+            // 2. Ajouter la commande
+            await ajouterCommande(livre, 1, livre.price);
+            
+            ventesReussies++;
+            console.log(`✅ Vente réussie: ${livre.title}`);
+            
+          } catch (error) {
+            console.error(`❌ Erreur lors de la vente de ${livre.title}:`, error);
+            erreurs.push(`❌ "${livre.title}" : Erreur lors de la vente`);
+            ventesEchouees++;
+          }
+        }
+
+        // Afficher le résultat
+        if (ventesReussies > 0) {
+          const message = `✅ Ventes effectuées avec succès !\n\n📊 Résumé:\n• ${ventesReussies} vente(s) réussie(s)\n• ${ventesEchouees} échec(s)`;
+          
+          if (erreurs.length > 0) {
+            alert(`${message}\n\n❌ Erreurs:\n${erreurs.join('\n')}`);
+          } else {
+            alert(message);
+          }
+
+          // Vider le panier après vente réussie
+          viderPanier();
+          setPanierOpened(false);
+        } else {
+          alert(`❌ Aucune vente n'a pu être effectuée !\n\nErreurs:\n${erreurs.join('\n')}`);
+        }
+
+      } catch (error) {
+        console.error('❌ Erreur lors de la validation du panier:', error);
+        alert('❌ Erreur lors de la validation du panier');
+      }
+    };
+
+    // Charger le panier au démarrage
+    useEffect(() => {
+      const panierCharge = chargerPanier();
+      if (panierCharge.length > 0) {
+        setPanier(panierCharge);
+        console.log('📦 Panier restauré au démarrage:', panierCharge.length, 'livres');
+      }
+    }, []);
+
     // Détection automatique du type d'appareil et choix du scanner
     useEffect(() => {
       const detectMobileAndScanner = () => {
@@ -179,8 +285,14 @@ interface BarcodeDetectorInterface {
       } catch (error) {
         console.error('Erreur lors de la détection des appareils:', error);
       }
+    }
+    const supprimerDuPanier = (livre: InventaireItem) => {
+      const nouveauPanier = panier.filter(item => item.id !== livre.id);
+      setPanier(nouveauPanier);
+      sauvegarderPanier(nouveauPanier);
+      setPanierOpened(true);
+      console.log('🗑️ Livre supprimé du panier:', livre.title);
     };
-
     /* Téléchargement du fichier CSV */
     const downloadCSV = () => {
       console.log('📥 Bouton CSV cliqué !');
@@ -322,6 +434,15 @@ interface BarcodeDetectorInterface {
     }, []);
   /* fin  */
 
+    /* fonction pour ajouter un livre au panier */
+    const ajouterAuPanier = (livre: InventaireItem) => {
+      const nouveauPanier = [...panier, livre];
+      setPanier(nouveauPanier);
+      sauvegarderPanier(nouveauPanier);
+      setPanierOpened(true);
+      console.log('📚 Livre ajouté au panier:', livre.title);
+    };
+    /* fonction pour supprimer un livre du panier */
 
   /* recupére les isbn selon livre id */
   useEffect(() => {
@@ -343,25 +464,21 @@ interface BarcodeDetectorInterface {
     recupereIsbnLivreId();
   }, []);
 
-  /* Configuration scanner ultra-rapide pour ISBN */
+  /* Configuration scanner optimisée pour ISBN */
   const SCANNER_CONFIG = {
-    // Fréquence de scan ultra-élevée
-    fps: 30, // Augmenté de 10 à 30 fps
-    frequency: 30, // QuaggaJS - scan toutes les 33ms
-    // Délai minimal entre détections (évite les doublons)
-    debounceDelay: 100, // 100ms entre chaque scan valide
-    // Timeout pour validation rapide
-    validationTimeout: 50, // 50ms pour valider un ISBN
-    // Nombre de workers pour QuaggaJS
-    workers: 4, // Augmenté de 2 à 4 workers
-    // Seuil de confiance pour accepter un scan
-    confidenceThreshold: 0.7
+    // Fréquence de scan optimisée
+    fps: 30,
+    frequency: 30,
+    debounceDelay: 200, // Augmenté pour éviter les scans multiples
+    validationTimeout: 100, // Plus de temps pour la validation
+    workers: 4, // Réduit pour plus de stabilité
+    confidenceThreshold: 0.3, // Seuil de confiance plus bas
   };
 
   /* Cache pour optimiser les validations ISBN répétées */
   const isbnValidationCache = useRef<Map<string, boolean>>(new Map());
   
-  /* Fonction de validation ISBN ultra-rapide avec cache */
+  /* Fonction de validation ISBN flexible */
   const isValidISBN = (code: string): boolean => {
     // Vérifier le cache d'abord
     if (isbnValidationCache.current.has(code)) {
@@ -371,22 +488,26 @@ interface BarcodeDetectorInterface {
     // Nettoyer le code (supprimer espaces, tirets, etc.)
     const cleanCode = code.replace(/[\s-]/g, '');
     
-    // Validation rapide de la longueur en premier (plus rapide)
-    if (cleanCode.length !== 10 && cleanCode.length !== 13) {
+    // Validation plus flexible - accepter plus de formats
+    const len = cleanCode.length;
+    
+    // Accepter les codes de 8 à 15 caractères (plus flexible)
+    if (len < 8 || len > 15) {
       isbnValidationCache.current.set(code, false);
       return false;
     }
     
-    // Vérifier si c'est composé uniquement de chiffres (et éventuellement un X à la fin pour ISBN-10)
-    const isNumericWithOptionalX = /^[0-9]{9}[0-9X]$|^[0-9]{13}$/.test(cleanCode);
+    // Vérifier que c'est principalement numérique
+    const numericCount = (cleanCode.match(/[0-9]/g) || []).length;
+    const alphaCount = (cleanCode.match(/[A-Za-z]/g) || []).length;
     
-    if (!isNumericWithOptionalX) {
-      console.log(`❌ Code rejeté (pas un format ISBN valide): ${code}`);
+    // Accepter si au moins 80% de chiffres ou contient des lettres valides
+    if (numericCount < len * 0.8 && alphaCount === 0) {
       isbnValidationCache.current.set(code, false);
       return false;
     }
     
-    console.log(`✅ ISBN valide détecté: ${cleanCode} (${cleanCode.length} chiffres)`);
+    console.log(`✅ Code valide détecté: ${cleanCode} (${len} caractères)`);
     isbnValidationCache.current.set(code, true);
     return true;
   };
@@ -395,13 +516,13 @@ interface BarcodeDetectorInterface {
   const lastScanTime = useRef<number>(0);
   const lastScannedCode = useRef<string>('');
 
-  /* fonctionalité du scan ultra-rapide avec validation ISBN */
+  /* fonctionalité du scan optimisée avec validation flexible */
   const handleScan = (decodedText: string) => {
-    if (!decodedText) return;
+    if (!decodedText || decodedText.length < 5) return;
     
     const now = Date.now();
     
-    // Debounce : ignorer si même code scanné récemment
+    // Debounce plus souple
     if (decodedText === lastScannedCode.current && 
         now - lastScanTime.current < SCANNER_CONFIG.debounceDelay) {
       return;
@@ -410,57 +531,67 @@ interface BarcodeDetectorInterface {
     lastScanTime.current = now;
     lastScannedCode.current = decodedText;
     
-    console.log('⚡ Scan ultra-rapide:', decodedText);
+    console.log('📱 Code scanné:', decodedText);
     
-    // Validation ISBN ultra-rapide avec timeout
-    const validationStart = performance.now();
+    // Validation plus flexible
     const isValid = isValidISBN(decodedText);
-    const validationTime = performance.now() - validationStart;
-    
-    if (validationTime > SCANNER_CONFIG.validationTimeout) {
-      console.warn(`⚠️ Validation lente: ${validationTime.toFixed(1)}ms`);
-    }
     
     if (!isValid) {
-      console.log('⚡ Code rejeté (pas un ISBN)');
-      return; // Ignorer les codes qui ne sont pas des ISBN
+      console.log('❌ Code rejeté (format non valide)');
+      return;
     }
     
-    // Nettoyer le code ISBN
-    const cleanISBN = decodedText.replace(/[\s-]/g, '');
-    console.log('🚀 ISBN valide scanné ultra-rapide:', cleanISBN);
-    setIsbn(cleanISBN);
+    // Nettoyer le code
+    const cleanCode = decodedText.replace(/[\s-]/g, '');
+    console.log('✅ Code valide scanné:', cleanCode);
+    setIsbn(cleanCode);
     
-    // Ajouter le code à la liste s'il n'y est pas déjà (optimisé)
+    // Ajouter le code à la liste
     setScannedCodes(prev => {
-      if (!prev.includes(cleanISBN)) {
-        const newCodes = [...prev, cleanISBN];
-        console.log('📋 ISBNs scannés:', newCodes);
+      if (!prev.includes(cleanCode)) {
+        const newCodes = [...prev, cleanCode];
+        console.log('📋 Codes scannés:', newCodes);
         setShowCodesList(true);
         return newCodes;
       }
       return prev;
     });
 
-    // Recherche optimisée dans la base de données
+    // Recherche dans la base de données avec plusieurs formats
     const searchStart = performance.now();
-    const isbnTrouve = isbnList.find(item => item.isbn.toString() === cleanISBN);
-    const searchTime = performance.now() - searchStart;
     
+    // Essayer plusieurs formats de recherche
+    let isbnTrouve = isbnList.find(item => item.isbn.toString() === cleanCode);
+    
+    // Si pas trouvé, essayer avec des formats partiels
+    if (!isbnTrouve && cleanCode.length >= 10) {
+      // Essayer les 10 derniers chiffres
+      const last10 = cleanCode.slice(-10);
+      isbnTrouve = isbnList.find(item => item.isbn.toString().endsWith(last10));
+    }
+    
+    // Si pas trouvé, essayer les 13 premiers chiffres
+    if (!isbnTrouve && cleanCode.length >= 13) {
+      const first13 = cleanCode.slice(0, 13);
+      isbnTrouve = isbnList.find(item => item.isbn.toString().startsWith(first13));
+    }
+    
+    const searchTime = performance.now() - searchStart;
     console.log(`🔍 Recherche BD: ${searchTime.toFixed(1)}ms`);
     
     if (isbnTrouve) {
-      // ISBN trouvé - chercher le livre correspondant dans l'inventaire
       const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
       
       if (livre) {
-        console.log(`🚀 ISBN trouvé ultra-rapide : ${livre.title} (${searchTime.toFixed(1)}ms)`);
+        console.log(`✅ Livre trouvé : ${livre.title}`);
+        // Auto-ouvrir le formulaire de vente
+        setSupprimer(1);
+        setTimeout(() => setFormOpened(true), 100);
       } else {
-        console.log(`🚀 ISBN trouvé mais livre non en stock : ${isbnTrouve.isbn}`);
+        console.log(`✅ Code trouvé mais livre non en stock : ${isbnTrouve.isbn}`);
       }
     } else {
-      // ISBN non trouvé
-      console.log(`❌ ISBN non trouvé : ${cleanISBN}`);
+      console.log(`❌ Code non trouvé dans la base : ${cleanCode}`);
     }
   };
 
@@ -695,29 +826,33 @@ interface BarcodeDetectorInterface {
             // Essayer d'abord l'accès forcé à la caméra sur Android
             forceCameraAccessAndroid().then(() => {
               if (scannerType === 'html5') {
-          // ANDROID/DESKTOP : html5-qrcode ULTRA-RAPIDE avec accès forcé à la caméra
+          // ANDROID/DESKTOP : html5-qrcode optimisé pour détection
           const html5QrcodeScanner = new Html5QrcodeScanner(
             "reader",
             { 
-              fps: SCANNER_CONFIG.fps, // 30 FPS pour scan ultra-rapide
-              aspectRatio: 2.5,
-              qrbox: { width: 250, height: 250 }, // Zone de scan plus petite = plus rapide
+              fps: SCANNER_CONFIG.fps,
+              aspectRatio: 1.0, // Ratio carré pour meilleure détection
+              qrbox: { width: 300, height: 300 }, // Zone de scan plus grande
               videoConstraints: {
                 facingMode: 'environment',
-                width: { ideal: 1280, max: 1920 }, // Résolution optimisée
-                height: { ideal: 720, max: 1080 }
+                width: { ideal: 640, max: 1280 }, // Résolution plus basse = plus stable
+                height: { ideal: 480, max: 720 }
               },
               experimentalFeatures: {
-                useBarCodeDetectorIfSupported: true // API native plus rapide
+                useBarCodeDetectorIfSupported: true
               },
-              // CONFIGURATION SPÉCIALE POUR ANDROID - ÉVITER LE BOUTON DE PERMISSION
-              showTorchButtonIfSupported: false,
-              showZoomSliderIfSupported: false,
-              defaultZoomValueIfSupported: 1,
+              // Configuration pour meilleure détection
+              showTorchButtonIfSupported: true, // Permettre la torche
+              showZoomSliderIfSupported: true, // Permettre le zoom
+              defaultZoomValueIfSupported: 2, // Zoom par défaut
               rememberLastUsedCamera: true,
-              useBarCodeDetectorIfSupported: true
+              useBarCodeDetectorIfSupported: true,
+              // Formats de codes-barres supportés
+              supportedScanTypes: [
+                Html5QrcodeScanType.SCAN_TYPE_CAMERA
+              ]
             },
-            false // verbose = false pour moins de logs
+            true // verbose = true pour debug
           );
 
           // Rendre le scanner avec gestion d'erreur personnalisée
@@ -737,41 +872,43 @@ interface BarcodeDetectorInterface {
             }
           };
         } else {
-          // IOS : QuaggaJS ULTRA-RAPIDE
-          console.log('🚀 Initialisation QuaggaJS ultra-rapide...');
+          // IOS : QuaggaJS optimisé pour détection
+          console.log('🚀 Initialisation QuaggaJS optimisée...');
           Quagga.init({
             inputStream: {
               name: "Live",
               type: "LiveStream",
               target: document.getElementById('reader') as HTMLElement,
               constraints: {
-                width: { min: 640, ideal: 1280, max: 1920 }, // Résolution optimisée
-                height: { min: 480, ideal: 720, max: 1080 },
+                width: { min: 320, ideal: 640, max: 1280 }, // Résolution plus basse
+                height: { min: 240, ideal: 480, max: 720 },
                 facingMode: "environment",
-                frameRate: { ideal: SCANNER_CONFIG.fps, max: 60 } // FPS ultra-rapide
+                frameRate: { ideal: SCANNER_CONFIG.fps, max: 30 } // FPS stable
               },
-              area: { // Zone de scan réduite pour plus de vitesse
-                top: "20%",
-                right: "20%", 
-                left: "20%",
-                bottom: "20%"
+              area: { // Zone de scan plus grande pour meilleure détection
+                top: "10%",
+                right: "10%", 
+                left: "10%",
+                bottom: "10%"
               }
             },
             decoder: {
               readers: [
                 "ean_reader", // ISBN-13 et EAN-13
                 "ean_8_reader", // EAN-8
-                "code_128_reader" // Codes-barres 128
-              ] // Supprimé code_39 et codabar pour se concentrer sur les ISBN
+                "code_128_reader", // Codes-barres 128
+                "code_39_reader", // Code 39
+                "codabar_reader" // Codabar
+              ] // Plus de formats supportés
             },
-            locate: true, // Activé pour une détection plus précise
+            locate: true,
             locator: {
-              patchSize: "small", // Taille réduite pour plus de vitesse
-              halfSample: false // Désactivé pour une meilleure qualité
+              patchSize: "medium", // Taille moyenne pour meilleure détection
+              halfSample: true // Activé pour performance
             },
-            numOfWorkers: SCANNER_CONFIG.workers, // 4 workers pour traitement parallèle
-            frequency: SCANNER_CONFIG.frequency, // 30 FPS
-            debug: false
+            numOfWorkers: SCANNER_CONFIG.workers,
+            frequency: SCANNER_CONFIG.frequency,
+            debug: true // Debug activé pour diagnostic
           }, (err: Error | null) => {
             if (err) {
               handleError(err.message);
@@ -786,13 +923,13 @@ interface BarcodeDetectorInterface {
             const code = result.codeResult.code;
             const confidence = result.codeResult.format;
             
-            // Filtrage par confiance pour éviter les faux positifs
-            console.log('🚀 Code détecté par Quagga ultra-rapide:', code, 'Format:', confidence);
+            console.log('📱 Code détecté par Quagga:', code, 'Format:', confidence);
             
-            if (code && code.length >= 10) { // Pré-filtre rapide pour ISBN
+            // Filtrage plus souple - accepter plus de codes
+            if (code && code.length >= 5) { // Accepter des codes plus courts
               handleScan(code);
             } else {
-              console.log('⚡ Code ignoré (trop court):', code);
+              console.log('❌ Code ignoré (trop court):', code);
             }
           };
           Quagga.onDetected(onDetected);
@@ -1095,28 +1232,28 @@ interface BarcodeDetectorInterface {
           <div className={stylesCommande.floatingBooks}>
             {/* Livres flottants */}
             <div className={styles.floatingBook} style={{ top: '10%', left: '15%', animationDelay: '0s' }}>
-              <img src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
+              <Image src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
             </div>
             <div className={styles.floatingBook} style={{ top: '20%', right: '20%', animationDelay: '1s' }}>
-              <img src="/41--eGipgSL.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
+              <Image src="/41--eGipgSL.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
             </div>
             <div className={styles.floatingBook} style={{ top: '35%', left: '10%', animationDelay: '2s' }}>
-              <img src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+              <Image src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
             </div>
             <div className={styles.floatingBook} style={{ top: '45%', right: '15%', animationDelay: '3s' }}>
-              <img src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+              <Image src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
             </div>
             <div className={styles.floatingBook} style={{ top: '15%', left: '50%', animationDelay: '1.5s' }}>
-              <img src="/41--eGipgSL.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+              <Image src="/41--eGipgSL.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
             </div>
             <div className={styles.floatingBook} style={{ top: '30%', right: '45%', animationDelay: '2.5s' }}>
-              <img src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+              <Image src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
             </div>
             <div className={styles.floatingBook} style={{ top: '50%', left: '25%', animationDelay: '0.5s' }}>
-              <img src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+              <Image src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
             </div>
             <div className={styles.floatingBook} style={{ top: '40%', right: '35%', animationDelay: '3.5s' }}>
-              <img src="/28635380.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+              <Image src="/28635380.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
             </div>
             
             {/* Dollars flottants */}
@@ -1153,7 +1290,7 @@ interface BarcodeDetectorInterface {
           <Center>
             <div className={stylesCommande.featureIcons}>
 
-            <div  
+            <div 
               className={stylesCommande.featureIcon} 
               onClick={(e) => {
                 e.preventDefault();
@@ -1166,6 +1303,39 @@ interface BarcodeDetectorInterface {
             >
               <span>🏆</span>
               <div className={stylesCommande.featureIconLabel}>Vendre</div>
+            </div>
+
+            <div 
+              className={stylesCommande.featureIcon} 
+              onClick={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('🛒 Bouton Panier cliqué !');
+                setPanierOpened(true);
+              }}
+              style={{ marginBottom: '0', position: 'relative' }}
+            >
+              <span>🛒</span>
+              <div className={stylesCommande.featureIconLabel}>Panier</div>
+              {panier.length > 0 && (
+                <div style={{
+                  position: 'absolute',
+                  top: '-5px',
+                  right: '-5px',
+                  backgroundColor: '#ff4444',
+                  color: 'white',
+                  borderRadius: '50%',
+                  width: '20px',
+                  height: '20px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '12px',
+                  fontWeight: 'bold'
+                }}>
+                  {panier.length}
+                </div>
+              )}
             </div>
                 
             <div 
@@ -1233,6 +1403,13 @@ interface BarcodeDetectorInterface {
         {/* Scanner en DIV plein écran */}
         {scannerOpened && (
           <div className={styles.scannerFullScreen}>
+            <style jsx>{`
+              @keyframes pulse {
+                0% { opacity: 1; }
+                50% { opacity: 0.5; }
+                100% { opacity: 1; }
+              }
+            `}</style>
             {/* Header avec bouton fermer */}
             <div className={styles.scannerHeader}>
               <div onClick={() => setScannerOpened(false)} className={styles.scannerCloseButton} style={{ marginTop: '100px' }}>
@@ -1255,6 +1432,37 @@ interface BarcodeDetectorInterface {
             {/* Container caméra avec liste transparente en overlay */}
             <div ref={setScannerNode} className={styles.cameraContainer}>
               <div id="reader" className={styles.reader}></div>
+              
+              {/* Indicateur de scan pour aider l'utilisateur */}
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '250px',
+                height: '150px',
+                border: '3px solid #00ff00',
+                borderRadius: '10px',
+                zIndex: 1000,
+                pointerEvents: 'none',
+                animation: 'pulse 2s infinite'
+              }}>
+                <div style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  color: '#00ff00',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  textAlign: 'center',
+                  backgroundColor: 'rgba(0,0,0,0.7)',
+                  padding: '5px 10px',
+                  borderRadius: '5px'
+                }}>
+                  📱 Pointez vers le code-barres
+                </div>
+              </div>
               
               {/* 📝 CHAMP DE SAISIE MANUELLE ISBN */}
               <div style={{ 
@@ -1575,7 +1783,7 @@ interface BarcodeDetectorInterface {
                   }}
                   className={isMobile ? styles.iosModalButton : ''}
                 >
-                  Procéder à la vente
+                  vendre
                 </Button>
                 <Button onClick={() => {
                   reserverLivre(livre);
@@ -1594,7 +1802,7 @@ interface BarcodeDetectorInterface {
               {/* Image du livre */}
               <div style={{ marginBottom: '15px' }}>
                 {selectedLivre.livre?.image ? (
-                  <img 
+                  <Image
                     src={selectedLivre.livre.image} 
                     alt={selectedLivre.title} 
                     style={{ 
@@ -1652,19 +1860,117 @@ interface BarcodeDetectorInterface {
                   size="sm"
                   color="blue" 
                   onClick={() => {
-                    setIsbn(selectedLivre.isbn.toString());
-                    setSupprimer(1);
-                    setDetailOpened(false);
-                    setTimeout(() => setFormOpened(true), 500);
+                    ajouterAuPanier(selectedLivre);
                   }}
                 >
-                  vendre
+                  ajouter au panier
                 </Button>
               </div>
             </div>
           )}
         </Modal>
+          {/* Modale du panier des livres a vendre */}
+          <Modal 
+            opened={panierOpened} 
+            onClose={() => setPanierOpened(false)} 
+            title={`📋 Panier des livres à vendre (${panier.length})`}
+            centered 
+            size="xl"
+          >
+            {panier.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <Text size="lg" c="dimmed" mb="md">
+                  🛒 Votre panier est vide
+                </Text>
+                <Text size="sm" c="dimmed">
+                  Ajoutez des livres en cliquant sur &quot;ajouter au panier&quot;
+                </Text>
+              </div>
+            ) : (
+              <>
+                {/* Liste des livres dans le panier */}
+                <div style={{ maxHeight: '400px', overflowY: 'auto', marginBottom: '20px' }}>
+                  {panier.map((livre, index) => (
+                    <div 
+                      key={`${livre.id}-${index}`} 
+                      style={{ 
+                        display: 'flex', 
+                        justifyContent: 'space-between', 
+                        alignItems: 'center',
+                        padding: '15px',
+                        border: '1px solid #e0e0e0',
+                        borderRadius: '8px',
+                        marginBottom: '10px',
+                        backgroundColor: '#f8f9fa'
+                      }}
+                    >
+                      <div style={{ flex: 1 }}>
+                        <Text size="md" fw={600} mb="xs">
+                          📚 {livre.title}
+                        </Text>
+                        <Text size="sm" c="dimmed" mb="xs">
+                          👤 {livre.author}
+                        </Text>
+                        <Text size="sm" c="blue">
+                          📖 ISBN: {livre.isbn} | 💰 {livre.price}€
+                        </Text>
+                      </div>
+                      <Button
+                        size="sm"
+                        color="red"
+                        variant="outline"
+                        onClick={() => supprimerDuPanier(livre)}
+                        style={{ marginLeft: '10px' }}
+                      >
+                        🗑️ Supprimer
+                      </Button>
+                    </div>
+                  ))}
+                </div>
 
+                {/* Résumé du panier */}
+                <div style={{ 
+                  backgroundColor: '#e3f2fd', 
+                  padding: '15px', 
+                  borderRadius: '8px', 
+                  marginBottom: '20px' 
+                }}>
+                  <Text size="lg" fw={600} mb="sm">
+                    📊 Résumé du panier
+                  </Text>
+                  <Text size="md" mb="xs">
+                    📚 Nombre de livres: {panier.length}
+                  </Text>
+                  <Text size="md" fw={600} c="green">
+                    💰 Total: {panier.reduce((total, livre) => total + livre.price, 0).toFixed(2)}€
+                  </Text>
+                </div>
+
+                 {/* Boutons d'action */}
+                 <div style={{}}>
+                  <Center>
+                    <Button
+                      color="red"
+                      variant="outline"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        console.log('🏆 Bouton Ajouté cliqué !');
+                        setVenteOpened(true);
+                        if (selectedLivre) {
+                          ajouterAuPanier(selectedLivre);
+                        }
+                      }}>
+                      Ajouté
+                    </Button>
+                    <Button  color="green" onClick={validerVentePanier} style={{marginLeft: '10px'}}>
+                      Vendre
+                    </Button>
+                  </Center>
+                 </div>
+              </>
+            )}
+          </Modal>
         {/* Modale de liste des commandes */}
         <Modal 
           opened={listeCommandeOpened} 
@@ -1815,7 +2121,7 @@ interface BarcodeDetectorInterface {
                   }} className={stylesCommande.transaction}>
                     <div className={stylesCommande.transactionIcon}>
                       {item.livre?.image ? 
-                        <img src={item.livre.image} alt="Livre" style={{ width: '30px', height: '30px' }} /> 
+                        <Image src={item.livre.image} alt="Livre" style={{ width: '30px', height: '30px' }} /> 
                         : '📚'
                       }
                     </div>
@@ -1899,7 +2205,7 @@ interface BarcodeDetectorInterface {
                   }} className={stylesCommande.transaction}>
                     <div className={stylesCommande.transactionIcon}>
                       {item.livre?.image ? 
-                        <img src={item.livre.image} alt="Livre" style={{ width: '30px', height: '30px' }} /> 
+                        <Image src={item.livre.image} alt="Livre" style={{ width: '30px', height: '30px' }} /> 
                         : '📚'
                       }
                     </div>
@@ -2063,7 +2369,6 @@ interface BarcodeDetectorInterface {
                   </Text>
                 </div>
               )}
-
               {/* Boutons d'action */}
               <div style={{ display: 'flex', gap: '10px' }}>
                 <Button
@@ -2077,18 +2382,11 @@ interface BarcodeDetectorInterface {
                   color={modeModal === 'reservation' ? 'orange' : (livreEnVente && livreEnVente.quantite <= 0) ? 'blue' : 'green'}
                   disabled={modeModal === 'vente' ? (() => {
                     if (!livreEnVente) return true;
-                    
-                    // Si le livre est à 0 en stock, on active le bouton pour rediriger
                     if (livreEnVente.quantite <= 0) return false;
-                    
-                    // Calculer la quantité disponible (stock - réservations)
                     const quantiteReservee = livreEnVente.quantite_reservee || 0;
                     const quantiteDisponible = livreEnVente.quantite - quantiteReservee;
-                    
-                    // Désactiver si quantité insuffisante (mais pas si stock = 0)
                     if (quantiteDisponible <= 0) return true;
                     if (quantiteVente > quantiteDisponible) return true;
-                    
                     return false;
                   })() : false}
                   onClick={async () => {

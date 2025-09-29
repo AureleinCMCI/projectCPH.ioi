@@ -43,7 +43,7 @@ export default function Hom() {
   </div>
   <Center>
     <Link href="/commande" className={stylesAcceuil.ctaButton}>
-      Commande 
+      Scanner
     </Link>
 
     <Link href="/inventaire" className={stylesAcceuil.ctaButton}>

@@ -18,19 +18,15 @@ interface BarcodeDetectorInterface {
   };
 }
 
-/* Configuration scanner ultra-rapide pour ISBN */
+/* Configuration scanner optimisée pour ISBN */
 const SCANNER_CONFIG = {
-  // Fréquence de scan ultra-élevée
-  fps: 30, // Augmenté de 10 à 30 fps
-  frequency: 30, // QuaggaJS - scan toutes les 33ms
-  // Délai minimal entre détections (évite les doublons)
-  debounceDelay: 100, // 100ms entre chaque scan valide
-  // Timeout pour validation rapide
-  validationTimeout: 50, // 50ms pour valider un ISBN
-  // Nombre de workers pour QuaggaJS
-  workers: 4, // Augmenté de 2 à 4 workers
-  // Seuil de confiance pour accepter un scan
-  confidenceThreshold: 0.7
+  // Fréquence de scan optimisée
+  fps: 30,
+  frequency: 30,
+  debounceDelay: 200, // Augmenté pour éviter les scans multiples
+  validationTimeout: 100, // Plus de temps pour la validation
+  workers: 4, // Réduit pour plus de stabilité
+  confidenceThreshold: 0.3, // Seuil de confiance plus bas
 };
 
 export default function Resception() {
@@ -301,7 +297,7 @@ export default function Resception() {
   /* Cache pour optimiser les validations ISBN répétées */
   const isbnValidationCache = useRef<Map<string, boolean>>(new Map());
   
-  /* Fonction de validation ISBN ultra-rapide avec cache */
+  /* Fonction de validation ISBN flexible */
   const isValidISBN = (code: string): boolean => {
     // Vérifier le cache d'abord
     if (isbnValidationCache.current.has(code)) {
@@ -311,33 +307,37 @@ export default function Resception() {
     // Nettoyer le code (supprimer espaces, tirets, etc.)
     const cleanCode = code.replace(/[\s-]/g, '');
     
-    // Validation rapide de la longueur en premier (plus rapide)
-    if (cleanCode.length !== 10 && cleanCode.length !== 13) {
+    // Validation plus flexible - accepter plus de formats
+    const len = cleanCode.length;
+    
+    // Accepter les codes de 8 à 15 caractères (plus flexible)
+    if (len < 8 || len > 15) {
       isbnValidationCache.current.set(code, false);
       return false;
     }
     
-    // Vérifier si c'est composé uniquement de chiffres (et éventuellement un X à la fin pour ISBN-10)
-    const isNumericWithOptionalX = /^[0-9]{9}[0-9X]$|^[0-9]{13}$/.test(cleanCode);
+    // Vérifier que c'est principalement numérique
+    const numericCount = (cleanCode.match(/[0-9]/g) || []).length;
+    const alphaCount = (cleanCode.match(/[A-Za-z]/g) || []).length;
     
-    if (!isNumericWithOptionalX) {
-      console.log(`❌ Code rejeté (pas un format ISBN valide): ${code}`);
+    // Accepter si au moins 80% de chiffres ou contient des lettres valides
+    if (numericCount < len * 0.8 && alphaCount === 0) {
       isbnValidationCache.current.set(code, false);
       return false;
     }
     
-    console.log(`✅ ISBN valide détecté: ${cleanCode} (${cleanCode.length} chiffres)`);
+    console.log(`✅ Code valide détecté: ${cleanCode} (${len} caractères)`);
     isbnValidationCache.current.set(code, true);
     return true;
   };
 
-  /* fonctionalité du scan ultra-rapide avec validation ISBN */
+  /* fonctionalité du scan optimisée avec validation flexible */
   const handleScan = useCallback((decodedText: string) => {
-    if (!decodedText) return;
+    if (!decodedText || decodedText.length < 5) return;
     
     const now = Date.now();
     
-    // Debounce : ignorer si même code scanné récemment
+    // Debounce plus souple
     if (decodedText === lastScannedCode.current && 
         now - lastScanTime.current < SCANNER_CONFIG.debounceDelay) {
       return;
@@ -346,56 +346,67 @@ export default function Resception() {
     lastScanTime.current = now;
     lastScannedCode.current = decodedText;
     
-    console.log('⚡ Scan ultra-rapide:', decodedText);
+    console.log('📱 Code scanné:', decodedText);
     
-    // Validation ISBN ultra-rapide avec timeout
-    const validationStart = performance.now();
+    // Validation plus flexible
     const isValid = isValidISBN(decodedText);
-    const validationTime = performance.now() - validationStart;
-    
-    if (validationTime > SCANNER_CONFIG.validationTimeout) {
-      console.warn(`⚠️ Validation lente: ${validationTime.toFixed(1)}ms`);
-    }
     
     if (!isValid) {
-      console.log('⚡ Code rejeté (pas un ISBN)');
-      return; // Ignorer les codes qui ne sont pas des ISBN
+      console.log('❌ Code rejeté (format non valide)');
+      return;
     }
     
-    // Nettoyer le code ISBN
-    const cleanISBN = decodedText.replace(/[\s-]/g, '');
-    console.log('🚀 ISBN valide scanné ultra-rapide:', cleanISBN);
+    // Nettoyer le code
+    const cleanCode = decodedText.replace(/[\s-]/g, '');
+    console.log('✅ Code valide scanné:', cleanCode);
     
-    // Ajouter le code à la liste s'il n'y est pas déjà (optimisé)
+    // Ajouter le code à la liste
     setScannedCodes(prev => {
-      if (!prev.includes(cleanISBN)) {
-        const newCodes = [...prev, cleanISBN];
-        console.log('📋 ISBNs scannés:', newCodes);
+      if (!prev.includes(cleanCode)) {
+        const newCodes = [...prev, cleanCode];
+        console.log('📋 Codes scannés:', newCodes);
         setShowCodesList(true);
         return newCodes;
       }
       return prev;
     });
 
-    // Recherche optimisée dans la base de données
+    // Recherche dans la base de données avec plusieurs formats
     const searchStart = performance.now();
-    const isbnTrouve = isbnList.find(item => item.isbn.toString() === cleanISBN);
-    const searchTime = performance.now() - searchStart;
     
+    // Essayer plusieurs formats de recherche
+    let isbnTrouve = isbnList.find(item => item.isbn.toString() === cleanCode);
+    
+    // Si pas trouvé, essayer avec des formats partiels
+    if (!isbnTrouve && cleanCode.length >= 10) {
+      // Essayer les 10 derniers chiffres
+      const last10 = cleanCode.slice(-10);
+      isbnTrouve = isbnList.find(item => item.isbn.toString().endsWith(last10));
+    }
+    
+    // Si pas trouvé, essayer les 13 premiers chiffres
+    if (!isbnTrouve && cleanCode.length >= 13) {
+      const first13 = cleanCode.slice(0, 13);
+      isbnTrouve = isbnList.find(item => item.isbn.toString().startsWith(first13));
+    }
+    
+    const searchTime = performance.now() - searchStart;
     console.log(`🔍 Recherche BD: ${searchTime.toFixed(1)}ms`);
     
     if (isbnTrouve) {
-      // ISBN trouvé - chercher le livre correspondant dans l'inventaire
       const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
       
       if (livre) {
-        console.log(`🚀 ISBN trouvé ultra-rapide : ${livre.title} (${searchTime.toFixed(1)}ms)`);
+        console.log(`✅ Livre trouvé : ${livre.title}`);
+        // Auto-ouvrir la modale d'incrémentation
+        setIsbn(livre.isbn.toString());
+        setQuantiteToAdd(1);
+        setTimeout(() => setIncrementModalOpened(true), 100);
       } else {
-        console.log(`🚀 ISBN trouvé mais livre non en stock : ${isbnTrouve.isbn}`);
+        console.log(`✅ Code trouvé mais livre non en stock : ${isbnTrouve.isbn}`);
       }
     } else {
-      // ISBN non trouvé
-      console.log(`❌ ISBN non trouvé : ${cleanISBN}`);
+      console.log(`❌ Code non trouvé dans la base : ${cleanCode}`);
     }
   }, [isbnList, inventaire]);
 
@@ -638,32 +649,29 @@ export default function Resception() {
           // Essayer d'abord l'accès forcé à la caméra sur Android
           forceCameraAccessAndroid().then(() => {
             if (scannerType === 'html5') {
-          // ANDROID/DESKTOP : html5-qrcode ULTRA-RAPIDE avec accès forcé à la caméra
+          // ANDROID/DESKTOP : html5-qrcode optimisé pour détection
           const html5QrcodeScanner = new Html5QrcodeScanner(
             "reader",
             { 
-              fps: SCANNER_CONFIG.fps, // 30 FPS pour scan ultra-rapide
-              aspectRatio: 2.5,
-              qrbox: { width: 250, height: 250 }, // Zone de scan plus petite = plus rapide
+              fps: SCANNER_CONFIG.fps,
+              aspectRatio: 1.0, // Ratio carré pour meilleure détection
+              qrbox: { width: 300, height: 300 }, // Zone de scan plus grande
               videoConstraints: {
                 facingMode: 'environment',
-                width: { ideal: 1280, max: 1920 }, // Résolution optimisée
-                height: { ideal: 720, max: 1080 }
+                width: { ideal: 640, max: 1280 }, // Résolution plus basse = plus stable
+                height: { ideal: 480, max: 720 }
               },
               experimentalFeatures: {
-                useBarCodeDetectorIfSupported: true // API native plus rapide
+                useBarCodeDetectorIfSupported: true
               },
-              // CONFIGURATION SPÉCIALE POUR ANDROID - ÉVITER LE BOUTON DE PERMISSION
-              showTorchButtonIfSupported: false,
-              showZoomSliderIfSupported: false,
-              defaultZoomValueIfSupported: 1,
+              // Configuration pour meilleure détection
+              showTorchButtonIfSupported: true, // Permettre la torche
+              showZoomSliderIfSupported: true, // Permettre le zoom
+              defaultZoomValueIfSupported: 2, // Zoom par défaut
               rememberLastUsedCamera: true,
-              //supportedScanTypes: [Html5QrcodeScanType.SCAN_TYPE_CAMERA],
-              // Désactiver l'interface de permission (propriété non supportée, on la retire)
-              // Forcer l'utilisation de la caméra sans demander
               useBarCodeDetectorIfSupported: true
             },
-            false // verbose = false pour moins de logs
+            true // verbose = true pour debug
           );
 
           // Rendre le scanner avec gestion d'erreur personnalisée
@@ -683,41 +691,43 @@ export default function Resception() {
             }
           };
         } else {
-        // IOS : QuaggaJS ULTRA-RAPIDE avec accès forcé à la caméra
-        console.log('🚀 Initialisation QuaggaJS ultra-rapide...');
+        // IOS : QuaggaJS optimisé pour détection
+        console.log('🚀 Initialisation QuaggaJS optimisée...');
         Quagga.init({
           inputStream: {
             name: "Live",
             type: "LiveStream",
             target: document.getElementById('reader') as HTMLElement,
             constraints: {
-              width: { min: 640, ideal: 1280, max: 1920 }, // Résolution optimisée
-              height: { min: 480, ideal: 720, max: 1080 },
+              width: { min: 320, ideal: 640, max: 1280 }, // Résolution plus basse
+              height: { min: 240, ideal: 480, max: 720 },
               facingMode: "environment",
-              frameRate: { ideal: SCANNER_CONFIG.fps, max: 60 } // FPS ultra-rapide
+              frameRate: { ideal: SCANNER_CONFIG.fps, max: 30 } // FPS stable
             },
-            area: { // Zone de scan réduite pour plus de vitesse
-              top: "20%",
-              right: "20%", 
-              left: "20%",
-              bottom: "20%"
+            area: { // Zone de scan plus grande pour meilleure détection
+              top: "10%",
+              right: "10%", 
+              left: "10%",
+              bottom: "10%"
             }
           },
           decoder: {
             readers: [
               "ean_reader", // ISBN-13 et EAN-13
               "ean_8_reader", // EAN-8
-              "code_128_reader" // Codes-barres 128
-            ] // Supprimé code_39 et codabar pour se concentrer sur les ISBN
+              "code_128_reader", // Codes-barres 128
+              "code_39_reader", // Code 39
+              "codabar_reader" // Codabar
+            ] // Plus de formats supportés
           },
-          locate: true, // Activé pour une détection plus précise
+          locate: true,
           locator: {
-            patchSize: "small", // Taille réduite pour plus de vitesse
-            halfSample: false // Désactivé pour une meilleure qualité
+            patchSize: "medium", // Taille moyenne pour meilleure détection
+            halfSample: true // Activé pour performance
           },
-          numOfWorkers: SCANNER_CONFIG.workers, // 4 workers pour traitement parallèle
-          frequency: SCANNER_CONFIG.frequency, // 30 FPS
-          debug: false
+          numOfWorkers: SCANNER_CONFIG.workers,
+          frequency: SCANNER_CONFIG.frequency,
+          debug: true // Debug activé pour diagnostic
         }, (err: Error | null) => {
           if (err) {
             console.error('Erreur initialisation Quagga:', err);
@@ -733,13 +743,13 @@ export default function Resception() {
           const code = result.codeResult.code;
           const confidence = result.codeResult.format;
           
-          // Filtrage par confiance pour éviter les faux positifs
-          console.log('🚀 Code détecté par Quagga ultra-rapide:', code, 'Format:', confidence);
+          console.log('📱 Code détecté par Quagga:', code, 'Format:', confidence);
           
-          if (code && code.length >= 10) { // Pré-filtre rapide pour ISBN
+          // Filtrage plus souple - accepter plus de codes
+          if (code && code.length >= 5) { // Accepter des codes plus courts
             handleScan(code);
           } else {
-            console.log('⚡ Code ignoré (trop court):', code);
+            console.log('❌ Code ignoré (trop court):', code);
           }
         };
         Quagga.onDetected(onDetected);
@@ -1241,6 +1251,13 @@ export default function Resception() {
       {/* Scanner en DIV plein écran - AUCUNE compression */}
       {scannerOpened && (
           <div className={scannerStyles.scannerFullScreen}>
+            <style jsx>{`
+              @keyframes pulse {
+                0% { opacity: 1; }
+                50% { opacity: 0.5; }
+                100% { opacity: 1; }
+              }
+            `}</style>
             {/* Header avec bouton fermer */}
             <div className={scannerStyles.scannerHeader}>
               <Text className={scannerStyles.scannerTitle}>
@@ -1289,6 +1306,37 @@ export default function Resception() {
             )}
             <div ref={setScannerNode} className={scannerStyles.cameraContainer}>
               <div id="reader" className={scannerStyles.reader}></div>
+              
+              {/* Indicateur de scan pour aider l'utilisateur */}
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '250px',
+                height: '150px',
+                border: '3px solid #00ff00',
+                borderRadius: '10px',
+                zIndex: 1000,
+                pointerEvents: 'none',
+                animation: 'pulse 2s infinite'
+              }}>
+                <div style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  color: '#00ff00',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  textAlign: 'center',
+                  backgroundColor: 'rgba(0,0,0,0.7)',
+                  padding: '5px 10px',
+                  borderRadius: '5px'
+                }}>
+                  📱 Pointez vers le code-barres
+                </div>
+              </div>
               
               {/* 📱 LISTE TRANSPARENTE EN TEMPS RÉEL - OVERLAY SUR LA CAMÉRA */}
               {showCodesList && scannedCodes.length > 0 && (
