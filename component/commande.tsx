@@ -3,7 +3,7 @@
 import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
 import { Button, Center, Image, Modal, NumberInput, Radio, Table, Text, TextInput } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
-import { Html5QrcodeScanner, Html5QrcodeScanType } from 'html5-qrcode';
+import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 
@@ -184,7 +184,10 @@ interface BarcodeDetectorInterface {
         let ventesEchouees = 0;
         const erreurs: string[] = [];
 
-        // Traiter chaque livre du panier avec votre logique normale
+        // Calcul du total du panier (avant réduction) pour répartir une réduction en euros
+        const totalPanierAvantReduction = panier.reduce((sum, item) => sum + (item.price || 0), 0);
+
+        // Traiter chaque livre du panier avec application de la réduction si définie
         for (const livre of panier) {
           try {
             // Vérifier le stock disponible
@@ -197,16 +200,29 @@ interface BarcodeDetectorInterface {
               continue;
             }
 
-            // Utiliser votre logique normale de vente
-            // 1. Décrémenter l'inventaire
+            // Calcul du prix final avec réduction éventuelle
+            let prixFinalUnitaire = livre.price || 0;
+            if (valeurReduction > 0 && modeModal === 'vente') {
+              if (typeReduction === 'pourcentage') {
+                const reduction = (prixFinalUnitaire * valeurReduction) / 100;
+                prixFinalUnitaire = Math.max(0, prixFinalUnitaire - reduction);
+              } else {
+                // Réduction en euros répartie proportionnellement au prix de l'article
+                const part = totalPanierAvantReduction > 0 ? (prixFinalUnitaire / totalPanierAvantReduction) : 0;
+                const reductionRepartie = valeurReduction * part;
+                prixFinalUnitaire = Math.max(0, prixFinalUnitaire - reductionRepartie);
+              }
+            }
+
+            // 1. Décrémenter l'inventaire (quantité = 1 ici)
             await decrementInventaire(livre, 1);
-            
-            // 2. Ajouter la commande
-            await ajouterCommande(livre, 1, livre.price);
-            
+
+            // 2. Enregistrer la commande avec le prix final (après réduction)
+            await ajouterCommande(livre, 1, prixFinalUnitaire);
+
             ventesReussies++;
-            console.log(`✅ Vente réussie: ${livre.title}`);
-            
+            console.log(`✅ Vente réussie: ${livre.title} (prix final: ${prixFinalUnitaire})`);
+
           } catch (error) {
             console.error(`❌ Erreur lors de la vente de ${livre.title}:`, error);
             erreurs.push(`❌ "${livre.title}" : Erreur lors de la vente`);
@@ -435,12 +451,13 @@ interface BarcodeDetectorInterface {
   /* fin  */
 
     /* fonction pour ajouter un livre au panier */
-    const ajouterAuPanier = (livre: InventaireItem) => {
-      const nouveauPanier = [...panier, livre];
+    const ajouterAuPanier = (livre: InventaireItem, quantite: number = 1) => {
+      const copies: InventaireItem[] = Array.from({ length: Math.max(1, quantite) }, () => livre);
+      const nouveauPanier = [...panier, ...copies];
       setPanier(nouveauPanier);
       sauvegarderPanier(nouveauPanier);
       setPanierOpened(true);
-      console.log('📚 Livre ajouté au panier:', livre.title);
+      console.log('📚 Livre ajouté au panier:', livre.title, 'x', Math.max(1, quantite));
     };
     /* fonction pour supprimer un livre du panier */
 
@@ -848,9 +865,6 @@ interface BarcodeDetectorInterface {
               rememberLastUsedCamera: true,
               useBarCodeDetectorIfSupported: true,
               // Formats de codes-barres supportés
-              supportedScanTypes: [
-                Html5QrcodeScanType.SCAN_TYPE_CAMERA
-              ]
             },
             true // verbose = true pour debug
           );
@@ -1768,26 +1782,42 @@ interface BarcodeDetectorInterface {
                     mb="sm"
                     classNames={isMobile ? { input: styles.iosModalInput } : undefined}
                   />
+                {livre.quantite === 0 ? (
+                    <Button onClick={() => {
+                        alert("Le livre n'est pas en stock");
+                        localStorage.setItem('autoOpenForm', 'true');
+                        localStorage.setItem('returnToCommande', 'true');
+                        localStorage.setItem('scannedIsbns', JSON.stringify(scannedCodes));
+                        window.location.href = '/inventaire/ScannerResception';
+                      }}>
+                        Rajouter au stock
+                      </Button>
+                      ) : (
+                      <Button onClick={() => {
+                         ajouterAuPanier(livre, supprimer);
+                      }}>
+                        Ajouter au panier
+                    </Button>
+                    )}
                   <Center>
-                <Button
-                  mt="md"
-                  onClick={() => {
-                    setLivreEnVente(livre);
-                    setQuantiteVente(supprimer);
-                    setValeurReduction(0);
-                    setTypeReduction('euros');
-                    setModeModal('vente'); // Mode vente
-                    setDateReservation(''); // Reset date
-                    setFormOpened(false);
-                    setReductionOpened(true);
-                  }}
-                  className={isMobile ? styles.iosModalButton : ''}
-                >
-                  vendre
-                </Button>
-                <Button onClick={() => {
-                  reserverLivre(livre);
-                }}>Reserver</Button>
+                  
+                      {/* <Button style={{ marginRight: '10px' }}
+                      onClick={() => {
+                        if (livre.quantite === 0) {
+                            alert("Le livre n'est pas en stock");
+                            localStorage.setItem('autoOpenForm', 'true');
+                            localStorage.setItem('returnToCommande', 'true');
+                            localStorage.setItem('scannedIsbns', JSON.stringify(scannedCodes));
+                            window.location.href = '/inventaire/ScannerResception';
+                        } else {
+                          ajouterAuPanier(livre,supprimer);
+                        }
+                      }}>
+                        Ajouter au panier
+                      </Button> */}
+                      <Button onClick={() => {
+                        reserverLivre(livre);
+                      }}>Reserver</Button>
                 </Center>
                 </div>
               );
@@ -1863,8 +1893,11 @@ interface BarcodeDetectorInterface {
                     ajouterAuPanier(selectedLivre);
                   }}
                 >
-                  ajouter au panier
+                  panier
                 </Button>
+                  <Button onClick={() => {
+                    reserverLivre(selectedLivre);
+                  }}>Reserver</Button>
               </div>
             </div>
           )}
@@ -1961,11 +1994,20 @@ interface BarcodeDetectorInterface {
                           ajouterAuPanier(selectedLivre);
                         }
                       }}>
-                      Ajouté
+                      A.Manuel
                     </Button>
-                    <Button  color="green" onClick={validerVentePanier} style={{marginLeft: '10px'}}>
+                    <Button  color="green" onClick={() => {
+                      // Configurer pour la vente du panier
+                      setModeModal('vente');
+                      setLivreEnVente(panier[0]); // Prendre le premier livre comme référence
+                      setQuantiteVente(panier.length); // Quantité = nombre de livres dans le panier
+                      setValeurReduction(0);
+                      setTypeReduction('euros');
+                      setReductionOpened(true);
+                    }} style={{marginLeft: '10px'}}>
                       Vendre
                     </Button>
+                    <Button style={{marginLeft: '10px'}} onClick={() => { setScannerOpened(true); setPanierOpened(false); setVenteOpened(false) }}>Scanner</Button>
                   </Center>
                  </div>
               </>
@@ -2253,29 +2295,66 @@ interface BarcodeDetectorInterface {
                 borderRadius: '8px', 
                 marginBottom: '20px' 
               }}>
-                <Text size="sm" fw={600} mb="xs">📚 {livreEnVente.title}</Text>
-                <Text size="sm" c="dimmed" mb="xs">Quantité: {quantiteVente}x</Text>
-                <Text size="sm" c="dimmed" mb="xs">Prix unitaire: {livreEnVente.price}€</Text>
-                <Text size="sm" fw={600}>
-                  Prix total: {(livreEnVente.price * quantiteVente).toFixed(2)}€
-                </Text>
+                {modeModal === 'vente' && panier.length > 0 ? (
+                  <>
+                    <Text size="sm" fw={600} mb="xs">🛒 Vente du panier ({panier.length} livre{panier.length > 1 ? 's' : ''})</Text>
+                    <div style={{ maxHeight: '150px', overflowY: 'auto', marginBottom: '10px' }}>
+                      {panier.map((livre, index) => (
+                        <div key={index} style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          padding: '5px 0',
+                          borderBottom: index < panier.length - 1 ? '1px solid #e0e0e0' : 'none'
+                        }}>
+                          <Text size="xs" c="dimmed">{livre.title}</Text>
+                          <Text size="xs" c="blue">{livre.price}€</Text>
+                        </div>
+                      ))}
+                    </div>
+                    <Text size="sm" fw={600}>
+                      💰 Total: {panier.reduce((total, livre) => total + livre.price, 0).toFixed(2)}€
+                    </Text>
+                  </>
+                ) : (
+                  <>
+                    <Text size="sm" fw={600} mb="xs">📚 {livreEnVente.title}</Text>
+                    <Text size="sm" c="dimmed" mb="xs">Quantité: {quantiteVente}x</Text>
+                    <Text size="sm" c="dimmed" mb="xs">Prix unitaire: {livreEnVente.price}€</Text>
+                    <Text size="sm" fw={600}>
+                      Prix total: {(livreEnVente.price * quantiteVente).toFixed(2)}€
+                    </Text>
+                  </>
+                )}
               </div>
 
               {/* Sélection de la quantité */}
-              <NumberInput
-                label={modeModal === 'reservation' ? "📦 Quantité à réserver" : "📚 Quantité à vendre"}
-                value={quantiteVente}
-                onChange={(value) => setQuantiteVente(Number(value) || 1)}
-                min={1}
-                max={modeModal === 'reservation' ? 10000 : (livreEnVente.quantite - (livreEnVente.quantite_reservee || 0))}
-                step={modeModal === 'reservation' ? 10 : 1}
-                placeholder={modeModal === 'reservation' ? "Ex: 500, 1000, 2000..." : "Quantité"}
-                description={modeModal === 'reservation' ? 
-                  `Stock total: ${livreEnVente.quantite} exemplaires` : 
-                  `Stock disponible: ${livreEnVente.quantite - (livreEnVente.quantite_reservee || 0)} exemplaires (${livreEnVente.quantite_reservee || 0} réservés)`
-                }
-                mb="md"
-              />
+              {modeModal === 'vente' && panier.length > 0 ? (
+                <div style={{ 
+                  backgroundColor: '#e3f2fd', 
+                  padding: '10px', 
+                  borderRadius: '6px', 
+                  marginBottom: '20px' 
+                }}>
+                  <Text size="sm" c="blue" fw={600}>
+                    📚 Quantité fixe: {panier.length} livre{panier.length > 1 ? 's' : ''} (panier)
+                  </Text>
+                </div>
+              ) : (
+                <NumberInput
+                  label={modeModal === 'reservation' ? "📦 Quantité à réserver" : "📚 Quantité à vendre"}
+                  value={quantiteVente}
+                  onChange={(value) => setQuantiteVente(Number(value) || 1)}
+                  min={1}
+                  max={modeModal === 'reservation' ? 10000 : (livreEnVente.quantite - (livreEnVente.quantite_reservee || 0))}
+                  step={modeModal === 'reservation' ? 10 : 1}
+                  placeholder={modeModal === 'reservation' ? "Ex: 500, 1000, 2000..." : "Quantité"}
+                  description={modeModal === 'reservation' ? 
+                    `Stock total: ${livreEnVente.quantite} exemplaires` : 
+                    `Stock disponible: ${livreEnVente.quantite - (livreEnVente.quantite_reservee || 0)} exemplaires (${livreEnVente.quantite_reservee || 0} réservés)`
+                  }
+                  mb="md"
+                />
+              )}
 
               {/* Champ spécifique à la réservation */}
               {modeModal === 'reservation' ? (
@@ -2320,7 +2399,9 @@ interface BarcodeDetectorInterface {
                     label={`Valeur de la réduction ${typeReduction === 'euros' ? '(€)' : '(%)'}`}
                     type="number"
                     min={0}
-                    max={typeReduction === 'pourcentage' ? 100 : livreEnVente.price * quantiteVente}
+                    max={typeReduction === 'pourcentage' ? 100 : (modeModal === 'vente' && panier.length > 0 ? 
+                      panier.reduce((total, livre) => total + livre.price, 0) : 
+                      livreEnVente.price * quantiteVente)}
                     value={valeurReduction}
                     onChange={(e) => setValeurReduction(Number(e.currentTarget.value))}
                     placeholder={`Saisir la réduction en ${typeReduction === 'euros' ? 'euros' : 'pourcentage'}`}
@@ -2355,17 +2436,34 @@ interface BarcodeDetectorInterface {
                   borderRadius: '8px', 
                   marginBottom: '20px' 
                 }}>
-                  <Text size="sm" c="dimmed">Prix original: {(livreEnVente.price * quantiteVente).toFixed(2)}€</Text>
+                  <Text size="sm" c="dimmed">
+                    Prix original: {modeModal === 'vente' && panier.length > 0 ? 
+                      panier.reduce((total, livre) => total + livre.price, 0).toFixed(2) : 
+                      (livreEnVente.price * quantiteVente).toFixed(2)}€
+                  </Text>
                   {valeurReduction > 0 && (
                     <Text size="sm" c="red">
                       Réduction: -{typeReduction === 'euros' 
                         ? `${valeurReduction.toFixed(2)}€` 
-                        : `${valeurReduction}% (${((livreEnVente.price * quantiteVente * valeurReduction) / 100).toFixed(2)}€)`
+                        : `${valeurReduction}% (${modeModal === 'vente' && panier.length > 0 ? 
+                          ((panier.reduce((total, livre) => total + livre.price, 0) * valeurReduction) / 100).toFixed(2) :
+                          ((livreEnVente.price * quantiteVente * valeurReduction) / 100).toFixed(2)}€)`
                       }
                     </Text>
                   )}
                   <Text size="lg" fw={700} c="green">
-                    💰 Prix final: {calculerPrixAvecReduction(livreEnVente.price, quantiteVente).toFixed(2)}€
+                    💰 Prix final: {modeModal === 'vente' && panier.length > 0 ? 
+                      (() => {
+                        const prixTotal = panier.reduce((total, livre) => total + livre.price, 0);
+                        if (valeurReduction === 0) return prixTotal.toFixed(2);
+                        if (typeReduction === 'euros') {
+                          return Math.max(0, prixTotal - valeurReduction).toFixed(2);
+                        } else {
+                          const reduction = (prixTotal * valeurReduction) / 100;
+                          return Math.max(0, prixTotal - reduction).toFixed(2);
+                        }
+                      })() : 
+                      calculerPrixAvecReduction(livreEnVente.price, quantiteVente).toFixed(2)}€
                   </Text>
                 </div>
               )}
@@ -2381,6 +2479,16 @@ interface BarcodeDetectorInterface {
                 <Button
                   color={modeModal === 'reservation' ? 'orange' : (livreEnVente && livreEnVente.quantite <= 0) ? 'blue' : 'green'}
                   disabled={modeModal === 'vente' ? (() => {
+                    if (modeModal === 'vente' && panier.length > 0) {
+                      // Vérifier que tous les livres du panier sont disponibles
+                      for (const livre of panier) {
+                        if (livre.quantite <= 0) return false; // Permettre la redirection vers ajout de stock
+                        const quantiteReservee = livre.quantite_reservee || 0;
+                        const quantiteDisponible = livre.quantite - quantiteReservee;
+                        if (quantiteDisponible <= 0) return true;
+                      }
+                      return false; // Tous les livres sont disponibles
+                    }
                     if (!livreEnVente) return true;
                     if (livreEnVente.quantite <= 0) return false;
                     const quantiteReservee = livreEnVente.quantite_reservee || 0;
@@ -2390,7 +2498,13 @@ interface BarcodeDetectorInterface {
                     return false;
                   })() : false}
                   onClick={async () => {
-                    if (livreEnVente) {
+                    if (modeModal === 'vente' && panier.length > 0) {
+                      // Mode vente du panier : utiliser la fonction validerVentePanier
+                      await validerVentePanier();
+                      setReductionOpened(false);
+                      setLivreEnVente(null);
+                      setValeurReduction(0);
+                    } else if (livreEnVente) {
                       if (modeModal === 'reservation') {
                         // Mode réservation : bloquer le stock
                         if (!dateReservation) {
@@ -2434,20 +2548,23 @@ interface BarcodeDetectorInterface {
                       }
                     }
                   }}
-                  title={modeModal === 'vente' && livreEnVente ? (() => {
-                    if (livreEnVente.quantite <= 0) return "📦 Ajouter ce livre au stock";
-                    
-                    const quantiteReservee = livreEnVente.quantite_reservee || 0;
-                    const quantiteDisponible = livreEnVente.quantite - quantiteReservee;
-                    
-                    if (quantiteDisponible <= 0) return `❌ Tous les exemplaires (${quantiteReservee}) sont réservés`;
-                    if (quantiteVente > quantiteDisponible) 
-                      return `❌ Stock insuffisant !\n📦 Disponible: ${quantiteDisponible}\n🛒 Demandé: ${quantiteVente}`;
-                    return "✅Confirmer";
-                  })() : undefined}
+                  title={modeModal === 'vente' && panier.length > 0 ? 
+                    "✅ Vendre tous les livres du panier" : 
+                    modeModal === 'vente' && livreEnVente ? (() => {
+                      if (livreEnVente.quantite <= 0) return "📦 Ajouter ce livre au stock";
+                      
+                      const quantiteReservee = livreEnVente.quantite_reservee || 0;
+                      const quantiteDisponible = livreEnVente.quantite - quantiteReservee;
+                      
+                      if (quantiteDisponible <= 0) return `❌ Tous les exemplaires (${quantiteReservee}) sont réservés`;
+                      if (quantiteVente > quantiteDisponible) 
+                        return `❌ Stock insuffisant !\n📦 Disponible: ${quantiteDisponible}\n🛒 Demandé: ${quantiteVente}`;
+                      return "✅Confirmer";
+                    })() : undefined}
                   style={{ flex: 1 }}
                 >
                    {modeModal === 'reservation' ? '📅 Confirmer la réservation' : 
+                   modeModal === 'vente' && panier.length > 0 ? '🛒 Vendre le panier' :
                    (livreEnVente && livreEnVente.quantite <= 0) ? '📦 Ajouter au stock' : '✅ Confirmer la vente'}
                 </Button>
               </div>

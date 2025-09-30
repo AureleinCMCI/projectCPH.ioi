@@ -2,7 +2,7 @@
 
 import { Badge, Button, Card, Center, Grid, Group, Loader, Modal, Paper, ScrollArea, Select, Stack, Table, Text } from '@mantine/core';
 import { IconCurrencyEuro, IconDownload, IconPackage, IconShoppingCart, IconTrendingDown, IconTrendingUp, IconUsers, IconX } from '@tabler/icons-react';
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import styles from './style/statistique.module.css';
 
 type StatsGlobales = {
@@ -23,6 +23,7 @@ type Commande = {
   quantite: number;
   title: string;
   price?: number; // Prix réel de vente (avec réductions)
+  vendeur?: string; // Nom du vendeur
 };
 
 type Reception = {
@@ -139,6 +140,7 @@ export default function Statistique() {
   const [moisFiltre, setMoisFiltre] = useState<string>('tous');
   const [moisFiltreReceptions, setMoisFiltreReceptions] = useState<string>('tous');
   const [moisFiltreCA, setMoisFiltreCA] = useState<string>('tous');
+  const [detailsOuverts, setDetailsOuverts] = useState<Set<string>>(new Set());
 
   // Fonction helper pour convertir les timestamps
   const convertirTimestamp = (timestamp: number): Date => {
@@ -349,13 +351,59 @@ export default function Statistique() {
 
   // Fonction pour obtenir le prix d'un livre
   const getPrixLivre = (title: string, commande?: Commande): number => {
-    // Priorité au prix réel de la commande
-    if (commande?.price) {
+    // Priorité au prix réel de la commande (avec réduction)
+    if (commande?.price && commande.price > 0) {
       return commande.price;
     }
     // Sinon utiliser le prix de l'inventaire
     const livre = inventaire.find(item => item.title === title);
     return livre?.price || 0;
+  };
+
+  // Fonction pour obtenir le prix original (sans réduction)
+  const getPrixOriginal = (title: string, quantite: number): number => {
+    const livre = inventaire.find(item => item.title === title);
+    return (livre?.price || 0) * quantite;
+  };
+
+  // Fonction pour grouper les commandes par transaction (même vendeur, même date, même heure)
+  const grouperCommandesParTransaction = (commandes: Commande[]) => {
+    const groupes = new Map<string, Commande[]>();
+    
+    commandes.forEach(commande => {
+      // Créer une clé unique basée sur vendeur + date + heure (arrondie à la minute)
+      const date = new Date(commande.date_achat);
+      const dateCle = date.toISOString().slice(0, 16); // YYYY-MM-DDTHH:MM
+      const cle = `${commande.vendeur || 'inconnu'}_${dateCle}`;
+      
+      if (!groupes.has(cle)) {
+        groupes.set(cle, []);
+      }
+      groupes.get(cle)!.push(commande);
+    });
+    
+    return Array.from(groupes.entries()).map(([cle, commandes]) => {
+      const premiereCommande = commandes[0];
+      const date = new Date(premiereCommande.date_achat);
+      
+      return {
+        cle,
+        date: date.toDateString(),
+        vendeur: premiereCommande.vendeur || 'Inconnu',
+        commandes: commandes.sort((a, b) => a.title.localeCompare(b.title))
+      };
+    });
+  };
+
+  // Fonction pour basculer l'affichage des détails
+  const basculerDetails = (cle: string) => {
+    const nouveauxDetails = new Set(detailsOuverts);
+    if (nouveauxDetails.has(cle)) {
+      nouveauxDetails.delete(cle);
+    } else {
+      nouveauxDetails.add(cle);
+    }
+    setDetailsOuverts(nouveauxDetails);
   };
 
   // Options pour le filtre des mois
@@ -397,22 +445,29 @@ export default function Statistique() {
       console.log(confirmation);
 
       // En-têtes CSV
-      const entetes = ['Date', 'Livre', 'Quantité', 'Prix unitaire (€)', 'Total (€)'];
+      const entetes = ['Date', 'Livres vendus', 'Quantité totale', 'Prix original (€)', 'Prix avec réduction (€)', 'Économie (€)'];
       
-      // Données CSV
-      const donneesCSV = ventesFiltrees
-        .sort((a, b) => new Date(b.date_achat).getTime() - new Date(a.date_achat).getTime())
-        .map(commande => {
-          const prixTotal = getPrixLivre(commande.title || '', commande);
-          const prixUnitaire = commande.quantite ? prixTotal / commande.quantite : 0;
-          const date = new Date(commande.date_achat);
+      // Données CSV groupées par transaction
+      const donneesCSV = grouperCommandesParTransaction(ventesFiltrees)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        .map(groupe => {
+          const date = new Date(groupe.date);
+          const quantiteTotale = groupe.commandes.reduce((acc, cmd) => acc + cmd.quantite, 0);
+          const prixAvecReduction = groupe.commandes.reduce((acc, cmd) => acc + getPrixLivre(cmd.title, cmd), 0);
+          const prixOriginal = groupe.commandes.reduce((acc, cmd) => acc + getPrixOriginal(cmd.title, cmd.quantite), 0);
+          const economie = prixOriginal - prixAvecReduction;
+          const livresListe = groupe.commandes.map(cmd => {
+            const prixUnitaire = cmd.quantite ? getPrixLivre(cmd.title, cmd) / cmd.quantite : 0;
+            return `${cmd.title} (${cmd.quantite}x à ${prixUnitaire.toFixed(2)}€)`;
+          }).join(' | ');
           
           return [
             date.toLocaleDateString('fr-FR'),
-            `"${(commande.title || 'Titre inconnu').replace(/"/g, '""')}"`, // Échapper les guillemets
-            commande.quantite || 0,
-            prixUnitaire,
-            prixTotal
+            `"${livresListe.replace(/"/g, '""')}"`, // Échapper les guillemets
+            quantiteTotale,
+            prixOriginal,
+            prixAvecReduction,
+            economie
           ];
         });
 
@@ -920,66 +975,149 @@ export default function Statistique() {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Date</Table.Th>
-                  <Table.Th>Livre</Table.Th>
-                  <Table.Th style={{ textAlign: 'center' }}>Quantité</Table.Th>
-                  <Table.Th style={{ textAlign: 'center' }}>Prix unit.</Table.Th>
-                  <Table.Th style={{ textAlign: 'center' }}>Total</Table.Th>
+                  <Table.Th>Livres vendus</Table.Th>
+                  <Table.Th style={{ textAlign: 'center' }}>Quantité totale</Table.Th>
+                  <Table.Th style={{ textAlign: 'center' }}>Prix total</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {getVentesFiltrees().length === 0 ? (
                   <Table.Tr>
-                    <Table.Td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>
+                    <Table.Td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>
                       <Text c="dimmed">Aucune vente trouvée pour ce mois</Text>
                     </Table.Td>
                   </Table.Tr>
                 ) : (
-                  getVentesFiltrees()
-                    .sort((a, b) => new Date(b.date_achat).getTime() - new Date(a.date_achat).getTime())
-                    .map((commande, index) => {
-                      const prixTotal = getPrixLivre(commande.title, commande);
-                      const prixUnitaire = commande.quantite ? prixTotal / commande.quantite : 0;
-                      const date = new Date(commande.date_achat);
+                  grouperCommandesParTransaction(getVentesFiltrees())
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map((groupe, index) => {
+                      const date = new Date(groupe.date);
+                      const quantiteTotale = groupe.commandes.reduce((acc, cmd) => acc + cmd.quantite, 0);
+                      const prixAvecReduction = groupe.commandes.reduce((acc, cmd) => acc + getPrixLivre(cmd.title, cmd), 0);
+                      const prixOriginal = groupe.commandes.reduce((acc, cmd) => acc + getPrixOriginal(cmd.title, cmd.quantite), 0);
+                      const estOuvert = detailsOuverts.has(groupe.cle);
+                      const aReduction = prixOriginal > prixAvecReduction;
                       
                       return (
-                        <Table.Tr key={index}>
-                          <Table.Td>
-                            <div>
-                              <Text size="sm" fw={500}>
-                                {date.toLocaleDateString('fr-FR', { 
-                                  day: '2-digit', 
-                                  month: '2-digit',
-                                  year: 'numeric'
-                                })}
-                              </Text>
-                              <Text size="xs" c="dimmed">
-                                {date.toLocaleDateString('fr-FR', { 
-                                  weekday: 'long'
-                                })}
-                              </Text>
-                            </div>
-                          </Table.Td>
-                          <Table.Td>
-                            <Text size="sm" fw={500} style={{ maxWidth: '200px' }}>
-                              {commande.title}
-                            </Text>
-                          </Table.Td>
-                          <Table.Td style={{ textAlign: 'center' }}>
-                            <Badge color="blue" size="lg">
-                              {commande.quantite}
-                            </Badge>
-                          </Table.Td>
-                          <Table.Td style={{ textAlign: 'center' }}>
-                            <Text size="sm" fw={500}>
-                              {formatNumber(prixUnitaire)}€
-                            </Text>
-                          </Table.Td>
-                          <Table.Td style={{ textAlign: 'center' }}>
-                            <Text size="sm" fw={700} c="green">
-                              {formatNumber(prixTotal)}€
-                            </Text>
-                          </Table.Td>
-                        </Table.Tr>
+                        <React.Fragment key={index}>
+                          <Table.Tr>
+                            <Table.Td>
+                              <div>
+                                <Text size="sm" fw={500}>
+                                  {date.toLocaleDateString('fr-FR', { 
+                                    day: '2-digit', 
+                                    month: '2-digit',
+                                    year: 'numeric'
+                                  })}
+                                </Text>
+                                <Text size="xs" c="dimmed">
+                                  {date.toLocaleDateString('fr-FR', { 
+                                    weekday: 'long'
+                                  })}
+                                </Text>
+                              </div>
+                            </Table.Td>
+                            <Table.Td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Text size="sm" fw={500} style={{ maxWidth: '200px' }}>
+                                  {groupe.commandes[0].title}
+                                  {groupe.commandes.length > 1 && ` +${groupe.commandes.length - 1} autre${groupe.commandes.length > 2 ? 's' : ''}`}
+                                </Text>
+                                {groupe.commandes.length > 1 && (
+                                  <Button
+                                    size="xs"
+                                    color="red"
+                                    variant="filled"
+                                    onClick={() => basculerDetails(groupe.cle)}
+                                    style={{ minWidth: '24px', height: '24px', padding: '0' }}
+                                  >
+                                    {estOuvert ? '−' : '+'}
+                                  </Button>
+                                )}
+                              </div>
+                            </Table.Td>
+                            <Table.Td style={{ textAlign: 'center' }}>
+                              <Badge color="blue" size="lg">
+                                {quantiteTotale}
+                              </Badge>
+                            </Table.Td>
+                            <Table.Td style={{ textAlign: 'center' }}>
+                              <div>
+                                {aReduction ? (
+                                  <div>
+                                    <Text size="sm" fw={500} c="dimmed" td="line-through">
+                                      {formatNumber(prixOriginal)}€
+                                    </Text>
+                                    <Text size="sm" fw={700} c="green" ml="xs">
+                                      {formatNumber(prixAvecReduction)}€
+                                    </Text>
+                                  </div>
+                                ) : (
+                                  <Text size="sm" fw={700} c="green">
+                                    {formatNumber(prixAvecReduction)}€
+                                  </Text>
+                                )}
+                              </div>
+                            </Table.Td>
+                          </Table.Tr>
+                          
+                          {/* Détails des autres livres */}
+                          {estOuvert && groupe.commandes.length > 1 && (
+                            <Table.Tr>
+                              <Table.Td colSpan={4} style={{ padding: '0', backgroundColor: '#f8f9fa' }}>
+                                <div style={{ padding: '10px' }}>
+                                  <Text size="sm" fw={600} mb="xs" c="dimmed">
+                                    📚 Détail des {groupe.commandes.length} livres vendus par {groupe.vendeur} :
+                                  </Text>
+                                  {groupe.commandes.map((commande, cmdIndex) => {
+                                    const prixTotal = getPrixLivre(commande.title, commande);
+                                    const prixOriginal = getPrixOriginal(commande.title, commande.quantite);
+                                    const prixUnitaire = commande.quantite ? prixTotal / commande.quantite : 0;
+                                    const aReduction = prixOriginal > prixTotal;
+                                    
+                                    return (
+                                      <div key={cmdIndex} style={{ 
+                                        display: 'flex', 
+                                        justifyContent: 'space-between', 
+                                        alignItems: 'center',
+                                        padding: '5px 10px',
+                                        backgroundColor: 'white',
+                                        borderRadius: '4px',
+                                        marginBottom: '5px',
+                                        border: '1px solid #e0e0e0'
+                                      }}>
+                                        <div style={{ flex: 1 }}>
+                                          <Text size="xs" fw={500}>
+                                            {commande.title}
+                                          </Text>
+                                          <Text size="xs" c="dimmed">
+                                            {commande.quantite}x à {formatNumber(prixUnitaire)}€
+                                          </Text>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                          {aReduction ? (
+                                            <div>
+                                              <Text size="xs" c="dimmed" td="line-through">
+                                                {formatNumber(prixOriginal)}€
+                                              </Text>
+                                              <Text size="xs" fw={600} c="green" ml="xs">
+                                                {formatNumber(prixTotal)}€
+                                              </Text>
+                                            </div>
+                                          ) : (
+                                            <Text size="xs" fw={600} c="green">
+                                              {formatNumber(prixTotal)}€
+                                            </Text>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </Table.Td>
+                            </Table.Tr>
+                          )}
+                        </React.Fragment>
                       );
                     })
                 )}
@@ -1208,66 +1346,149 @@ export default function Statistique() {
               <Table.Thead>
                 <Table.Tr>
                   <Table.Th>Date</Table.Th>
-                  <Table.Th>Livre</Table.Th>
-                  <Table.Th style={{ textAlign: 'center' }}>Quantité</Table.Th>
-                  <Table.Th style={{ textAlign: 'center' }}>Prix unit.</Table.Th>
-                  <Table.Th style={{ textAlign: 'center' }}>Total</Table.Th>
+                  <Table.Th>Livres vendus</Table.Th>
+                  <Table.Th style={{ textAlign: 'center' }}>Quantité totale</Table.Th>
+                  <Table.Th style={{ textAlign: 'center' }}>Chiffre d&apos;affaires</Table.Th>
                 </Table.Tr>
               </Table.Thead>
               <Table.Tbody>
                 {getCommandesCAFiltrees().length === 0 ? (
                   <Table.Tr>
-                    <Table.Td colSpan={5} style={{ textAlign: 'center', padding: '2rem' }}>
+                    <Table.Td colSpan={4} style={{ textAlign: 'center', padding: '2rem' }}>
                       <Text c="dimmed">Aucune commande trouvée pour ce mois</Text>
                     </Table.Td>
                   </Table.Tr>
                 ) : (
-                  getCommandesCAFiltrees()
-                    .sort((a, b) => new Date(b.date_achat).getTime() - new Date(a.date_achat).getTime())
-                    .map((commande, index) => {
-                      const prixTotal = getPrixLivre(commande.title, commande);
-                      const prixUnitaire = commande.quantite ? prixTotal / commande.quantite : 0;
-                      const date = new Date(commande.date_achat);
+                  grouperCommandesParTransaction(getCommandesCAFiltrees())
+                    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+                    .map((groupe, index) => {
+                      const date = new Date(groupe.date);
+                      const quantiteTotale = groupe.commandes.reduce((acc, cmd) => acc + cmd.quantite, 0);
+                      const prixAvecReduction = groupe.commandes.reduce((acc, cmd) => acc + getPrixLivre(cmd.title, cmd), 0);
+                      const prixOriginal = groupe.commandes.reduce((acc, cmd) => acc + getPrixOriginal(cmd.title, cmd.quantite), 0);
+                      const estOuvert = detailsOuverts.has(groupe.cle);
+                      const aReduction = prixOriginal > prixAvecReduction;
                       
                       return (
-                        <Table.Tr key={index}>
-                          <Table.Td>
-                            <div>
-                              <Text size="sm" fw={500}>
-                                {date.toLocaleDateString('fr-FR', { 
-                                  day: '2-digit', 
-                                  month: '2-digit',
-                                  year: 'numeric'
-                                })}
-                              </Text>
-                              <Text size="xs" c="dimmed">
-                                {date.toLocaleDateString('fr-FR', { 
-                                  weekday: 'long'
-                                })}
-                              </Text>
-                            </div>
-                          </Table.Td>
-                          <Table.Td>
-                            <Text size="sm" fw={500} style={{ maxWidth: '200px' }}>
-                              {commande.title}
-                            </Text>
-                          </Table.Td>
-                          <Table.Td style={{ textAlign: 'center' }}>
-                            <Badge color="blue" size="lg">
-                              {commande.quantite}
-                            </Badge>
-                          </Table.Td>
-                          <Table.Td style={{ textAlign: 'center' }}>
-                            <Text size="sm" fw={500}>
-                              {formatNumber(prixUnitaire)}€
-                            </Text>
-                          </Table.Td>
-                          <Table.Td style={{ textAlign: 'center' }}>
-                            <Text size="sm" fw={700} c="red">
-                              {formatNumber(prixTotal)}€
-                            </Text>
-                          </Table.Td>
-                        </Table.Tr>
+                        <React.Fragment key={index}>
+                          <Table.Tr>
+                            <Table.Td>
+                              <div>
+                                <Text size="sm" fw={500}>
+                                  {date.toLocaleDateString('fr-FR', { 
+                                    day: '2-digit', 
+                                    month: '2-digit',
+                                    year: 'numeric'
+                                  })}
+                                </Text>
+                                <Text size="xs" c="dimmed">
+                                  {date.toLocaleDateString('fr-FR', { 
+                                    weekday: 'long'
+                                  })}
+                                </Text>
+                              </div>
+                            </Table.Td>
+                            <Table.Td>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                <Text size="sm" fw={500} style={{ maxWidth: '200px' }}>
+                                  {groupe.commandes[0].title}
+                                  {groupe.commandes.length > 1 && ` +${groupe.commandes.length - 1} autre${groupe.commandes.length > 2 ? 's' : ''}`}
+                                </Text>
+                                {groupe.commandes.length > 1 && (
+                                  <Button
+                                    size="xs"
+                                    color="red"
+                                    variant="filled"
+                                    onClick={() => basculerDetails(groupe.cle)}
+                                    style={{ minWidth: '24px', height: '24px', padding: '0' }}
+                                  >
+                                    {estOuvert ? '−' : '+'}
+                                  </Button>
+                                )}
+                              </div>
+                            </Table.Td>
+                            <Table.Td style={{ textAlign: 'center' }}>
+                              <Badge color="blue" size="lg">
+                                {quantiteTotale}
+                              </Badge>
+                            </Table.Td>
+                            <Table.Td style={{ textAlign: 'center' }}>
+                              <div>
+                                {aReduction ? (
+                                  <div>
+                                    <Text size="sm" fw={500} c="dimmed" td="line-through">
+                                      {formatNumber(prixOriginal)}€
+                                    </Text>
+                                    <Text size="sm" fw={700} c="red" ml="xs">
+                                      {formatNumber(prixAvecReduction)}€
+                                    </Text>
+                                  </div>
+                                ) : (
+                                  <Text size="sm" fw={700} c="red">
+                                    {formatNumber(prixAvecReduction)}€
+                                  </Text>
+                                )}
+                              </div>
+                            </Table.Td>
+                          </Table.Tr>
+                          
+                          {/* Détails des autres livres */}
+                          {estOuvert && groupe.commandes.length > 1 && (
+                            <Table.Tr>
+                              <Table.Td colSpan={4} style={{ padding: '0', backgroundColor: '#f8f9fa' }}>
+                                <div style={{ padding: '10px' }}>
+                                  <Text size="sm" fw={600} mb="xs" c="dimmed">
+                                    📚 Détail des {groupe.commandes.length} livres vendus par {groupe.vendeur} :
+                                  </Text>
+                                  {groupe.commandes.map((commande, cmdIndex) => {
+                                    const prixTotal = getPrixLivre(commande.title, commande);
+                                    const prixOriginal = getPrixOriginal(commande.title, commande.quantite);
+                                    const prixUnitaire = commande.quantite ? prixTotal / commande.quantite : 0;
+                                    const aReduction = prixOriginal > prixTotal;
+                                    
+                                    return (
+                                      <div key={cmdIndex} style={{ 
+                                        display: 'flex', 
+                                        justifyContent: 'space-between', 
+                                        alignItems: 'center',
+                                        padding: '5px 10px',
+                                        backgroundColor: 'white',
+                                        borderRadius: '4px',
+                                        marginBottom: '5px',
+                                        border: '1px solid #e0e0e0'
+                                      }}>
+                                        <div style={{ flex: 1 }}>
+                                          <Text size="xs" fw={500}>
+                                            {commande.title}
+                                          </Text>
+                                          <Text size="xs" c="dimmed">
+                                            {commande.quantite}x à {formatNumber(prixUnitaire)}€
+                                          </Text>
+                                        </div>
+                                        <div style={{ textAlign: 'right' }}>
+                                          {aReduction ? (
+                                            <div>
+                                              <Text size="xs" c="dimmed" td="line-through">
+                                                {formatNumber(prixOriginal)}€
+                                              </Text>
+                                              <Text size="xs" fw={600} c="red" ml="xs">
+                                                {formatNumber(prixTotal)}€
+                                              </Text>
+                                            </div>
+                                          ) : (
+                                            <Text size="xs" fw={600} c="red">
+                                              {formatNumber(prixTotal)}€
+                                            </Text>
+                                          )}
+                                        </div>
+                                      </div>
+                                    );
+                                  })}
+                                </div>
+                              </Table.Td>
+                            </Table.Tr>
+                          )}
+                        </React.Fragment>
                       );
                     })
                 )}
