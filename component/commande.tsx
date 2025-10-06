@@ -1,7 +1,7 @@
 'use client';
 
 import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
-import { Button, Center, Image, Modal, NumberInput, Radio, Table, Text, TextInput } from '@mantine/core';
+import { Button, Center, Image, Modal, NumberInput, Radio, Table, Text, TextInput,Pagination } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
@@ -10,6 +10,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './style/ScannerResception.module.css';
 
 import stylesCommande from './style/commande.module.css';
+
 
 // Interface pour BarcodeDetector
 interface BarcodeDetectorInterface {
@@ -79,6 +80,12 @@ interface BarcodeDetectorInterface {
     const [formOpened, setFormOpened] = useState(false);
     const [isbn, setIsbn] = useState('');
     const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
+  // Pagination côté frontend pour la modale de vente (50 par page)
+    const [page, setPage] = useState(1);
+    const [livres, setLivres] = useState<InventaireItem[]>([]);
+    const [totalPages, setTotalPages] = useState(1);
+  const PAGE_SIZE = 20;
+    const [livresLoading, setLivresLoading] = useState(false);
     const [supprimer, setSupprimer] = useState<number>(1);
     const [commandeOpened, setCommandeOpened] = useState(false);
     const [commandes, setCommandes] = useState<{ user_id: number; date_achat: string; title: string;quantite: number; price?: number; vendeur?: string; user?: { name?: string };
@@ -90,6 +97,16 @@ interface BarcodeDetectorInterface {
     const [showCodesList, setShowCodesList] = useState(false);
     const [scannedCodes, setScannedCodes] = useState<string[]>([]);
     const [isbnList, setIsbnList] = useState<{ isbn: number; livre_id: number }[]>([]);
+    const [panierApiItems, setPanierApiItems] = useState<{
+      id: number;
+      quantity: number;
+      added_at: string;
+      livre?: { id: number; isbn: number; author: string; title: string };
+      inventaire?: { price: number };
+    }[]>([]);
+
+  
+    const [panierApiLoading, setPanierApiLoading] = useState(false);
 
     // État pour la modale de détails du livre
     const [detailOpened, setDetailOpened] = useState(false);
@@ -100,6 +117,54 @@ interface BarcodeDetectorInterface {
     
     // État pour la modale de vente
     const [venteOpened, setVenteOpened] = useState(false);
+
+  // Charger une page de livres depuis l'API quand la modale de vente est ouverte
+  useEffect(() => {
+    if (!venteOpened) return; // Ne charger que si la modale est ouverte
+    const abort = new AbortController();
+
+    const fetchPage = async () => {
+      try {
+        setLivresLoading(true);
+        const res = await fetch(`/api/inventaire?page=${page}`, { signal: abort.signal });
+        if (!res.ok) {
+          console.error('Erreur fetch inventaire page', res.status);
+          setLivres([]);
+          setTotalPages(1);
+          return;
+        }
+        const json = await res.json();
+        const pageSize = Number(json.pageSize ?? PAGE_SIZE);
+        const pageData = Array.isArray(json.data) ? json.data : [];
+
+        setLivres(pageData);
+
+        // If server returned total use it. If not, use heuristic: if returned rows < pageSize => last page.
+        const total = typeof json.total === 'number' ? Number(json.total) : null;
+        if (total !== null) {
+          setTotalPages(Math.max(1, Math.ceil(total / pageSize)));
+        } else {
+          // Heuristic fallback: compute pages as current page + 1 if we received a full page, else current page
+          if (pageData.length < pageSize) {
+            setTotalPages(page);
+          } else {
+            setTotalPages(page + 1); // allow user to go to next page; next fetch will clarify
+          }
+        }
+      } catch (err: any) {
+        if (err.name === 'AbortError') return; // ignore abort
+        console.error('Erreur chargement livres:', err);
+      } finally {
+        setLivresLoading(false);
+      }
+    };
+
+    fetchPage();
+    return () => abort.abort();
+  }, [page, venteOpened]);
+    
+    // État pour la modale de confirmation de réduction
+    const [confirmReductionOpened, setConfirmReductionOpened] = useState(false);
     
     // États pour la modale de réduction
     const [reductionOpened, setReductionOpened] = useState(false);
@@ -134,42 +199,85 @@ interface BarcodeDetectorInterface {
         admin: boolean;
       };
     }[]>([]);
+    // Quantité à ajouter au panier depuis la modale de détails
+    const [quantitePanier, setQuantitePanier] = useState<number>(1);
+    // Préférence d'utilisation de la caméra arrière
+    const [preferBack, setPreferBack] = useState<boolean>(false);
 
     // État pour la modale du panier
     
-    // Fonctions de gestion du localStorage pour le panier
-    const sauvegarderPanier = (nouveauPanier: InventaireItem[]) => {
+    const ajouterAuPanier = async (livre: InventaireItem, quantite: number = 1) => {
       try {
-        localStorage.setItem('panier_livres', JSON.stringify(nouveauPanier));
-        console.log('💾 Panier sauvegardé dans localStorage');
+        const response = await fetch('/api/panier', { 
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: user?.id,                 // l’id de l’utilisateur connecté
+            livre_id: livre.livre_id,          // l’id du livre (pas l’objet complet)
+            quantity: Math.max(1, quantite)    // quantité > 0
+          })
+        });
+        const result = await response.json();
+        setPanier(result.data || []);
       } catch (error) {
-        console.error('❌ Erreur lors de la sauvegarde du panier:', error);
+        console.error("Erreur lors de l'ajout au panier :", error);
       }
     };
+    /* Fonction supprimer un livre du panier de la base de donnés delete*/
+    const supprimerDuPanier = (itemId: number) => {
+     try {
+      fetch(`/api/panier?item_id=${itemId}`, { method: 'DELETE' })
+      .then(res => res.json())
+      .then(data => {
+        console.log('✅ Article supprimé du panier:', data);
+        // Recharger le panier API
+        fetchPanierApi();
+      });
+    } catch (error) {
+      console.error("Erreur lors de la suppression du panier :", error);
+    }
+  };
 
-    const chargerPanier = (): InventaireItem[] => {
-      try {
-        const panierSauvegarde = localStorage.getItem('panier_livres');
-        if (panierSauvegarde) {
-          const panierParse = JSON.parse(panierSauvegarde);
-          console.log('📦 Panier chargé depuis localStorage:', panierParse);
-          return panierParse;
-        }
-      } catch (error) {
-        console.error('❌ Erreur lors du chargement du panier:', error);
+  /* Fonction pour vider complètement le panier */
+  const viderPanier = async () => {
+    if (!user) return;
+    
+    try {
+      // Supprimer tous les articles du panier de cet utilisateur
+      for (const item of panierApiItems) {
+        await fetch(`/api/panier?item_id=${item.id}`, { method: 'DELETE' });
       }
-      return [];
-    };
-
-    const viderPanier = () => {
+      
+      // Recharger le panier vide
+      setPanierApiItems([]);
       setPanier([]);
-      localStorage.removeItem('panier_livres');
-      console.log('🗑️ Panier vidé et supprimé du localStorage');
+      console.log('🗑️ Panier vidé avec succès');
+    } catch (error) {
+      console.error("Erreur lors du vidage du panier :", error);
+    }
+  };
+
+    // Charger le panier depuis l'API /api/panier (panier_item + livre)
+    const fetchPanierApi = async () => {
+      if (!user) return;
+      try {
+        setPanierApiLoading(true);
+        const res = await fetch(`/api/panier?user_id=${user.id}`, { method: 'GET' });
+        const data = await res.json();
+        setPanierApiItems(Array.isArray(data.data) ? data.data : []);
+      } catch (error) {
+        console.error('Erreur chargement panier API:', error);
+        setPanierApiItems([]);
+      } finally {
+        setPanierApiLoading(false);
+      }
     };
+
+      
 
     // Fonction pour valider la vente de tous les livres du panier
     const validerVentePanier = async () => {
-      if (panier.length === 0) {
+      if (panierApiItems.length === 0) {
         alert('❌ Le panier est vide !');
         return;
       }
@@ -184,63 +292,79 @@ interface BarcodeDetectorInterface {
         let ventesEchouees = 0;
         const erreurs: string[] = [];
 
-        // Calcul du total du panier (avant réduction) pour répartir une réduction en euros
-        const totalPanierAvantReduction = panier.reduce((sum, item) => sum + (item.price || 0), 0);
+        // Calculer la réduction sur le total du panier
+        const resultatsReduction = calculerReductionPanier();
+        
+        console.log('📊 Calculs de réduction:', resultatsReduction);
 
-        // Traiter chaque livre du panier avec application de la réduction si définie
-        for (const livre of panier) {
+        // Générer un ID unique pour cette transaction
+        const transactionId = `TXN_${Date.now()}_${user.id}`;
+
+        // Traiter chaque article du panier avec les prix calculés après réduction
+        for (const itemAvecReduction of resultatsReduction.itemsAvecReduction) {
           try {
-            // Vérifier le stock disponible
-            const quantiteReservee = livre.quantite_reservee || 0;
-            const quantiteDisponible = livre.quantite - quantiteReservee;
-
-            if (quantiteDisponible <= 0) {
-              erreurs.push(`❌ "${livre.title}" : Stock insuffisant (${quantiteDisponible} disponibles)`);
+            // Trouver le livre correspondant dans l'inventaire
+            const livre = inventaire.find(inv => inv.livre_id === itemAvecReduction.livre?.id);
+            
+            if (!livre) {
+              erreurs.push(`❌ "${itemAvecReduction.livre?.title || 'Livre inconnu'}" : Livre non trouvé dans l'inventaire`);
               ventesEchouees++;
               continue;
             }
 
-            // Calcul du prix final avec réduction éventuelle
-            let prixFinalUnitaire = livre.price || 0;
-            if (valeurReduction > 0 && modeModal === 'vente') {
-              if (typeReduction === 'pourcentage') {
-                const reduction = (prixFinalUnitaire * valeurReduction) / 100;
-                prixFinalUnitaire = Math.max(0, prixFinalUnitaire - reduction);
-              } else {
-                // Réduction en euros répartie proportionnellement au prix de l'article
-                const part = totalPanierAvantReduction > 0 ? (prixFinalUnitaire / totalPanierAvantReduction) : 0;
-                const reductionRepartie = valeurReduction * part;
-                prixFinalUnitaire = Math.max(0, prixFinalUnitaire - reductionRepartie);
-              }
+            // Vérifier le stock disponible
+            const quantiteReservee = livre.quantite_reservee || 0;
+            const quantiteDisponible = livre.quantite - quantiteReservee;
+            const quantiteAVendre = itemAvecReduction.quantity || 1;
+
+            if (quantiteDisponible < quantiteAVendre) {
+              erreurs.push(`❌ "${livre.title}" : Stock insuffisant (${quantiteDisponible} disponibles, ${quantiteAVendre} demandés)`);
+              ventesEchouees++;
+              continue;
             }
 
-            // 1. Décrémenter l'inventaire (quantité = 1 ici)
-            await decrementInventaire(livre, 1);
+            // Utiliser le prix unitaire final calculé avec la réduction répartie
+            const prixFinalUnitaire = itemAvecReduction.prixUnitaireFinal;
 
-            // 2. Enregistrer la commande avec le prix final (après réduction)
-            await ajouterCommande(livre, 1, prixFinalUnitaire);
+            // Préparer les informations de transaction
+            const transactionInfo = {
+              transaction_id: transactionId,
+              prix_original_unitaire: itemAvecReduction.inventaire?.price || 0,
+              reduction_appliquee: itemAvecReduction.reductionAppliquee,
+              type_reduction: typeReduction,
+              valeur_reduction: valeurReduction,
+              total_transaction_original: resultatsReduction.totalOriginal,
+              total_transaction_final: resultatsReduction.totalAvecReduction
+            };
+
+            // 1. Décrémenter l'inventaire
+            await decrementInventaire(livre, quantiteAVendre);
+
+            // 2. Enregistrer la commande avec toutes les informations de transaction
+            await ajouterCommande(livre, quantiteAVendre, prixFinalUnitaire, transactionInfo);
 
             ventesReussies++;
-            console.log(`✅ Vente réussie: ${livre.title} (prix final: ${prixFinalUnitaire})`);
+            console.log(`✅ Vente réussie: ${livre.title} x${quantiteAVendre} (prix final: ${itemAvecReduction.prixFinal.toFixed(2)}€, réduction: ${itemAvecReduction.reductionAppliquee.toFixed(2)}€)`);
 
           } catch (error) {
-            console.error(`❌ Erreur lors de la vente de ${livre.title}:`, error);
-            erreurs.push(`❌ "${livre.title}" : Erreur lors de la vente`);
+            console.error(`❌ Erreur lors de la vente de ${itemAvecReduction.livre?.title}:`, error);
+            erreurs.push(`❌ "${itemAvecReduction.livre?.title || 'Livre inconnu'}" : Erreur lors de la vente`);
             ventesEchouees++;
           }
         }
-
-        // Afficher le résultat
+        
         if (ventesReussies > 0) {
-          const message = `✅ Ventes effectuées avec succès !\n\n📊 Résumé:\n• ${ventesReussies} vente(s) réussie(s)\n• ${ventesEchouees} échec(s)`;
+          const messageReduction = resultatsReduction.montantReduction > 0 ? 
+            `\n💰 Prix original: ${resultatsReduction.totalOriginal.toFixed(2)}€\n🎉 Réduction appliquée: ${resultatsReduction.montantReduction.toFixed(2)}€\n💵 Prix final: ${resultatsReduction.totalAvecReduction.toFixed(2)}€\n🆔 Transaction: ${transactionId}` : 
+            `\n🆔 Transaction: ${transactionId}`;
+            
+          const message = `✅ Ventes effectuées avec succès !${messageReduction}\n\n📊 Résumé:\n• ${ventesReussies} vente(s) réussie(s)\n• ${ventesEchouees} échec(s)`;
           
           if (erreurs.length > 0) {
             alert(`${message}\n\n❌ Erreurs:\n${erreurs.join('\n')}`);
           } else {
             alert(message);
           }
-
-          // Vider le panier après vente réussie
           viderPanier();
           setPanierOpened(false);
         } else {
@@ -254,13 +378,7 @@ interface BarcodeDetectorInterface {
     };
 
     // Charger le panier au démarrage
-    useEffect(() => {
-      const panierCharge = chargerPanier();
-      if (panierCharge.length > 0) {
-        setPanier(panierCharge);
-        console.log('📦 Panier restauré au démarrage:', panierCharge.length, 'livres');
-      }
-    }, []);
+
 
     // Détection automatique du type d'appareil et choix du scanner
     useEffect(() => {
@@ -302,13 +420,9 @@ interface BarcodeDetectorInterface {
         console.error('Erreur lors de la détection des appareils:', error);
       }
     }
-    const supprimerDuPanier = (livre: InventaireItem) => {
-      const nouveauPanier = panier.filter(item => item.id !== livre.id);
-      setPanier(nouveauPanier);
-      sauvegarderPanier(nouveauPanier);
-      setPanierOpened(true);
-      console.log('🗑️ Livre supprimé du panier:', livre.title);
-    };
+
+    // Récupère le deviceId de la caméra arrière si disponible (après permission)
+
     /* Téléchargement du fichier CSV */
     const downloadCSV = () => {
       console.log('📥 Bouton CSV cliqué !');
@@ -336,6 +450,7 @@ interface BarcodeDetectorInterface {
     if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
       navigator.mediaDevices.enumerateDevices()
       .then((devices) => {
+
         devices.forEach((device) => {
           console.log(`Appareil Id: ${device.deviceId}, Type: ${device.kind}, Label: ${device.label}`);
         });
@@ -451,14 +566,7 @@ interface BarcodeDetectorInterface {
   /* fin  */
 
     /* fonction pour ajouter un livre au panier */
-    const ajouterAuPanier = (livre: InventaireItem, quantite: number = 1) => {
-      const copies: InventaireItem[] = Array.from({ length: Math.max(1, quantite) }, () => livre);
-      const nouveauPanier = [...panier, ...copies];
-      setPanier(nouveauPanier);
-      sauvegarderPanier(nouveauPanier);
-      setPanierOpened(true);
-      console.log('📚 Livre ajouté au panier:', livre.title, 'x', Math.max(1, quantite));
-    };
+
     /* fonction pour supprimer un livre du panier */
 
   /* recupére les isbn selon livre id */
@@ -481,15 +589,13 @@ interface BarcodeDetectorInterface {
     recupereIsbnLivreId();
   }, []);
 
-  /* Configuration scanner optimisée pour ISBN */
   const SCANNER_CONFIG = {
-    // Fréquence de scan optimisée
     fps: 30,
     frequency: 30,
-    debounceDelay: 200, // Augmenté pour éviter les scans multiples
-    validationTimeout: 100, // Plus de temps pour la validation
-    workers: 4, // Réduit pour plus de stabilité
-    confidenceThreshold: 0.3, // Seuil de confiance plus bas
+    debounceDelay: 200, 
+    validationTimeout: 100, 
+    workers: 4, 
+    confidenceThreshold: 0.3,
   };
 
   /* Cache pour optimiser les validations ISBN répétées */
@@ -616,7 +722,7 @@ interface BarcodeDetectorInterface {
     console.error('Erreur de scan:', errorMessage);
   };
   
-  // Fonction pour calculer le prix avec réduction
+  // Fonction pour calculer le prix avec réduction (pour un livre individuel - ancienne méthode)
   const calculerPrixAvecReduction = (prixOriginal: number, quantite: number) => {
     const prixTotal = prixOriginal * quantite;
     
@@ -629,6 +735,57 @@ interface BarcodeDetectorInterface {
       const reduction = (prixTotal * valeurReduction) / 100;
       return Math.max(0, prixTotal - reduction);
     }
+  };
+
+  // Nouvelle fonction pour calculer la réduction sur le TOTAL du panier
+  const calculerReductionPanier = () => {
+    if (!panierApiItems.length || valeurReduction === 0) {
+      return {
+        totalOriginal: 0,
+        totalAvecReduction: 0,
+        montantReduction: 0,
+        itemsAvecReduction: []
+      };
+    }
+
+    // 1. Calculer le total original du panier
+    const totalOriginal = panierApiItems.reduce((sum, item) => 
+      sum + ((item.inventaire?.price || 0) * (item.quantity || 1)), 0
+    );
+
+    // 2. Calculer la réduction totale
+    let montantReduction = 0;
+    if (typeReduction === 'euros') {
+      montantReduction = Math.min(valeurReduction, totalOriginal); // Ne pas dépasser le total
+    } else {
+      montantReduction = (totalOriginal * valeurReduction) / 100;
+    }
+
+    // 3. Calculer le total après réduction
+    const totalAvecReduction = Math.max(0, totalOriginal - montantReduction);
+
+    // 4. Répartir la réduction proportionnellement sur chaque article
+    const itemsAvecReduction = panierApiItems.map(item => {
+      const prixOriginalItem = (item.inventaire?.price || 0) * (item.quantity || 1);
+      const proportionItem = totalOriginal > 0 ? prixOriginalItem / totalOriginal : 0;
+      const reductionItem = montantReduction * proportionItem;
+      const prixFinalItem = Math.max(0, prixOriginalItem - reductionItem);
+      
+      return {
+        ...item,
+        prixOriginal: prixOriginalItem,
+        reductionAppliquee: reductionItem,
+        prixFinal: prixFinalItem,
+        prixUnitaireFinal: (item.quantity || 1) > 0 ? prixFinalItem / (item.quantity || 1) : 0
+      };
+    });
+
+    return {
+      totalOriginal,
+      totalAvecReduction,
+      montantReduction,
+      itemsAvecReduction
+    };
   };
   
      /* reserver un livre */
@@ -729,239 +886,306 @@ interface BarcodeDetectorInterface {
       return false;
     }
   };
-
+  async function getBackCameraDeviceId(): Promise<string | null> {
+    // 1) iOS: forcer l’affichage des labels après permission
+    try {
+      const pre = await navigator.mediaDevices.getUserMedia({ video: true });
+      pre.getTracks().forEach(t => t.stop());
+    } catch (_) {
+      // on continue quand même
+    }
+  
+    // 2) Ré-énumérer avec labels visibles
+    const devices = await navigator.mediaDevices.enumerateDevices();
+    const videos = devices.filter(d => d.kind === 'videoinput');
+  
+    // 3) Chercher une caméra "arrière" par label (multilingue)
+    const back = videos.find(d => /back|rear|environment|arrière|tras|뒤|後|spate|hinten|后置/i.test(d.label || ''));
+  
+    // 4) Fallback: si rien trouvé, prendre la dernière (souvent arrière)
+    return back?.deviceId ?? videos[videos.length - 1]?.deviceId ?? null;
+  }
   /* parametre du scanner */
-    useEffect(() => {
-      if (scannerOpened && scannerReady && scannerRef.current) {
-        console.log(`Scanner ${scannerType} prêt à être utilisé`);
+  useEffect(() => {
+    if (scannerOpened && scannerReady && scannerRef.current) {
+      console.log(`Scanner ${scannerType} prêt à être utilisé`);
+      
+      // Détecter Android pour utiliser une approche différente
+      const isAndroid = /android/i.test(navigator.userAgent);
+      
+      if (isAndroid && scannerType === 'html5') {
+        // APPROCHE SPÉCIALE POUR ANDROID - Contourner le bouton de permission
+        console.log('🤖 Android détecté - Utilisation de l\'approche directe');
         
-        // Détecter Android pour utiliser une approche différente
-        const isAndroid = /android/i.test(navigator.userAgent);
-        
-        if (isAndroid && scannerType === 'html5') {
-          // APPROCHE SPÉCIALE POUR ANDROID - Contourner le bouton de permission
-          console.log('🤖 Android détecté - Utilisation de l\'approche directe');
-          
-          // Créer un scanner personnalisé pour Android
-          const initAndroidScanner = async () => {
-            try {
-              // Accéder directement à la caméra
-              const stream = await navigator.mediaDevices.getUserMedia({
-                video: {
-                  facingMode: 'environment',
+        // Créer un scanner personnalisé pour Android
+        const initAndroidScanner = async () => {
+          try {
+            // Accéder directement à la caméra
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                facingMode: 'environment',
+                width: { ideal: 1280, max: 1920 },
+                height: { ideal: 720, max: 1080 }
+              }
+            });
+            
+            // Créer un élément vidéo
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            video.style.width = '100%';
+            video.style.height = '100%';
+            video.style.objectFit = 'cover';
+            video.autoplay = true;
+            video.playsInline = true;
+            
+            // Ajouter au container
+            const reader = document.getElementById('reader');
+            if (reader) {
+              reader.innerHTML = '';
+              reader.appendChild(video);
+            }
+            
+            // Utiliser l'API native de détection de codes-barres si disponible
+            if ('BarcodeDetector' in window) {
+              const BarcodeDetector = (window as unknown as { BarcodeDetector: BarcodeDetectorInterface }).BarcodeDetector;
+              const barcodeDetector = new BarcodeDetector({
+                formats: ['ean_13', 'ean_8', 'code_128']
+              });
+              
+              const detectBarcodes = async () => {
+                try {
+                  const barcodes = await barcodeDetector.detect(video);
+                  if (barcodes.length > 0) {
+                    const code = barcodes[0].rawValue;
+                    console.log('📱 Code détecté via BarcodeDetector:', code);
+                    handleScan(code);
+                  }
+                } catch (error) {
+                  console.log('Détection BarcodeDetector:', error);
+                }
+                requestAnimationFrame(detectBarcodes);
+              };
+              
+              video.addEventListener('loadedmetadata', () => {
+                detectBarcodes();
+              });
+            }
+            
+            setScanner(true);
+            
+            // Fonction de nettoyage pour Android
+            const cleanup = () => {
+              stream.getTracks().forEach(track => track.stop());
+              if (reader) {
+                reader.innerHTML = '';
+              }
+              setScanner(null);
+              setAndroidCleanup(null);
+            };
+            
+            // Stocker la fonction de nettoyage
+            setAndroidCleanup(() => cleanup);
+            
+          } catch (error) {
+            console.error('Erreur scanner Android direct:', error);
+            // Fallback vers html5-qrcode normal
+            console.log('🔄 Fallback vers scanner normal...');
+            // Utiliser html5-qrcode en fallback
+            const html5QrcodeScanner = new Html5QrcodeScanner(
+              "reader",
+              { 
+                fps: SCANNER_CONFIG.fps,
+                aspectRatio: 2.5,
+                qrbox: { width: 250, height: 250 },
+                videoConstraints: {
+                  facingMode: "environment",
                   width: { ideal: 1280, max: 1920 },
                   height: { ideal: 720, max: 1080 }
                 }
-              });
-              
-              // Créer un élément vidéo
-              const video = document.createElement('video');
-              video.srcObject = stream;
-              video.style.width = '100%';
-              video.style.height = '100%';
-              video.style.objectFit = 'cover';
-              video.autoplay = true;
-              video.playsInline = true;
-              
-              // Ajouter au container
-              const reader = document.getElementById('reader');
-              if (reader) {
-                reader.innerHTML = '';
-                reader.appendChild(video);
+              },
+              false
+            );
+            html5QrcodeScanner.render(handleScan, handleError);
+            setScanner(html5QrcodeScanner);
+          }
+        };
+        
+        initAndroidScanner();
+        
+      } else {
+        // APPROCHE NORMALE POUR AUTRES PLATEFORMES
+        const initNormalScanner = async () => {
+          // Essayer d'abord l'accès forcé à la caméra sur Android
+          await forceCameraAccessAndroid();
+          
+          if (scannerType === 'html5') {
+            // ANDROID/DESKTOP : html5-qrcode optimisé pour détection
+            const html5QrcodeScanner = new Html5QrcodeScanner(
+              "reader",
+              { 
+                fps: SCANNER_CONFIG.fps,
+                aspectRatio: 1.0,
+                qrbox: { width: 300, height: 300 },
+                videoConstraints: {
+                  facingMode: "environment",
+                  width: { ideal: 640, max: 1280 },
+                  height: { ideal: 480, max: 720 }
+                },
+                experimentalFeatures: {
+                  useBarCodeDetectorIfSupported: true
+                },
+                showTorchButtonIfSupported: true,
+                showZoomSliderIfSupported: true,
+                defaultZoomValueIfSupported: 2,
+                rememberLastUsedCamera: true,
+                useBarCodeDetectorIfSupported: true,
+              },
+              true
+            );
+  
+            html5QrcodeScanner.render(
+              handleScan, 
+              (error) => {
+                console.error('Erreur de scan HTML5:', error);
+                handleError(error);
               }
-              
-              // Utiliser l'API native de détection de codes-barres si disponible
-              if ('BarcodeDetector' in window) {
-                const BarcodeDetector = (window as unknown as { BarcodeDetector: BarcodeDetectorInterface }).BarcodeDetector;
-                const barcodeDetector = new BarcodeDetector({
-                  formats: ['ean_13', 'ean_8', 'code_128']
-                });
-                
-                const detectBarcodes = async () => {
-                  try {
-                    const barcodes = await barcodeDetector.detect(video);
-                    if (barcodes.length > 0) {
-                      const code = barcodes[0].rawValue;
-                      console.log('📱 Code détecté via BarcodeDetector:', code);
-                      handleScan(code);
-                    }
-                  } catch (error) {
-                    console.log('Détection BarcodeDetector:', error);
-                  }
-                  requestAnimationFrame(detectBarcodes);
-                };
-                
-                video.addEventListener('loadedmetadata', () => {
-                  detectBarcodes();
-                });
+            );
+            setScanner(html5QrcodeScanner);
+  
+            return () => {
+              if (html5QrcodeScanner) {
+                html5QrcodeScanner.clear();
               }
+            };
+          } else {
+            // IOS : QuaggaJS optimisé pour détection avec caméra arrière
+            console.log('🚀 Initialisation QuaggaJS pour iOS...');
+            
+            try {
+              // Étape 1: si les labels sont vides, demander un flux générique pour débloquer les permissions iOS
+              // Utiliser la fonction utilitaire pour récupérer la back cam si souhaitée
+              const deviceId = preferBack ? (await getBackCameraDeviceId()) : null;
+              console.log('📷 Caméra sélectionnée (deviceId):', deviceId || 'fallback');
               
-              setScanner(true);
               
-              // Fonction de nettoyage pour Android
-              const cleanup = () => {
-                stream.getTracks().forEach(track => track.stop());
-                if (reader) {
-                  reader.innerHTML = '';
-                }
-                setScanner(null);
-                setAndroidCleanup(null);
-              };
+
+              const supported = navigator.mediaDevices.getSupportedConstraints?.() || {};
+              console.log('supported constraints:', supported);
+
+              // Construire des contraintes robustes (sans frameRate ni exact sur facingMode)
+              const constraints: MediaTrackConstraints = deviceId
+                ? { deviceId: { exact: deviceId }, width: { ideal: 640 }, height: { ideal: 480 } }
+                : { facingMode:  'environment', width: { ideal: 640 }, height: { ideal: 480 } };
               
-              // Stocker la fonction de nettoyage
-              setAndroidCleanup(() => cleanup);
-              
-            } catch (error) {
-              console.error('Erreur scanner Android direct:', error);
-              // Fallback vers html5-qrcode normal
-              console.log('🔄 Fallback vers scanner normal...');
-              // Utiliser html5-qrcode en fallback
-              const html5QrcodeScanner = new Html5QrcodeScanner(
-                "reader",
-                { 
-                  fps: SCANNER_CONFIG.fps,
-                  aspectRatio: 2.5,
-                  qrbox: { width: 250, height: 250 },
-                  videoConstraints: {
-                    facingMode: 'environment',
-                    width: { ideal: 1280, max: 1920 },
-                    height: { ideal: 720, max: 1080 }
+              Quagga.init({
+                inputStream: {
+                  name: "Live",
+                  type: "LiveStream",
+                  target: document.getElementById('reader') as HTMLElement,
+                  constraints :constraints,
+                  area: {
+                    top: "10%",
+                    right: "10%", 
+                    left: "10%",
+                    bottom: "10%"
                   }
                 },
-                false
-              );
-              html5QrcodeScanner.render(handleScan, handleError);
-              setScanner(html5QrcodeScanner);
+                decoder: {
+                  readers: [
+                    "ean_reader",
+                    "ean_8_reader",
+                    "code_128_reader",
+                    "code_39_reader",
+                    "codabar_reader"
+                  ]
+                },
+                locate: true,
+                locator: {
+                  patchSize: "medium",
+                  halfSample: true
+                },
+                numOfWorkers: SCANNER_CONFIG.workers,
+                frequency: SCANNER_CONFIG.frequency,
+                debug: true
+              }, (err: Error | null) => {
+                if (err) {
+                  console.error('❌ Erreur QuaggaJS:', err);
+                  handleError(err.message);
+                  return;
+                }
+                console.log("✅ QuaggaJS initialisé avec caméra arrière");
+                Quagga.start();
+                setScanner(true);
+              });
+  
+              const onDetected = (result: QuaggaJSResultObject) => {  
+                const code = result.codeResult.code;
+                const confidence = result.codeResult.format;
+                
+                console.log('📱 Code détecté par Quagga:', code, 'Format:', confidence);
+                
+                if (code && code.length >= 5) {
+                  handleScan(code);
+                } else {
+                  console.log('❌ Code ignoré (trop court):', code);
+                }
+              };
+              
+              Quagga.onDetected(onDetected);
+              
+              return () => {
+                console.log('Nettoyage QuaggaJS...');
+                Quagga.offDetected(onDetected as QuaggaJSResultCallbackFunction);
+                Quagga.stop();
+                setScanner(null);
+              };
+              
+            } catch (error) {
+              console.error('❌ Erreur énumération caméras iOS:', error);
+              
+              // Fallback classique si l'énumération échoue
+              Quagga.init({
+                inputStream: {
+                  name: "Live",
+                  type: "LiveStream",
+                  target: document.getElementById('reader') as HTMLElement,
+                  constraints: {
+                    facingMode : 'environment',
+                    width: { ideal: 640 },
+                    height: { ideal: 480 }
+                  }
+                },
+                decoder: {
+                  readers: ["ean_reader", "ean_8_reader", "code_128_reader"]
+                },
+                locate: true,
+                numOfWorkers: SCANNER_CONFIG.workers,
+                frequency: SCANNER_CONFIG.frequency
+              }, (err: Error | null) => {
+                if (err) {
+                  handleError(err.message);
+                  return;
+                }
+                Quagga.start();
+                setScanner(true);
+              });
+              
+              const onDetected = (result: QuaggaJSResultObject) => {  
+                const code = result.codeResult.code;
+                if (code && code.length >= 5) {
+                  handleScan(code);
+                }
+              };
+              Quagga.onDetected(onDetected);
             }
-          };
-          
-          initAndroidScanner();
-          
-        } else {
-          // APPROCHE NORMALE POUR AUTRES PLATEFORMES
-          const initNormalScanner = () => {
-            // Essayer d'abord l'accès forcé à la caméra sur Android
-            forceCameraAccessAndroid().then(() => {
-              if (scannerType === 'html5') {
-          // ANDROID/DESKTOP : html5-qrcode optimisé pour détection
-          const html5QrcodeScanner = new Html5QrcodeScanner(
-            "reader",
-            { 
-              fps: SCANNER_CONFIG.fps,
-              aspectRatio: 1.0, // Ratio carré pour meilleure détection
-              qrbox: { width: 300, height: 300 }, // Zone de scan plus grande
-              videoConstraints: {
-                facingMode: 'environment',
-                width: { ideal: 640, max: 1280 }, // Résolution plus basse = plus stable
-                height: { ideal: 480, max: 720 }
-              },
-              experimentalFeatures: {
-                useBarCodeDetectorIfSupported: true
-              },
-              // Configuration pour meilleure détection
-              showTorchButtonIfSupported: true, // Permettre la torche
-              showZoomSliderIfSupported: true, // Permettre le zoom
-              defaultZoomValueIfSupported: 2, // Zoom par défaut
-              rememberLastUsedCamera: true,
-              useBarCodeDetectorIfSupported: true,
-              // Formats de codes-barres supportés
-            },
-            true // verbose = true pour debug
-          );
-
-          // Rendre le scanner avec gestion d'erreur personnalisée
-          html5QrcodeScanner.render(
-            handleScan, 
-            (error) => {
-              console.error('Erreur de scan HTML5:', error);
-              // Ne pas afficher l'erreur à l'utilisateur, juste logger
-              handleError(error);
-            }
-          );
-          setScanner(html5QrcodeScanner);
-
-          return () => {
-            if (html5QrcodeScanner) {
-              html5QrcodeScanner.clear();
-            }
-          };
-        } else {
-          // IOS : QuaggaJS optimisé pour détection
-          console.log('🚀 Initialisation QuaggaJS optimisée...');
-          Quagga.init({
-            inputStream: {
-              name: "Live",
-              type: "LiveStream",
-              target: document.getElementById('reader') as HTMLElement,
-              constraints: {
-                width: { min: 320, ideal: 640, max: 1280 }, // Résolution plus basse
-                height: { min: 240, ideal: 480, max: 720 },
-                facingMode: "environment",
-                frameRate: { ideal: SCANNER_CONFIG.fps, max: 30 } // FPS stable
-              },
-              area: { // Zone de scan plus grande pour meilleure détection
-                top: "10%",
-                right: "10%", 
-                left: "10%",
-                bottom: "10%"
-              }
-            },
-            decoder: {
-              readers: [
-                "ean_reader", // ISBN-13 et EAN-13
-                "ean_8_reader", // EAN-8
-                "code_128_reader", // Codes-barres 128
-                "code_39_reader", // Code 39
-                "codabar_reader" // Codabar
-              ] // Plus de formats supportés
-            },
-            locate: true,
-            locator: {
-              patchSize: "medium", // Taille moyenne pour meilleure détection
-              halfSample: true // Activé pour performance
-            },
-            numOfWorkers: SCANNER_CONFIG.workers,
-            frequency: SCANNER_CONFIG.frequency,
-            debug: true // Debug activé pour diagnostic
-          }, (err: Error | null) => {
-            if (err) {
-              handleError(err.message);
-              return;
-            }
-            console.log("✅ QuaggaJS initialisé avec succès");
-            Quagga.start();
-            setScanner(true);
-          });
-
-          const onDetected = (result: QuaggaJSResultObject) => {  
-            const code = result.codeResult.code;
-            const confidence = result.codeResult.format;
-            
-            console.log('📱 Code détecté par Quagga:', code, 'Format:', confidence);
-            
-            // Filtrage plus souple - accepter plus de codes
-            if (code && code.length >= 5) { // Accepter des codes plus courts
-              handleScan(code);
-            } else {
-              console.log('❌ Code ignoré (trop court):', code);
-            }
-          };
-          Quagga.onDetected(onDetected);
-          return () => {
-            console.log('Nettoyage QuaggaJS...');
-            Quagga.offDetected(onDetected as QuaggaJSResultCallbackFunction);
-            Quagga.stop();
-            setScanner(null);
-          };
-        }
-            });
-          };
-          
-          // Appeler la fonction d'initialisation normale  
-          initNormalScanner();
-        }
+          }
+        };
+        
+        // Appeler la fonction d'initialisation normale  
+        initNormalScanner();
       }
-    }, [scannerOpened, scannerReady, scannerType]);
+    }
+  }, [scannerOpened, scannerReady, scannerType]);
   /* fin scan */
 
     // Nettoyage quand le scanner se ferme
@@ -992,6 +1216,13 @@ interface BarcodeDetectorInterface {
       }
     }, [scannerOpened]);
 
+    // Charger le panier API à l'ouverture du modal Panier
+    useEffect(() => {
+      if (panierOpened && user) {
+        fetchPanierApi();
+      }
+    }, [panierOpened]);
+
     useEffect(() => {
       async function fetchInventaire() {
         try {
@@ -1009,7 +1240,7 @@ interface BarcodeDetectorInterface {
 
     // Fonction pour afficher les détails du livre
     const detailvre = (isbn: string) => {
-      const livre = inventaire.find(item => item.isbn.toString() === isbn);
+      const livre = inventaire.find(item => String(item.isbn || '') === isbn.trim());
       if (livre) {
         setSelectedLivre(livre);
         setDetailOpened(true);
@@ -1064,7 +1295,15 @@ interface BarcodeDetectorInterface {
       }
     };
 
-    const ajouterCommande = async (livre: InventaireItem, quantite: number, prixFinal?: number) => {
+    const ajouterCommande = async (livre: InventaireItem, quantite: number, prixFinal?: number, transactionInfo?: {
+      transaction_id: string;
+      prix_original_unitaire: number;
+      reduction_appliquee: number;
+      type_reduction: 'euros' | 'pourcentage';
+      valeur_reduction: number;
+      total_transaction_original: number;
+      total_transaction_final: number;
+    }) => {
       if (!user) {
         alert("Utilisateur non connecté !");
         return;
@@ -1080,7 +1319,8 @@ interface BarcodeDetectorInterface {
             user_id: user.id,
             vendeur: user.name,
             title: livre.title,
-            prix_final: prixFinal || (livre.price * quantite), // Utiliser le prix avec réduction ou le prix normal
+            prix_final: prixFinal || (livre.price * quantite),
+            transactionInfo: transactionInfo || undefined // <-- tout l'objet groupé ici
           }),
         });
 
@@ -1331,7 +1571,7 @@ interface BarcodeDetectorInterface {
             >
               <span>🛒</span>
               <div className={stylesCommande.featureIconLabel}>Panier</div>
-              {panier.length > 0 && (
+              {panierApiItems.length > 0 && (
                 <div style={{
                   position: 'absolute',
                   top: '-5px',
@@ -1347,7 +1587,7 @@ interface BarcodeDetectorInterface {
                   fontSize: '12px',
                   fontWeight: 'bold'
                 }}>
-                  {panier.length}
+                  {panierApiItems.length}
                 </div>
               )}
             </div>
@@ -1383,37 +1623,6 @@ interface BarcodeDetectorInterface {
           </Center>
         
         </div>
-    
-        {/* Liste des livres */}
-        {/*
-        <div className={stylesCommande.transactionsList}>
-          {loading ? (
-            <Center>
-              <Loader />
-            </Center>
-          ) : (
-            filteredInventaire.map((item) => (
-              <div key={item.id} onClick={() => detailvre(item.isbn.toString())} className={stylesCommande.transaction}>
-                <div className={stylesCommande.transactionIcon}>{item.livre?.image ? <img src={item.livre.image} alt="Livre" style={{  width: '30px', height: '30px' }} /> : '📚'}</div>
-                <div className={stylesCommande.transactionInfo}>
-                  <div className={stylesCommande.transactionTitle}>{item.title}</div>
-                  <div className={stylesCommande.transactionTime}>
-                    👤 {item.author} | 📖 ISBN: {item.isbn}
-                  </div>
-                </div>
-                <div className={stylesCommande.transactionAmount}>
-                  <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                    {item.quantite}x
-                  </div>
-                  <div style={{ fontSize: '12px', color: '#666' }}>
-                    {item.price}€
-                  </div>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-  */}
         {/* Scanner en DIV plein écran */}
         {scannerOpened && (
           <div className={styles.scannerFullScreen}>
@@ -1424,10 +1633,22 @@ interface BarcodeDetectorInterface {
                 100% { opacity: 1; }
               }
             `}</style>
-            {/* Header avec bouton fermer */}
+            {/* Header avec bouton fermer + bouton caméra arrière */}
             <div className={styles.scannerHeader}>
               <div onClick={() => setScannerOpened(false)} className={styles.scannerCloseButton} style={{ marginTop: '100px' }}>
                 ✕ Fermer
+              </div>
+              <div style={{ position: 'absolute', top: '20px', right: '20px', display: 'flex', gap: '8px' }}>
+                <Button size="xs" variant={preferBack ? 'filled' : 'outline'} color="blue"
+                  onClick={() => {
+                    setPreferBack(prev => !prev);
+                    console.log('🎯 Préférence caméra arrière:', !preferBack);
+                    // relancer le scanner pour appliquer la préférence
+                    setScannerOpened(false);
+                    setTimeout(() => setScannerOpened(true), 50);
+                  }}>
+                  {preferBack ? '📷 Arrière ON' : '📷 Arrière OFF'}
+                </Button>
               </div>
             </div>
             
@@ -1584,9 +1805,7 @@ interface BarcodeDetectorInterface {
                       }}
                     >
                         ✅ {scannedCodes.length > 1 ? "VALIDER TOUS LES CODES" : "VALIDER LE CODE"}
-                      
                     </Button>
-
                     <Button
                       size="xs"
                       variant="outline"
@@ -1653,7 +1872,7 @@ interface BarcodeDetectorInterface {
           } : undefined}
         >
           {(() => {
-            const livre = inventaire.find(item => item.isbn.toString() === isbn.trim());
+            const livre = inventaire.find(item => String(item.isbn || '') === isbn.trim());
             if (isbn && !livre) {
               // Si le livre n'est pas en stock, afficher le formulaire d'ajout
               return (
@@ -1711,6 +1930,7 @@ interface BarcodeDetectorInterface {
                       const quantiteAAjouter = Number((document.getElementById('quantite') as HTMLInputElement)?.value || 0);
                       
                       if (!title || !author || price <= 0 || quantiteAAjouter <= 0) {
+
                         alert('Veuillez remplir tous les champs correctement');
                         return;
                       }
@@ -1795,6 +2015,18 @@ interface BarcodeDetectorInterface {
                       ) : (
                       <Button onClick={() => {
                          ajouterAuPanier(livre, supprimer);
+                         // Décrémentation locale du stock dans la modale (sans toucher la base)
+                         setInventaire(prev => prev.map(item => {
+                           if (item.id === livre.id) {
+                             const nouvelleQuantite = Math.max(0, (item.quantite || 0) - (supprimer || 1));
+                             return { ...item, quantite: nouvelleQuantite };
+                           }
+                           return item;
+                         }));
+                         // Réajuster la quantité à retirer si elle dépasse le nouveau stock
+                         if (supprimer > Math.max(0, (livre.quantite || 0) - (supprimer || 1))) {
+                           setSupprimer(1);
+                         }
                       }}>
                         Ajouter au panier
                     </Button>
@@ -1885,32 +2117,47 @@ interface BarcodeDetectorInterface {
               </div>
 
               {/* Boutons d'action */}
-              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '15px' }}>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '15px', alignItems: 'center' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Text size="sm">Quantité:</Text>
+                  <input 
+                    type="number" 
+                    min={1}
+                    value={quantitePanier}
+                    onChange={(e) => setQuantitePanier(Math.max(1, Number(e.target.value) || 1))}
+                    style={{ width: '70px', padding: '6px 8px', borderRadius: 6, border: '1px solid #ddd' }}
+                  />
+                </div>
                 <Button 
                   size="sm"
                   color="blue" 
                   onClick={() => {
-                    ajouterAuPanier(selectedLivre);
+                    setDetailOpened(false);
+                    setPanierOpened(true);
+                    ajouterAuPanier(selectedLivre, quantitePanier);
                   }}
                 >
                   panier
                 </Button>
-                  <Button onClick={() => {
-                    reserverLivre(selectedLivre);
-                  }}>Reserver</Button>
+                <Button onClick={() => {
+                  reserverLivre(selectedLivre);
+                }}>Reserver</Button>
               </div>
             </div>
           )}
         </Modal>
-          {/* Modale du panier des livres a vendre */}
           <Modal 
             opened={panierOpened} 
             onClose={() => setPanierOpened(false)} 
-            title={`📋 Panier des livres à vendre (${panier.length})`}
+            title={`📋 Panier (${panierApiItems.length})`}
             centered 
             size="xl"
           >
-            {panier.length === 0 ? (
+            {panierApiLoading ? (
+              <div style={{ textAlign: 'center', padding: '40px' }}>
+                <Text size="sm" c="dimmed">Chargement du panier...</Text>
+              </div>
+            ) : panierApiItems.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '40px' }}>
                 <Text size="lg" c="dimmed" mb="md">
                   🛒 Votre panier est vide
@@ -1923,9 +2170,9 @@ interface BarcodeDetectorInterface {
               <>
                 {/* Liste des livres dans le panier */}
                 <div style={{ maxHeight: '400px', overflowY: 'auto', marginBottom: '20px' }}>
-                  {panier.map((livre, index) => (
+                  {panierApiItems.map((item, index) => (
                     <div 
-                      key={`${livre.id}-${index}`} 
+                      key={`${item.id}-${index}`} 
                       style={{ 
                         display: 'flex', 
                         justifyContent: 'space-between', 
@@ -1939,26 +2186,22 @@ interface BarcodeDetectorInterface {
                     >
                       <div style={{ flex: 1 }}>
                         <Text size="md" fw={600} mb="xs">
-                          📚 {livre.title}
+                          📚 {item.livre?.title || 'Titre inconnu'}
                         </Text>
                         <Text size="sm" c="dimmed" mb="xs">
-                          👤 {livre.author}
+                          👤 {item.livre?.author || 'Auteur inconnu'}
                         </Text>
                         <Text size="sm" c="blue">
-                          📖 ISBN: {livre.isbn} | 💰 {livre.price}€
+                          📖 ISBN: {item.livre?.isbn ?? 'N/A'} | 💰 {item.inventaire?.price ?? 'N/A'}€
                         </Text>
                       </div>
-                      <Button
-                        size="sm"
-                        color="red"
-                        variant="outline"
-                        onClick={() => supprimerDuPanier(livre)}
-                        style={{ marginLeft: '10px' }}
-                      >
-                        🗑️ Supprimer
-                      </Button>
+                      <div>
+                        <Text size="sm" fw={600}>x{item.quantity}</Text>
+                        <Button onClick={() => supprimerDuPanier(item.id)} style={{ marginLeft: '10px' }}>Supprimer</Button>
+                      </div>
                     </div>
                   ))}
+              
                 </div>
 
                 {/* Résumé du panier */}
@@ -1972,10 +2215,10 @@ interface BarcodeDetectorInterface {
                     📊 Résumé du panier
                   </Text>
                   <Text size="md" mb="xs">
-                    📚 Nombre de livres: {panier.length}
+                    📚 Nombre de lignes: {panierApiItems.length}
                   </Text>
                   <Text size="md" fw={600} c="green">
-                    💰 Total: {panier.reduce((total, livre) => total + livre.price, 0).toFixed(2)}€
+                    💰 Total: {panierApiItems.reduce((total, item) => total + (item.inventaire?.price || 0) * (item.quantity || 1), 0).toFixed(2)}€
                   </Text>
                 </div>
 
@@ -1997,17 +2240,13 @@ interface BarcodeDetectorInterface {
                       A.Manuel
                     </Button>
                     <Button  color="green" onClick={() => {
-                      // Configurer pour la vente du panier
-                      setModeModal('vente');
-                      setLivreEnVente(panier[0]); // Prendre le premier livre comme référence
-                      setQuantiteVente(panier.length); // Quantité = nombre de livres dans le panier
-                      setValeurReduction(0);
-                      setTypeReduction('euros');
-                      setReductionOpened(true);
+                      // Fermer la modale du panier et ouvrir la confirmation de réduction
+                      setPanierOpened(false);
+                      setConfirmReductionOpened(true);
                     }} style={{marginLeft: '10px'}}>
                       Vendre
                     </Button>
-                    <Button style={{marginLeft: '10px'}} onClick={() => { setScannerOpened(true); setPanierOpened(false); setVenteOpened(false) }}>Scanner</Button>
+                    <Button style={{marginLeft: '10px'}} onClick={() => { setScannerOpened(true); setPanierOpened(false); setVenteOpened(false); setFormOpened(false) }}>Scanner</Button>
                   </Center>
                  </div>
               </>
@@ -2122,7 +2361,7 @@ interface BarcodeDetectorInterface {
             <TextInput
               placeholder="🔍 Rechercher un livre par titre, auteur ou ISBN..."
               value={search}
-              onChange={(e) => setSearch(e.currentTarget.value)}
+              onChange={(e) => { setSearch(e.currentTarget.value); setPage(1); }}
               onKeyDown={(e) => {
                 if (e.key === 'Enter' || e.key === 'Escape') {
                   e.currentTarget.blur(); // Désactive le clavier
@@ -2230,19 +2469,19 @@ interface BarcodeDetectorInterface {
           </div>
 
           <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
-            {inventaire.length === 0 ? (
-              <Text c="dimmed" ta="center" py="xl">
-                Aucun livre en stock
-              </Text>
+            {livresLoading ? (
+              <Text c="dimmed" ta="center" py="xl">Chargement...</Text>
+            ) : livres.length === 0 ? (
+              <Text c="dimmed" ta="center" py="xl">Aucun livre en stock</Text>
             ) : (
               <div className={stylesCommande.transactionsList}>
-                {inventaire.filter(item => 
+                {livres.filter(item => 
                   item.title.toLowerCase().includes(search.toLowerCase()) ||
                   item.author.toLowerCase().includes(search.toLowerCase()) ||
-                  item.isbn.toString().includes(search)
+                  String(item.isbn || '').includes(search)
                 ).map((item) => (
                   <div key={item.id} onClick={() => {
-                    detailvre(item.isbn.toString());
+                    detailvre(String(item.isbn || ''));
                     setVenteOpened(false);
                   }} className={stylesCommande.transaction}>
                     <div className={stylesCommande.transactionIcon}>
@@ -2271,21 +2510,93 @@ interface BarcodeDetectorInterface {
             )}
           </div>
 
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 12 }}>
+            <Pagination value={page} onChange={setPage} total={totalPages} siblings={2} boundaries={1} />
+          </div>
+
           <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-            <Text size="sm" c="dimmed">
-              💡 Cliquez sur un livre pour voir ses détails et le vendre
-            </Text>
+            <Text size="sm" c="dimmed">💡 Cliquez sur un livre pour voir ses détails et le vendre</Text>
           </div>
         </Modal>
 
-        {/* Modale de réduction */}
+        {/* Modale de confirmation de réduction */}
         <Modal 
-          opened={reductionOpened} 
-          onClose={() => setReductionOpened(false)} 
-          title={modeModal === 'reservation' ? "📅 Réserver des livres" : "💰 Appliquer une réduction"} 
+          opened={confirmReductionOpened} 
+          onClose={() => setConfirmReductionOpened(false)} 
+          title="🏷️ Appliquer une réduction ?" 
           centered 
           size="sm"
         >
+          <div style={{ padding: '20px', textAlign: 'center' }}>
+            <Text size="lg" fw={600} mb="xl">
+              Voulez-vous appliquer une réduction à cette vente ?
+            </Text>
+            
+            <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
+              <Button
+                size="lg"
+                color="green"
+                variant="filled"
+                onClick={() => {
+                  setConfirmReductionOpened(false);
+                  // Vérifier s'il y a des articles dans le panier
+                  if (panierApiItems.length > 0) {
+                    // Vente du panier avec réduction
+                    setModeModal('vente');
+                    setLivreEnVente(panierApiItems[0]?.livre ? {
+                      id: panierApiItems[0].livre.id,
+                      livre_id: panierApiItems[0].livre.id,
+                      title: panierApiItems[0].livre.title,
+                      author: panierApiItems[0].livre.author,
+                      quantite: 1,
+                      price: panierApiItems[0].inventaire?.price || 0,
+                      isbn: panierApiItems[0].livre.isbn
+                    } : null);
+                    setQuantiteVente(panierApiItems.length);
+                    setValeurReduction(0);
+                    setTypeReduction('euros');
+                    setReductionOpened(true);
+                  } else {
+                    // Vente individuelle avec réduction - ouvrir d'abord la liste des livres
+                    setVenteOpened(true);
+                  }
+                }}
+                style={{ flex: 1 }}
+              >
+                ✅ Oui, avec réduction
+              </Button>
+              
+              <Button
+                size="lg"
+                color="blue"
+                variant="outline"
+                onClick={() => {
+                  setConfirmReductionOpened(false);
+                  // Vérifier s'il y a des articles dans le panier
+                  if (panierApiItems.length > 0) {
+                    // Vendre directement le panier sans réduction
+                    validerVentePanier();
+                  } else {
+                    // Vendre directement sans réduction - ouvrir la liste des livres
+                    setVenteOpened(true);
+                  }
+                }}
+                style={{ flex: 1 }}
+              >
+                💰 Non, vendre directement
+              </Button>
+            </div>
+            
+            <Text size="sm" c="dimmed" mt="md" style={{ fontStyle: 'italic' }}>
+              💡 {panierApiItems.length > 0 
+                ? `Panier contient ${panierApiItems.length} article(s)` 
+                : 'Vous pourrez sélectionner les livres à vendre dans l\'étape suivante'
+              }
+            </Text>
+          </div>
+        </Modal>
+        {/* Modale de réduction */}
+        <Modal opened={reductionOpened} onClose={() => setReductionOpened(false)}  title={modeModal === 'reservation' ? "📅 Réserver des livres" : "💰 Appliquer une réduction"}  centered  size="sm">
           {livreEnVente && (
             <div style={{ padding: '10px' }}>
               {/* Résumé de la vente */}
@@ -2295,24 +2606,24 @@ interface BarcodeDetectorInterface {
                 borderRadius: '8px', 
                 marginBottom: '20px' 
               }}>
-                {modeModal === 'vente' && panier.length > 0 ? (
+                {modeModal === 'vente' && panierApiItems.length > 0 ? (
                   <>
-                    <Text size="sm" fw={600} mb="xs">🛒 Vente du panier ({panier.length} livre{panier.length > 1 ? 's' : ''})</Text>
+                    <Text size="sm" fw={600} mb="xs">🛒 Vente du panier ({panierApiItems.length} article{panierApiItems.length > 1 ? 's' : ''})</Text>
                     <div style={{ maxHeight: '150px', overflowY: 'auto', marginBottom: '10px' }}>
-                      {panier.map((livre, index) => (
+                      {panierApiItems.map((item, index) => (
                         <div key={index} style={{ 
                           display: 'flex', 
                           justifyContent: 'space-between', 
                           padding: '5px 0',
-                          borderBottom: index < panier.length - 1 ? '1px solid #e0e0e0' : 'none'
+                          borderBottom: index < panierApiItems.length - 1 ? '1px solid #e0e0e0' : 'none'
                         }}>
-                          <Text size="xs" c="dimmed">{livre.title}</Text>
-                          <Text size="xs" c="blue">{livre.price}€</Text>
+                          <Text size="xs" c="dimmed">{item.livre?.title || 'Titre inconnu'} x{item.quantity}</Text>
+                          <Text size="xs" c="blue">{((item.inventaire?.price || 0) * (item.quantity || 1)).toFixed(2)}€</Text>
                         </div>
                       ))}
                     </div>
                     <Text size="sm" fw={600}>
-                      💰 Total: {panier.reduce((total, livre) => total + livre.price, 0).toFixed(2)}€
+                      💰 Total: {panierApiItems.reduce((total, item) => total + (item.inventaire?.price || 0) * (item.quantity || 1), 0).toFixed(2)}€
                     </Text>
                   </>
                 ) : (
@@ -2328,7 +2639,7 @@ interface BarcodeDetectorInterface {
               </div>
 
               {/* Sélection de la quantité */}
-              {modeModal === 'vente' && panier.length > 0 ? (
+              {modeModal === 'vente' && panierApiItems.length > 0 ? (
                 <div style={{ 
                   backgroundColor: '#e3f2fd', 
                   padding: '10px', 
@@ -2336,7 +2647,7 @@ interface BarcodeDetectorInterface {
                   marginBottom: '20px' 
                 }}>
                   <Text size="sm" c="blue" fw={600}>
-                    📚 Quantité fixe: {panier.length} livre{panier.length > 1 ? 's' : ''} (panier)
+                    📚 Quantité fixe: {panierApiItems.reduce((total, item) => total + (item.quantity || 1), 0)} article{panierApiItems.reduce((total, item) => total + (item.quantity || 1), 0) > 1 ? 's' : ''} (panier)
                   </Text>
                 </div>
               ) : (
@@ -2399,8 +2710,8 @@ interface BarcodeDetectorInterface {
                     label={`Valeur de la réduction ${typeReduction === 'euros' ? '(€)' : '(%)'}`}
                     type="number"
                     min={0}
-                    max={typeReduction === 'pourcentage' ? 100 : (modeModal === 'vente' && panier.length > 0 ? 
-                      panier.reduce((total, livre) => total + livre.price, 0) : 
+                    max={typeReduction === 'pourcentage' ? 100 : (modeModal === 'vente' && panierApiItems.length > 0 ? 
+                      panierApiItems.reduce((total, item) => total + ((item.inventaire?.price || 0) * (item.quantity || 1)), 0) : 
                       livreEnVente.price * quantiteVente)}
                     value={valeurReduction}
                     onChange={(e) => setValeurReduction(Number(e.currentTarget.value))}
@@ -2419,7 +2730,7 @@ interface BarcodeDetectorInterface {
                   marginBottom: '20px' 
                 }}>
                   <Text size="sm" fw={600} c="orange">📦 Réservation</Text>
-                  <Text size="sm" c="dimmed">Quantité à bloquer: {quantiteVente} exemplaires</Text>
+                  <Text size="sm" c="dimmed" mb="xs">Quantité à bloquer: {quantiteVente} exemplaires</Text>
                   {dateReservation && (
                     <Text size="sm" c="dimmed">
                       Jusqu&apos;au: {new Date(dateReservation).toLocaleDateString('fr-FR')}
@@ -2437,31 +2748,31 @@ interface BarcodeDetectorInterface {
                   marginBottom: '20px' 
                 }}>
                   <Text size="sm" c="dimmed">
-                    Prix original: {modeModal === 'vente' && panier.length > 0 ? 
-                      panier.reduce((total, livre) => total + livre.price, 0).toFixed(2) : 
+                    Prix original: {modeModal === 'vente' && panierApiItems.length > 0 ? 
+                      (() => {
+                        const resultats = calculerReductionPanier();
+                        return resultats.totalOriginal.toFixed(2);
+                      })() : 
                       (livreEnVente.price * quantiteVente).toFixed(2)}€
                   </Text>
                   {valeurReduction > 0 && (
                     <Text size="sm" c="red">
                       Réduction: -{typeReduction === 'euros' 
                         ? `${valeurReduction.toFixed(2)}€` 
-                        : `${valeurReduction}% (${modeModal === 'vente' && panier.length > 0 ? 
-                          ((panier.reduce((total, livre) => total + livre.price, 0) * valeurReduction) / 100).toFixed(2) :
+                        : `${valeurReduction}% (${modeModal === 'vente' && panierApiItems.length > 0 ? 
+                          (() => {
+                            const resultats = calculerReductionPanier();
+                            return resultats.montantReduction.toFixed(2);
+                          })() :
                           ((livreEnVente.price * quantiteVente * valeurReduction) / 100).toFixed(2)}€)`
                       }
                     </Text>
                   )}
                   <Text size="lg" fw={700} c="green">
-                    💰 Prix final: {modeModal === 'vente' && panier.length > 0 ? 
+                    💰 Prix final: {modeModal === 'vente' && panierApiItems.length > 0 ? 
                       (() => {
-                        const prixTotal = panier.reduce((total, livre) => total + livre.price, 0);
-                        if (valeurReduction === 0) return prixTotal.toFixed(2);
-                        if (typeReduction === 'euros') {
-                          return Math.max(0, prixTotal - valeurReduction).toFixed(2);
-                        } else {
-                          const reduction = (prixTotal * valeurReduction) / 100;
-                          return Math.max(0, prixTotal - reduction).toFixed(2);
-                        }
+                        const resultats = calculerReductionPanier();
+                        return resultats.totalAvecReduction.toFixed(2);
                       })() : 
                       calculerPrixAvecReduction(livreEnVente.price, quantiteVente).toFixed(2)}€
                   </Text>
@@ -2478,27 +2789,32 @@ interface BarcodeDetectorInterface {
                 </Button>
                 <Button
                   color={modeModal === 'reservation' ? 'orange' : (livreEnVente && livreEnVente.quantite <= 0) ? 'blue' : 'green'}
-                  disabled={modeModal === 'vente' ? (() => {
-                    if (modeModal === 'vente' && panier.length > 0) {
-                      // Vérifier que tous les livres du panier sont disponibles
-                      for (const livre of panier) {
-                        if (livre.quantite <= 0) return false; // Permettre la redirection vers ajout de stock
-                        const quantiteReservee = livre.quantite_reservee || 0;
-                        const quantiteDisponible = livre.quantite - quantiteReservee;
-                        if (quantiteDisponible <= 0) return true;
+                    disabled={modeModal === 'vente' ? (() => {
+                      if (modeModal === 'vente' && panierApiItems.length > 0) {
+                        // Vérifier que tous les livres du panier sont disponibles
+                        for (const item of panierApiItems) {
+                          const livre = inventaire.find(inv => inv.livre_id === item.livre?.id);
+                          if (!livre) continue; // Ignorer si livre non trouvé (peut être vendu)
+                          // Si quantité <= 0, permettre la vente (redirection vers ajout de stock)
+                          if (livre.quantite > 0) {
+                            const quantiteReservee = livre.quantite_reservee || 0;
+                            const quantiteDisponible = livre.quantite - quantiteReservee;
+                            if (quantiteDisponible < (item.quantity || 1)) return true; // Désactiver si stock insuffisant
+                          }
+                        }
+                        return false; // Permettre la vente si tous les livres sont OK ou à 0 stock
                       }
-                      return false; // Tous les livres sont disponibles
-                    }
-                    if (!livreEnVente) return true;
-                    if (livreEnVente.quantite <= 0) return false;
-                    const quantiteReservee = livreEnVente.quantite_reservee || 0;
-                    const quantiteDisponible = livreEnVente.quantite - quantiteReservee;
-                    if (quantiteDisponible <= 0) return true;
-                    if (quantiteVente > quantiteDisponible) return true;
-                    return false;
-                  })() : false}
+                      // Pour vente individuelle
+                      if (!livreEnVente) return true;
+                      if (livreEnVente.quantite <= 0) return false; // Permettre (redirection vers ajout de stock)
+                      const quantiteReservee = livreEnVente.quantite_reservee || 0;
+                      const quantiteDisponible = livreEnVente.quantite - quantiteReservee;
+                      if (quantiteDisponible <= 0) return true; // Désactiver si tout est réservé
+                      if (quantiteVente > quantiteDisponible) return true; // Désactiver si quantité demandée > disponible
+                      return false; // Permettre la vente
+                    })() : false}
                   onClick={async () => {
-                    if (modeModal === 'vente' && panier.length > 0) {
+                    if (modeModal === 'vente' && panierApiItems.length > 0) {
                       // Mode vente du panier : utiliser la fonction validerVentePanier
                       await validerVentePanier();
                       setReductionOpened(false);
@@ -2532,12 +2848,23 @@ interface BarcodeDetectorInterface {
                         const prixFinal = calculerPrixAvecReduction(livreEnVente.price, quantiteVente);
                         const prixOriginal = livreEnVente.price * quantiteVente;
                         
+                        // Préparer les informations de transaction pour vente individuelle
+                        const transactionInfo = valeurReduction > 0 ? {
+                          transaction_id: `TXN_${Date.now()}_${user?.id ?? 'unknown'}_INDIVIDUAL`,
+                          prix_original_unitaire: livreEnVente.price,
+                          reduction_appliquee: prixOriginal - prixFinal,
+                          type_reduction: typeReduction,
+                          valeur_reduction: valeurReduction,
+                          total_transaction_original: prixOriginal,
+                          total_transaction_final: prixFinal
+                        } : undefined;
+                        
                         await decrementInventaire(livreEnVente, quantiteVente);
-                        await ajouterCommande(livreEnVente, quantiteVente, prixFinal);
+                        await ajouterCommande(livreEnVente, quantiteVente, prixFinal / quantiteVente, transactionInfo);
                         
                         if (valeurReduction > 0) {
                           const economie = prixOriginal - prixFinal;
-                          alert(`✅ Vente effectuée !\n💰 Prix final: ${prixFinal.toFixed(2)}€\n🎉 Économie: ${economie.toFixed(2)}€`);
+                          alert(`✅ Vente effectuée !\n💰 Prix final: ${prixFinal.toFixed(2)}€\n🎉 Économie: ${economie.toFixed(2)}€${transactionInfo ? `\n🆔 Transaction: ${transactionInfo.transaction_id}` : ''}`);
                         } else {
                           alert(`✅ Vente effectuée pour ${prixFinal.toFixed(2)}€`);
                         }
@@ -2548,7 +2875,7 @@ interface BarcodeDetectorInterface {
                       }
                     }
                   }}
-                  title={modeModal === 'vente' && panier.length > 0 ? 
+                  title={modeModal === 'vente' && panierApiItems.length > 0 ? 
                     "✅ Vendre tous les livres du panier" : 
                     modeModal === 'vente' && livreEnVente ? (() => {
                       if (livreEnVente.quantite <= 0) return "📦 Ajouter ce livre au stock";
@@ -2564,7 +2891,7 @@ interface BarcodeDetectorInterface {
                   style={{ flex: 1 }}
                 >
                    {modeModal === 'reservation' ? '📅 Confirmer la réservation' : 
-                   modeModal === 'vente' && panier.length > 0 ? '🛒 Vendre le panier' :
+                   modeModal === 'vente' && panierApiItems.length > 0 ? '🛒 Vendre le panier' :
                    (livreEnVente && livreEnVente.quantite <= 0) ? '📦 Ajouter au stock' : '✅ Confirmer la vente'}
                 </Button>
               </div>

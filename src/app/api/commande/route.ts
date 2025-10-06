@@ -13,23 +13,50 @@ export async function GET() {
   
 } 
 
-/* delete Quantité inventaire */
+/* Ajouter une commande avec informations de transaction */
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient();
-    const { livre_id, quantite , user_id , vendeur , title, prix_final} = await request.json();
+    const { 
+      livre_id, 
+      quantite, 
+      user_id, 
+      vendeur, 
+      title, 
+      prix_final,
+      transactionInfo
+    } = await request.json();
 
-    const { data } = await supabase.from('commande').insert([{ 
+    // Préparer les données de base
+    const commandeData: any = { 
       livre_id, 
       quantite, 
       user_id, 
       vendeur, 
       title,
       price: prix_final // Le prix avec réduction devient le prix de vente
-    }]).select();
+    };
+
+    // Ajouter les informations de transaction si présentes
+    if (transactionInfo) {
+      commandeData.transaction_id = transactionInfo.transaction_id;
+      commandeData.prix_original_unitaire = transactionInfo.prix_original_unitaire;
+      commandeData.reduction_appliquee = transactionInfo.reduction_appliquee;
+      commandeData.type_reduction = transactionInfo.type_reduction;
+      commandeData.valeur_reduction = transactionInfo.valeur_reduction;
+      commandeData.total_transaction_original = transactionInfo.total_transaction_original;
+      commandeData.total_transaction_final = transactionInfo.total_transaction_final;
+    }
+
+    const { data } = await supabase.from('commande').insert([commandeData]).select();
 
     return new Response(
-      JSON.stringify({ message: 'Quantité mise à jour', produit: data, success: true }),
+      JSON.stringify({ 
+        message: 'Commande ajoutée avec succès', 
+        produit: data, 
+        success: true,
+        transactionInfo: transactionInfo || null
+      }),
       { status: 200 }
     );
   } catch (err: unknown) {

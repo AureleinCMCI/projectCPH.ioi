@@ -15,19 +15,77 @@ type Inventaire = {
 };
 // affiche les infos 
 
-export async function GET() {
+export async function GET(req: Request) {
+  const url = new URL(req.url);
+  const page = Number(url.searchParams.get("page") ?? 1);
+  const pageSize = 20;
+  const from = (page - 1) * pageSize;
+  const to = from + pageSize - 1;
+
   const supabase = createClient();
-
-  // Jointure sur livre_id pour récupérer l'image
-  const { data, error } = await supabase
+  // Run two requests in parallel:
+  // - one to fetch the requested page (with the join to `livre`)
+  // - one lightweight HEAD/count-only request on the base table to get an exact total
+  // This avoids doing a heavy COUNT(*) with joins which can time out on large datasets.
+  // Fetch inventaire rows only (no join) - order by id for stable pagination
+  const dataPromise = supabase
     .from('inventaire')
-    .select('*, livre(id, image)')
+    .select('*')
+    .order('id', { ascending: true })
+    .range(from, to);
 
-  if (error) {
-    return Response.json({ error: error.message }, { status: 400 });
+  const countPromise = supabase
+    .from('inventaire')
+    .select('id', { count: 'exact', head: true });
+
+  const [dataRes, countRes] = await Promise.allSettled([dataPromise, countPromise]);
+
+  let data: any[] = [];
+  let total: number | null = null;
+
+  if (dataRes.status === 'fulfilled') {
+    if (dataRes.value.error) {
+      console.error('Supabase data error:', dataRes.value.error);
+      return Response.json({ error: dataRes.value.error.message }, { status: 400 });
+    }
+    data = dataRes.value.data ?? [];
+  } else {
+    console.error('Error fetching page data:', dataRes.reason);
+    return Response.json({ error: String(dataRes.reason) }, { status: 500 });
   }
 
-  return Response.json({ data });
+  // Fetch related livre images for only the small set of livre_ids returned in this page.
+  try {
+    const livreIds = Array.from(new Set(data.map((row: any) => row.livre_id).filter(Boolean)));
+    if (livreIds.length > 0) {
+      const { data: livresData, error: livresError } = await supabase
+        .from('livre')
+        .select('id, image')
+        .in('id', livreIds);
+
+      if (!livresError && Array.isArray(livresData)) {
+        const imageMap = new Map<number, any>();
+        for (const l of livresData) imageMap.set(l.id, l);
+        // attach livre object with image to each inventaire row
+        data = data.map((row: any) => ({ ...row, livre: imageMap.get(row.livre_id) ?? null }));
+      } else if (livresError) {
+        console.warn('Could not fetch livre images for page:', livresError.message);
+      }
+    }
+  } catch (mergeErr) {
+    console.warn('Error merging livre images:', mergeErr);
+  }
+
+  if (countRes.status === 'fulfilled') {
+    if (!countRes.value.error && typeof countRes.value.count === 'number') {
+      total = Number(countRes.value.count);
+    }
+  } else {
+    console.warn('Count request failed or timed out, continuing without total:', countRes.reason);
+    total = null;
+  }
+
+  return Response.json({ data, page, pageSize, total });
 }
 
 

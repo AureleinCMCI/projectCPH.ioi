@@ -1,0 +1,468 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>L’amour et le pardon de Dieu</title>
+
+<!-- Polices -->
+<link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+
+<style>
+  :root{
+    --accent:#E8B56A;      /* doré chaud */
+    --primary:#0E2940;     /* bleu profond */
+    --muted:#6b7280;
+    --paper:#ffffff;
+  }
+
+  /* Animations compatibles avec tous les navigateurs */
+  @keyframes float {
+    0%, 100% { transform: translateY(0px); }
+    50% { transform: translateY(-8px); }
+  }
+  
+  @keyframes glow {
+    0%, 100% { box-shadow: 0 20px 60px rgba(10,20,40,0.18); }
+    50% { box-shadow: 0 20px 60px rgba(10,20,40,0.18), 0 0 30px rgba(232,181,106,0.3); }
+  }
+  
+  @keyframes shimmer {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(100%); }
+  }
+
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.8; }
+  }
+
+  @keyframes slideIn {
+    from { 
+      opacity: 0; 
+      transform: translateY(20px); 
+    }
+    to { 
+      opacity: 1; 
+      transform: translateY(0); 
+    }
+  }
+
+  /* Support pour les préférences d'accessibilité */
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+    }
+  }
+
+  /* Page / print sizing */
+  html,body{height:100%; margin:0; font-family: 'Inter', system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background: #f0f4f8;}
+  .flyer {
+    width: 900px;                 /* desktop preview */
+    max-width: 95vw;
+    margin: 28px auto;
+    border-radius: 18px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(10,20,40,0.18);
+    background: linear-gradient(180deg, rgba(255,255,255,0.85), rgba(255,255,255,0.75));
+    position: relative;
+    animation: glow 4s ease-in-out infinite, slideIn 1s ease-out;
+  }
+
+  /* Effet de brillance animé */
+  .flyer::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    animation: shimmer 3s infinite;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  /* Decorative background (no external image required) */
+  .hero {
+    min-height: 520px;
+    padding: 48px clamp(20px, 6vw, 60px);
+    display: grid;
+    grid-template-columns: 1fr 360px;
+    gap: 28px;
+    align-items: center;
+    background:
+      radial-gradient(1200px 350px at 10% 20%, rgba(232,181,106,0.12), transparent 12%),
+      radial-gradient(800px 280px at 90% 80%, rgba(14,41,64,0.06), transparent 18%),
+      linear-gradient(160deg, #03a3c6 0%, #1d0be7 35%, #eef6fb 100%);
+    position: relative;
+    overflow: hidden;
+  }
+
+  /* Particules flottantes dans le hero */
+  .hero::after {
+    content: '';
+    position: absolute;
+    top: -50%;
+    left: -50%;
+    width: 200%;
+    height: 200%;
+    background: 
+      radial-gradient(circle at 20% 20%, rgba(255,255,255,0.1) 2px, transparent 2px),
+      radial-gradient(circle at 80% 80%, rgba(255,255,255,0.05) 1px, transparent 1px),
+      radial-gradient(circle at 40% 60%, rgba(255,255,255,0.08) 1.5px, transparent 1.5px);
+    background-size: 100px 100px, 150px 150px, 80px 80px;
+    animation: float 20s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* Subtle golden sunray SVG as overlay (center-left) */
+  .hero::before{
+    content:"";
+    position:absolute;
+    left: -6%;
+    top: -6%;
+    width: 70%;
+    height: 70%;
+    background: radial-gradient(closest-side, rgba(232,181,106,0.16), transparent 45%);
+    filter: blur(46px);
+    transform: rotate(-8deg);
+    pointer-events: none;
+  }
+  p{
+    color: white;
+  }
+  /* Left content avec animation */
+  .content {
+    padding: 26px;
+    align-self: start;
+    position: relative;
+    z-index: 2;
+    animation: slideIn 1s ease-out 0.3s both;
+  }
+  h1 {
+    font-family: 'Playfair Display', serif;
+    font-weight:700;
+    margin:0 0 8px 0;
+    font-size: clamp(28px, 4.4vw, 44px);
+    color: var(--primary);
+    letter-spacing: -0.02em;
+  }
+  h2 {
+    margin: 0 0 18px 0;
+    font-size: clamp(16px, 2.6vw, 20px);
+    color: #ffffff;
+    font-weight:600;
+  }
+  .tagline {
+    color: var(--muted);
+    margin: 8px 0 18px 0;
+    font-size: 15px;
+    line-height:1.5;
+  }
+
+  /* Date card avec animation */
+  .date-card {
+    display:inline-block;
+    background: linear-gradient(180deg,#fff7ed,#fff1df);
+    border-left: 4px solid var(--accent);
+    padding: 14px 18px;
+    border-radius: 12px;
+    font-weight:600;
+    color: #7a4b19;
+    box-shadow: 0 6px 20px rgba(14,41,64,0.06);
+    margin-top: 12px;
+    animation: slideIn 1s ease-out 0.6s both, pulse 3s ease-in-out infinite 2s;
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+  }
+
+  .date-card:hover {
+    transform: translateY(-3px);
+    box-shadow: 0 8px 25px rgba(14,41,64,0.12);
+  }
+
+  /* CTA button avec animations */
+  .cta {
+    display:inline-block;
+    margin-top: 22px;
+    text-decoration:none;
+    padding: 14px 22px;
+    border-radius: 12px;
+    background: linear-gradient(90deg,var(--accent), #f2a84f 60%);
+    color: #071427;
+    font-weight:700;
+    box-shadow: 0 8px 30px rgba(232,181,106,0.2);
+    transition: transform .3s ease, box-shadow .3s ease;
+    animation: slideIn 1s ease-out 0.9s both;
+    position: relative;
+    overflow: hidden;
+  }
+
+  .cta::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,0.3), transparent);
+    transition: left 0.5s ease;
+  }
+
+  .cta:hover { 
+    transform: translateY(-3px); 
+    box-shadow: 0 14px 40px rgba(232,181,106,0.26); 
+  }
+
+  .cta:hover::before {
+    left: 100%;
+  }
+
+  /* Right panel avec animation */
+  .panel {
+    padding: 26px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    position: relative;
+    z-index: 2;
+    animation: slideIn 1s ease-out 0.5s both;
+  }
+  .img-frame{
+    width:100%;
+    border-radius:14px;
+    position:relative;
+    overflow:hidden;
+    min-height: 360px;
+    background: linear-gradient(180deg, rgba(14,41,64,0.06), rgba(14,41,64,0.02));
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    transition: transform 0.3s ease;
+    animation: float 6s ease-in-out infinite 1s;
+  }
+
+  .img-frame:hover {
+    transform: scale(1.02);
+  }
+
+  /* Decorative cross & heart (SVG) in the frame */
+  .img-frame svg{ width: 100%; height: 100%; display:block; object-fit:cover; }
+
+  /* Bottom info bar avec animation */
+  .info-bar{
+    display:flex;
+    gap:18px;
+    align-items:center;
+    justify-content:space-between;
+    padding: 18px 28px;
+    background: linear-gradient(180deg,#ffffff,#fbfdff);
+    border-top: 1px solid rgba(10,20,40,0.04);
+    animation: slideIn 1s ease-out 1.2s both;
+    position: relative;
+    z-index: 2;
+  }
+  .contact {
+    color: var(--muted);
+    font-size: 15px;
+  }
+  .contact strong{ color: var(--primary); font-weight:600; }
+
+  /* Responsive */
+  @media (max-width:900px){
+    .hero{ grid-template-columns: 1fr; padding-bottom: 20px; gap:18px; }
+    .panel{ order:-1; }
+    .img-frame{ min-height: 260px; }
+  }
+
+  /* Optimisations pour l'envoi par email */
+  .email-optimized {
+    /* Assure la compatibilité avec les clients email */
+    -webkit-text-size-adjust: 100%;
+    -ms-text-size-adjust: 100%;
+    mso-table-lspace: 0pt;
+    mso-table-rspace: 0pt;
+  }
+
+  /* Fallbacks pour les clients email qui ne supportent pas les animations */
+  .no-animations * {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  /* Print: A4 friendly */
+  @media print {
+    body{ background: white; }
+    .flyer{ 
+      box-shadow:none; 
+      border-radius:0; 
+      width:210mm; 
+      height:297mm; 
+      max-width:none; 
+      margin:0;
+      animation: none !important;
+    }
+    .hero{ 
+      min-height:240mm; 
+      grid-template-columns:1fr; 
+      padding:36mm;
+      animation: none !important;
+    }
+    .img-frame{ 
+      min-height:110mm;
+      animation: none !important;
+    }
+    .info-bar{ 
+      display:block; 
+      padding:8mm 10mm;
+      animation: none !important;
+    }
+    a.cta{ display:none; } /* hide web button in print */
+    
+    /* Désactive toutes les animations pour l'impression */
+    *, *::before, *::after {
+      animation: none !important;
+      transition: none !important;
+    }
+  }
+</style>
+
+<!-- Script pour optimiser les animations selon l'appareil -->
+<script>
+  // Détection des préférences d'animation et de l'appareil
+  (function() {
+    // Vérifie si l'utilisateur préfère les animations réduites
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    
+    // Détection des appareils mobiles (pour optimiser les performances)
+    const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
+    
+    // Détection des clients email (certains patterns connus)
+    const isEmailClient = /Outlook|Thunderbird|AppleMail|YahooMail/i.test(navigator.userAgent);
+    
+    if (prefersReducedMotion || isMobile || isEmailClient) {
+      document.body.classList.add('no-animations');
+    }
+    
+    // Optimisation pour les appareils mobiles
+    if (isMobile) {
+      document.body.classList.add('mobile-optimized');
+    }
+    
+    // Optimisation pour les clients email
+    if (isEmailClient) {
+      document.body.classList.add('email-optimized');
+    }
+  })();
+</script>
+</head>
+<body class="email-optimized">
+
+<div class="flyer" role="article" aria-label="Flyer conférence l'amour et le pardon de Dieu">
+    <h1 style="text-align: center; margin-top: 25px; margin-bottom:0;">VIEN ET VOIS</h1>
+  <section class="hero">
+    <div class="content">
+
+      <h2>Thème : <em>L’amour et le pardon de Dieu</em></h2>
+
+      <p class="tagline" style="color: white;">
+        Viens et vois : Jésus n’a pas changé. Il est le même hier, aujourd’hui et pour l’éternité — fidèle dans son amour et sa grâce. 
+      </p>
+
+      <div class="date-card" aria-hidden="false">
+        <div><strong>25 octobre 2025</strong></div>
+        <div style="font-weight:500; font-size:13px; margin-top:6px;">Format : En ligne</div>
+      </div>
+
+      <div>
+        <p> Inscris-toi ici:  
+            <br>
+            <br>
+           https://conf-rence-connexcion-invitation-m8gb-m0v844uiy-cph.vercel.app </p>
+            <p>le lien de connexion:
+                <br>
+                <br>
+                https://u-paris.zoom.us/j/85111311152?pwd=bnR3aFVsV3Vkc0RYSnJlRjZqSnUzQT09 </p>
+      </div>
+    </div>
+
+    <aside class="panel" aria-label="Illustration">
+      <figure class="img-frame" aria-hidden="true">
+        <!-- SVG decorative background: halo + cross + heart -->
+        <svg viewBox="0 0 1000 700" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg" role="img" aria-hidden="true">
+          <defs>
+            <radialGradient id="halo" cx="30%" cy="30%" r="55%">
+              <stop offset="0%" stop-color="#fff7ec" stop-opacity="0.9"/>
+              <stop offset="35%" stop-color="#fff1de" stop-opacity="0.65"/>
+              <stop offset="100%" stop-color="#eaf6ff" stop-opacity="0.02"/>
+            </radialGradient>
+            <linearGradient id="soft" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0%" stop-color="#fffaf7" stop-opacity="0.95" />
+              <stop offset="100%" stop-color="#f3f9ff" stop-opacity="0.85" />
+            </linearGradient>
+            <filter id="softBlur">
+              <feGaussianBlur stdDeviation="24" />
+            </filter>
+          </defs>
+
+          <!-- soft glowing background -->
+          <rect width="100%" height="100%" fill="url(#soft)"/>
+          <g transform="translate(0, -20)">
+            <circle cx="220" cy="180" r="220" fill="url(#halo)" filter="url(#softBlur)" />
+            <circle cx="780" cy="520" r="160" fill="#f7f9ff" opacity="0.6" filter="url(#softBlur)" />
+          </g>
+
+          <!-- bokeh animé -->
+          <g opacity="0.18">
+            <circle cx="120" cy="520" r="10" fill="#fff">
+              <animate attributeName="cy" values="520;510;520" dur="3s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="180" cy="430" r="6" fill="#fff">
+              <animate attributeName="cy" values="430;420;430" dur="4s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="840" cy="120" r="8" fill="#fff">
+              <animate attributeName="cy" values="120;110;120" dur="5s" repeatCount="indefinite"/>
+            </circle>
+            <circle cx="600" cy="60" r="5" fill="#fff">
+              <animate attributeName="cy" values="60;50;60" dur="3.5s" repeatCount="indefinite"/>
+            </circle>
+          </g>
+
+          <!-- cross animée -->
+          <g transform="translate(340,140) scale(1)">
+            <rect x="80" y="40" width="40" height="260" rx="8" fill="#ffffff" opacity="0.95">
+              <animate attributeName="opacity" values="0.95;1;0.95" dur="4s" repeatCount="indefinite"/>
+            </rect>
+            <rect x="20" y="120" width="180" height="40" rx="8" fill="#ffffff" opacity="0.95">
+              <animate attributeName="opacity" values="0.95;1;0.95" dur="4s" repeatCount="indefinite" begin="1s"/>
+            </rect>
+            <rect x="76" y="36" width="48" height="268" rx="8" fill="url(#halo)" opacity="0.18" />
+          </g>
+
+          <!-- cœur animé -->
+          <g transform="translate(600,380) scale(0.9)">
+            <path d="M50 90 C20 60, 5 40, 25 20 C45 0, 75 10, 100 35 C125 10, 155 0, 175 20 C195 40, 180 60, 150 90 C120 120, 80 130, 50 90 Z"
+                  fill="#E8B56A" opacity="0.95">
+              <animate attributeName="opacity" values="0.95;1;0.95" dur="3s" repeatCount="indefinite"/>
+            </path>
+            <path d="M50 90 C20 60, 5 40, 25 20 C45 0, 75 10, 100 35 C125 10, 155 0, 175 20 C195 40, 180 60, 150 90 C120 120, 80 130, 50 90 Z"
+                  fill="#fff" opacity="0.06" transform="translate(-4,-6) scale(0.98)"/>
+          </g>
+
+        </svg>
+      </figure>
+    </aside>
+  </section>
+
+  <div class="info-bar">
+    <div class="contact">
+      <div><strong>Contact :</strong> +33 7 49 65 41 74</div>
+    </div>
+
+    <div style="text-align:right; color:var(--muted); font-size:13px;">
+      <div style="font-weight:600; color:var(--primary)">En ligne — 25 octobre 2025</div>
+</body>
+</html>
