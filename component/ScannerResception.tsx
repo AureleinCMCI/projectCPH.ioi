@@ -1,7 +1,7 @@
 'use client';
 
 import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
-import { Button, Center, Loader, Modal, Paper, Text, Textarea, TextInput } from '@mantine/core';
+import { Button, Center, Loader, Modal, Paper, Text, Textarea, TextInput , Pagination } from '@mantine/core';
 import { IconCamera, IconEdit } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
@@ -40,6 +40,11 @@ export default function Resception() {
   
   // États pour la détection des plateformes
   const [isMobile, setIsMobile] = useState(false);
+  const [page, setPage] = useState(1);
+  const [livres, setLivres] = useState<InventaireItem[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const PAGE_SIZE = 20;
+  const [livresLoading, setLivresLoading] = useState(false);
   const [scanner, setScanner] = useState<Html5QrcodeScanner | boolean | null>(null);
   const [scannerType, setScannerType] = useState<'html5' | 'quagga'>('html5');
 
@@ -832,6 +837,51 @@ export default function Resception() {
     fetchData();
   }, []);
 
+  // Récupération paginée des livres pour la modale d'inventaire
+  useEffect(() => {
+    if (!inventaireModalOpened) return;
+    const abort = new AbortController();
+
+    const fetchPage = async () => {
+      try {
+        setLivresLoading(true);
+        const searchParam = search.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
+        const res = await fetch(`/api/inventaire?page=${page}&pageSize=${PAGE_SIZE}${searchParam}`, { signal: abort.signal });
+        if (!res.ok) {
+          console.error('Erreur fetch inventaire page', res.status);
+          setLivres([]);
+          setTotalPages(1);
+          return;
+        }
+        const json = await res.json();
+        const pageSize = Number(json.pageSize ?? PAGE_SIZE);
+        const pageData = Array.isArray(json.data) ? json.data : [];
+
+        setLivres(pageData);
+
+      
+        const total = typeof json.total === 'number' ? Number(json.total) : null;
+        if (total !== null) {
+          setTotalPages(Math.max(1, Math.ceil(total / pageSize)));
+        } else {
+          if (pageData.length < pageSize) {
+            setTotalPages(page);
+          } else {
+            setTotalPages(page + 1);
+          }
+        }
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        console.error('Erreur chargement livres:', err);
+      } finally {
+        setLivresLoading(false);
+      }
+    };
+
+    fetchPage();
+    return () => abort.abort();
+  }, [page, inventaireModalOpened, search]);
+
   // Gestion du formulaire d'ajout
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setFormData({ ...formData, [e.target.name]: e.target.value });
@@ -1067,11 +1117,6 @@ export default function Resception() {
 
 
 
-  const filteredInventaire = inventaire.filter((item) =>
-    (item.title ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (item.author ?? '').toLowerCase().includes(search.toLowerCase())
-  );
-
   const [capturedImage, setCapturedImage] = useState('');
 
   const handleTakePhoto = () => {
@@ -1190,22 +1235,23 @@ export default function Resception() {
             <TextInput
               placeholder="Rechercher un livre..."
               value={search}
-              onChange={(e) => setSearch(e.currentTarget.value)}
+              onChange={(e) => { setSearch(e.currentTarget.value); setPage(1); }}
               className={styles.searchInput}
+              
             />
           </div>
           
           <div className={styles.transactionsList}>
-            {loading ? (
+            {livresLoading ? (
               <Center>
                 <Loader />
               </Center>
-            ) : filteredInventaire.length === 0 ? (
+            ) : livres.length === 0 ? (
               <Center>
                 <Text c="dimmed">Aucun livre trouvé</Text>
               </Center>
             ) : (
-              filteredInventaire.map((item) => (
+              livres.map((item) => (
                 <div 
                   key={item.id} 
                   className={styles.transaction}
@@ -1247,6 +1293,7 @@ export default function Resception() {
             )}
           </div>
         </div>
+        <Pagination value={page} onChange={setPage} total={totalPages} siblings={2} boundaries={1} />
       </Modal>
       {/* Scanner en DIV plein écran - AUCUNE compression */}
       {scannerOpened && (

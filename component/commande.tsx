@@ -1,7 +1,7 @@
 'use client';
 
 import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
-import { Button, Center, Image, Modal, NumberInput, Radio, Table, Text, TextInput,Pagination } from '@mantine/core';
+import { Button, Center, Image, Modal, NumberInput, Pagination, Radio, Table, Text, TextInput } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
@@ -80,11 +80,10 @@ interface BarcodeDetectorInterface {
     const [formOpened, setFormOpened] = useState(false);
     const [isbn, setIsbn] = useState('');
     const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
-  // Pagination côté frontend pour la modale de vente (50 par page)
     const [page, setPage] = useState(1);
     const [livres, setLivres] = useState<InventaireItem[]>([]);
     const [totalPages, setTotalPages] = useState(1);
-  const PAGE_SIZE = 20;
+    const PAGE_SIZE = 20;
     const [livresLoading, setLivresLoading] = useState(false);
     const [supprimer, setSupprimer] = useState<number>(1);
     const [commandeOpened, setCommandeOpened] = useState(false);
@@ -108,19 +107,15 @@ interface BarcodeDetectorInterface {
   
     const [panierApiLoading, setPanierApiLoading] = useState(false);
 
-    // État pour la modale de détails du livre
     const [detailOpened, setDetailOpened] = useState(false);
     const [selectedLivre, setSelectedLivre] = useState<InventaireItem | null>(null);
 
-    // État pour la modale de liste des commandes
     const [listeCommandeOpened, setListeCommandeOpened] = useState(false);
     
-    // État pour la modale de vente
     const [venteOpened, setVenteOpened] = useState(false);
 
-  // Charger une page de livres depuis l'API quand la modale de vente est ouverte
   useEffect(() => {
-    if (!venteOpened) return; // Ne charger que si la modale est ouverte
+    if (!venteOpened) return;
     const abort = new AbortController();
 
     const fetchPage = async () => {
@@ -139,20 +134,19 @@ interface BarcodeDetectorInterface {
 
         setLivres(pageData);
 
-        // If server returned total use it. If not, use heuristic: if returned rows < pageSize => last page.
+      
         const total = typeof json.total === 'number' ? Number(json.total) : null;
         if (total !== null) {
           setTotalPages(Math.max(1, Math.ceil(total / pageSize)));
         } else {
-          // Heuristic fallback: compute pages as current page + 1 if we received a full page, else current page
           if (pageData.length < pageSize) {
             setTotalPages(page);
           } else {
-            setTotalPages(page + 1); // allow user to go to next page; next fetch will clarify
+            setTotalPages(page + 1);
           }
         }
       } catch (err: any) {
-        if (err.name === 'AbortError') return; // ignore abort
+        if (err.name === 'AbortError') return;
         console.error('Erreur chargement livres:', err);
       } finally {
         setLivresLoading(false);
@@ -163,10 +157,8 @@ interface BarcodeDetectorInterface {
     return () => abort.abort();
   }, [page, venteOpened]);
     
-    // État pour la modale de confirmation de réduction
     const [confirmReductionOpened, setConfirmReductionOpened] = useState(false);
     
-    // États pour la modale de réduction
     const [reductionOpened, setReductionOpened] = useState(false);
     const [livreEnVente, setLivreEnVente] = useState<InventaireItem | null>(null);
     const [quantiteVente, setQuantiteVente] = useState(1);
@@ -212,9 +204,9 @@ interface BarcodeDetectorInterface {
           method: 'POST', 
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            user_id: user?.id,                 // l’id de l’utilisateur connecté
-            livre_id: livre.livre_id,          // l’id du livre (pas l’objet complet)
-            quantity: Math.max(1, quantite)    // quantité > 0
+            user_id: user?.id,              
+            livre_id: livre.livre_id,          
+            quantity: Math.max(1, quantite)
           })
         });
         const result = await response.json();
@@ -739,7 +731,7 @@ interface BarcodeDetectorInterface {
 
   // Nouvelle fonction pour calculer la réduction sur le TOTAL du panier
   const calculerReductionPanier = () => {
-    if (!panierApiItems.length || valeurReduction === 0) {
+    if (!panierApiItems.length) {
       return {
         totalOriginal: 0,
         totalAvecReduction: 0,
@@ -753,7 +745,23 @@ interface BarcodeDetectorInterface {
       sum + ((item.inventaire?.price || 0) * (item.quantity || 1)), 0
     );
 
-    // 2. Calculer la réduction totale
+    // 2. Si pas de réduction, retourner le total original
+    if (valeurReduction === 0) {
+      return {
+        totalOriginal,
+        totalAvecReduction: totalOriginal,
+        montantReduction: 0,
+        itemsAvecReduction: panierApiItems.map(item => ({
+          ...item,
+          prixOriginal: (item.inventaire?.price || 0) * (item.quantity || 1),
+          reductionAppliquee: 0,
+          prixFinal: (item.inventaire?.price || 0) * (item.quantity || 1),
+          prixUnitaireFinal: item.inventaire?.price || 0
+        }))
+      };
+    }
+
+    // 3. Calculer la réduction totale
     let montantReduction = 0;
     if (typeReduction === 'euros') {
       montantReduction = Math.min(valeurReduction, totalOriginal); // Ne pas dépasser le total
@@ -761,10 +769,10 @@ interface BarcodeDetectorInterface {
       montantReduction = (totalOriginal * valeurReduction) / 100;
     }
 
-    // 3. Calculer le total après réduction
+    // 4. Calculer le total après réduction
     const totalAvecReduction = Math.max(0, totalOriginal - montantReduction);
 
-    // 4. Répartir la réduction proportionnellement sur chaque article
+    // 5. Répartir la réduction proportionnellement sur chaque article
     const itemsAvecReduction = panierApiItems.map(item => {
       const prixOriginalItem = (item.inventaire?.price || 0) * (item.quantity || 1);
       const proportionItem = totalOriginal > 0 ? prixOriginalItem / totalOriginal : 0;
@@ -1337,7 +1345,7 @@ interface BarcodeDetectorInterface {
       }
     };
 
-    const validateAllScannedCodes = () => {
+  const validateAllScannedCodes = async () => {
       console.log('🔍 Vérification de tous les codes scannés...', scannedCodes);
       
       // Vérifier TOUS les ISBNs pour trouver le livre
@@ -1358,16 +1366,44 @@ interface BarcodeDetectorInterface {
         }
       }
       
-      // Si on a trouvé un ISBN, chercher le livre correspondant
+      // Si on a trouvé un ISBN, chercher le livre correspondant localement
       if (isbnTrouve) {
-        console.log(`�� Recherche du livre pour l'ISBN: ${isbnTrouve.isbn}`);
+        console.log(`🔎 Recherche du livre pour l'ISBN: ${isbnTrouve.isbn}`);
         const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
-        
+
         if (livre) {
-          console.log(`✅ Livre trouvé: ${livre.title}`);
+          console.log(`✅ Livre trouvé localement: ${livre.title}`);
           livreFound = livre;
         } else {
-          console.log(`❌ ISBN trouvé mais livre non en stock: ${isbnTrouve.isbn}`);
+          console.log(`ℹ️ ISBN trouvé mais pas dans l'inventaire chargé; vérification serveur...`);
+          try {
+            // Essayer lookup par livre_id en privilégiant l'id si disponible
+            const lookupRes = await fetch(`/api/inventaire?livre_id=${isbnTrouve.livre_id}`);
+            if (lookupRes.ok) {
+              const lookupJson = await lookupRes.json();
+              if (lookupJson && lookupJson.data) {
+                console.log('✅ Livre trouvé via serveur:', lookupJson.data.title || lookupJson.data);
+                // Ajouter localement l'entrée à l'inventaire si elle n'existe pas encore
+                const serveurLivre = lookupJson.data as InventaireItem;
+                setInventaire(prev => {
+                  try {
+                    const exists = prev.some(p => p.livre_id === serveurLivre.livre_id || p.id === serveurLivre.id);
+                    if (exists) return prev;
+                    return [serveurLivre, ...prev];
+                  } catch (_) {
+                    return prev;
+                  }
+                });
+                livreFound = serveurLivre;
+              } else {
+                console.log('❌ Aucun livre trouvé côté serveur pour ce livre_id');
+              }
+            } else {
+              console.warn('Recherche serveur non OK', lookupRes.status);
+            }
+          } catch (err) {
+            console.error('Erreur lors du lookup serveur:', err);
+          }
         }
       } else {
         console.log(`❌ Aucun ISBN valide trouvé dans les codes scannés`);
@@ -1873,94 +1909,6 @@ interface BarcodeDetectorInterface {
         >
           {(() => {
             const livre = inventaire.find(item => String(item.isbn || '') === isbn.trim());
-            if (isbn && !livre) {
-              // Si le livre n'est pas en stock, afficher le formulaire d'ajout
-              return (
-                <div style={{ width: 400, maxWidth: '80vw', margin: '0 auto' }}>
-                  <Text color="orange" ta="center" size="lg" mb="xl">
-                    📚 Livre non en stock - Ajouter à l&apos;inventaire
-                  </Text>
-                  
-                  <TextInput 
-                    label="ISBN" 
-                    value={isbn}
-                    readOnly 
-                    mb="sm"
-                  />
-                  
-                  <TextInput 
-                    label="Titre du livre" 
-                    placeholder="Saisir le titre"
-                    mb="sm"
-                    id="title"
-                  />
-                  
-                  <TextInput 
-                    label="Auteur" 
-                    placeholder="Saisir l'auteur"
-                    mb="sm"
-                    id="author"
-                  />
-                  
-                  <TextInput 
-                    label="Prix" 
-                    type="number"
-                    placeholder="Prix en euros"
-                    mb="sm"
-                    id="price"
-                  />
-                  
-                  <TextInput 
-                    label="Quantité à ajouter" 
-                    type="number"
-                    min={1}
-                    placeholder="Nombre d'exemplaires"
-                    mb="md"
-                    id="quantite"
-                  />
-                  
-                  <Button
-                    color="green"
-                    fullWidth
-                    onClick={async () => {
-                      // Récupérer les valeurs des champs
-                      const title = (document.getElementById('title') as HTMLInputElement)?.value || '';
-                      const author = (document.getElementById('author') as HTMLInputElement)?.value || '';
-                      const price = Number((document.getElementById('price') as HTMLInputElement)?.value || 0);
-                      const quantiteAAjouter = Number((document.getElementById('quantite') as HTMLInputElement)?.value || 0);
-                      
-                      if (!title || !author || price <= 0 || quantiteAAjouter <= 0) {
-
-                        alert('Veuillez remplir tous les champs correctement');
-                        return;
-                      }
-                      
-                      // Créer un objet livre temporaire pour incrementInventaire
-                      const nouveauLivre: InventaireItem = {
-                        id: 0, // ID temporaire
-                        livre_id: 0, // Sera défini par l'API
-                        title: title,
-                        author: author,
-                        quantite: 0, // Quantité actuelle
-                        price: price,
-                        isbn: Number(isbn)
-                      };
-                      
-                      try {
-                        await incrementInventaire(nouveauLivre, quantiteAAjouter);
-                        setFormOpened(false);
-                        alert('Livre ajouté avec succès à l\'inventaire !');
-                      } catch (error) {
-                        console.error('Erreur lors de l\'ajout:', error);
-                        alert('Erreur lors de l\'ajout du livre');
-                      }
-                    }}
-                  >
-                    ✅ Ajouter à l&apos;inventaire
-                  </Button>
-                </div>
-              );
-            }
             if (livre) {
               return (
                 <div className={isMobile ? styles.iosModalContent : ''} style={{ width: 400, maxWidth: '80vw', margin: '0 auto' , height: '100%' }}>
@@ -2027,26 +1975,14 @@ interface BarcodeDetectorInterface {
                          if (supprimer > Math.max(0, (livre.quantite || 0) - (supprimer || 1))) {
                            setSupprimer(1);
                          }
+                          setFormOpened(false);
+                          setPanierOpened(true);
                       }}>
                         Ajouter au panier
                     </Button>
                     )}
                   <Center>
-                  
-                      {/* <Button style={{ marginRight: '10px' }}
-                      onClick={() => {
-                        if (livre.quantite === 0) {
-                            alert("Le livre n'est pas en stock");
-                            localStorage.setItem('autoOpenForm', 'true');
-                            localStorage.setItem('returnToCommande', 'true');
-                            localStorage.setItem('scannedIsbns', JSON.stringify(scannedCodes));
-                            window.location.href = '/inventaire/ScannerResception';
-                        } else {
-                          ajouterAuPanier(livre,supprimer);
-                        }
-                      }}>
-                        Ajouter au panier
-                      </Button> */}
+
                       <Button onClick={() => {
                         reserverLivre(livre);
                       }}>Reserver</Button>
@@ -2128,23 +2064,27 @@ interface BarcodeDetectorInterface {
                     style={{ width: '70px', padding: '6px 8px', borderRadius: 6, border: '1px solid #ddd' }}
                   />
                 </div>
-                <Button 
-                  size="sm"
-                  color="blue" 
-                  onClick={() => {
-                    setDetailOpened(false);
-                    setPanierOpened(true);
-                    ajouterAuPanier(selectedLivre, quantitePanier);
-                  }}
-                >
-                  panier
-                </Button>
-                <Button onClick={() => {
-                  reserverLivre(selectedLivre);
-                }}>Reserver</Button>
+              <div>
+                <Center>
+                  <Button 
+                    size="m"
+                    color="blue" 
+                    onClick={() => {
+                      setDetailOpened(false);
+                      setPanierOpened(true);
+                      ajouterAuPanier(selectedLivre, quantitePanier);
+                    }}
+                  >
+                    panier
+                  </Button>
+                  <Button onClick={() => {
+                    reserverLivre(selectedLivre);
+                  }}>Reserver</Button>
+                </Center>
               </div>
             </div>
-          )}
+          </div>
+        )}
         </Modal>
           <Modal 
             opened={panierOpened} 
@@ -2354,8 +2294,8 @@ interface BarcodeDetectorInterface {
           onClose={() => setListeCommandeOpened(false)} 
           title="📚 Liste des livres disponibles à la vente" 
           centered 
-          size="xl"
-        >
+          size="xl">
+            
                 {/*bar de recherche */}
           <div style={{ marginBottom: '20px' }}>
             <TextInput
@@ -2571,18 +2511,22 @@ interface BarcodeDetectorInterface {
                 color="blue"
                 variant="outline"
                 onClick={() => {
+                  // Fermer la confirmation
                   setConfirmReductionOpened(false);
-                  // Vérifier s'il y a des articles dans le panier
+
+                  // Si le panier contient des articles, vendre directement sans réduction
                   if (panierApiItems.length > 0) {
-                    // Vendre directement le panier sans réduction
+                    // S'assurer qu'aucune réduction n'est appliquée pour cette vente
+                    setValeurReduction(0);
+                    setTypeReduction('euros');
+                    // Lancer la validation du panier (vente)
                     validerVentePanier();
                   } else {
-                    // Vendre directement sans réduction - ouvrir la liste des livres
+                    // Sinon, ouvrir la liste des livres pour vente individuelle
                     setVenteOpened(true);
                   }
                 }}
-                style={{ flex: 1 }}
-              >
+                style={{ flex: 1 }}>
                 💰 Non, vendre directement
               </Button>
             </div>

@@ -17,6 +17,36 @@ type Inventaire = {
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
+  // Quick lookup support: if client asks for a specific livre_id or isbn, return that row (no pagination)
+  const lookupLivreId = url.searchParams.get('livre_id');
+  const lookupIsbn = url.searchParams.get('isbn');
+  if (lookupLivreId || lookupIsbn) {
+    const supabase = createClient();
+    try {
+      if (lookupLivreId) {
+        const livreId = Number(lookupLivreId);
+        const { data, error } = await supabase
+          .from('inventaire')
+          .select('*, livre(id, image)')
+          .eq('livre_id', livreId)
+          .maybeSingle();
+        if (error) return Response.json({ error: error.message }, { status: 400 });
+        return Response.json({ data, found: !!data });
+      }
+      if (lookupIsbn) {
+        const { data, error } = await supabase
+          .from('inventaire')
+          .select('*, livre(id, image)')
+          .eq('isbn', lookupIsbn)
+          .maybeSingle();
+        if (error) return Response.json({ error: error.message }, { status: 400 });
+        return Response.json({ data, found: !!data });
+      }
+    } catch (err: unknown) {
+      console.error('Lookup error:', err);
+      return Response.json({ error: 'Lookup failed' }, { status: 500 });
+    }
+  }
   const page = Number(url.searchParams.get("page") ?? 1);
   const pageSize = 20;
   const from = (page - 1) * pageSize;

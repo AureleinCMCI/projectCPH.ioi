@@ -5,13 +5,12 @@ import { NextRequest } from 'next/server';
 export async function GET() {
   const supabase = createClient();
   const { data, error } = await supabase.from('commande').select('*');
-  
-    if (error) {
+
+  if (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 400 });
   }
-  return new Response(JSON.stringify({ data }), { status:  200 }); 
-  
-} 
+  return new Response(JSON.stringify({ data }), { status:  200 });
+}
 
 /* Ajouter une commande avec informations de transaction */
 export async function POST(request: NextRequest) {
