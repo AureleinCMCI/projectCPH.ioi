@@ -4,6 +4,7 @@ import { NextRequest } from 'next/server';
 // Exemple de typage pour une ligne de la table "inventaire"
 type Inventaire = {
   id?: number; // id généré par la BDD
+  livre_id: number; // référence vers la table livre
   author: string;
   title: string;
   quantite: number;
@@ -99,7 +100,7 @@ export async function GET(req: Request) {
 
   // Fetch related livre images for only the small set of livre_ids returned in this page.
   try {
-    const livreIds = Array.from(new Set(data.map((row: InventaireWithLivre) => row.livre_id).filter(Boolean)));
+    const livreIds: number[] = Array.from(new Set(data.map((row: InventaireWithLivre) => row.livre_id).filter(Boolean)));
     if (livreIds.length > 0) {
       const { data: livresData, error: livresError } = await supabase
         .from('livre')

@@ -44,7 +44,15 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient();
-    const body = await request.json();
+    const body: {
+      livre_id: number;
+      quantite: number;
+      user_id: string;
+      vendeur: string;
+      title: string;
+      prix_final: number;
+      transactionInfo?: TransactionInfo;
+    } = await request.json();
     const { 
       livre_id, 
       quantite, 
@@ -53,14 +61,6 @@ export async function POST(request: NextRequest) {
       title, 
       prix_final,
       transactionInfo
-    }: {
-      livre_id: number;
-      quantite: number;
-      user_id: string;
-      vendeur: string;
-      title: string;
-      prix_final: number;
-      transactionInfo?: TransactionInfo;
     } = body;
 
     // Préparer les données de base

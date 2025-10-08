@@ -72,7 +72,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Récupérer les prix depuis inventaire (price est dans inventaire)
-    const livreIds = (items || [])
+    const livreIds: number[] = (items || [])
       .map((it: PanierItemRaw) => it?.livre?.[0]?.id)
       .filter((v: number | undefined): v is number => typeof v === 'number');
 
@@ -86,7 +86,7 @@ export async function GET(request: NextRequest) {
         .in('livre_id', uniqueIds);
 
       if (!invErr && invRows) {
-        const priceByLivreId = new Map(invRows.map((r: InventaireRow) => [r.livre_id, r.price]));
+        const priceByLivreId = new Map<number, number>(invRows.map((r: InventaireRow) => [r.livre_id, r.price]));
         itemsWithPrice = (items || []).map((it: PanierItemRaw) => ({
           ...it,
           inventaire: { price: priceByLivreId.get(it?.livre?.[0]?.id ?? 0) ?? null },
