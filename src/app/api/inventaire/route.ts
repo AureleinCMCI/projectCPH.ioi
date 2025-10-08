@@ -13,7 +13,20 @@ type Inventaire = {
   date_expiration_reservation?: string;
   date_de_production?: string;
 };
-// affiche les infos 
+
+// Type pour les données d'inventaire avec livre joint
+type InventaireWithLivre = Inventaire & {
+  livre?: {
+    id: number;
+    image?: string;
+  } | null;
+};
+
+// Type pour les données de livre
+type LivreData = {
+  id: number;
+  image?: string;
+}; 
 
 export async function GET(req: Request) {
   const url = new URL(req.url);
@@ -70,7 +83,7 @@ export async function GET(req: Request) {
 
   const [dataRes, countRes] = await Promise.allSettled([dataPromise, countPromise]);
 
-  let data: any[] = [];
+  let data: InventaireWithLivre[] = [];
   let total: number | null = null;
 
   if (dataRes.status === 'fulfilled') {
@@ -78,7 +91,7 @@ export async function GET(req: Request) {
       console.error('Supabase data error:', dataRes.value.error);
       return Response.json({ error: dataRes.value.error.message }, { status: 400 });
     }
-    data = dataRes.value.data ?? [];
+    data = (dataRes.value.data ?? []) as InventaireWithLivre[];
   } else {
     console.error('Error fetching page data:', dataRes.reason);
     return Response.json({ error: String(dataRes.reason) }, { status: 500 });
@@ -86,7 +99,7 @@ export async function GET(req: Request) {
 
   // Fetch related livre images for only the small set of livre_ids returned in this page.
   try {
-    const livreIds = Array.from(new Set(data.map((row: any) => row.livre_id).filter(Boolean)));
+    const livreIds = Array.from(new Set(data.map((row: InventaireWithLivre) => row.livre_id).filter(Boolean)));
     if (livreIds.length > 0) {
       const { data: livresData, error: livresError } = await supabase
         .from('livre')
@@ -94,10 +107,13 @@ export async function GET(req: Request) {
         .in('id', livreIds);
 
       if (!livresError && Array.isArray(livresData)) {
-        const imageMap = new Map<number, any>();
+        const imageMap = new Map<number, LivreData>();
         for (const l of livresData) imageMap.set(l.id, l);
         // attach livre object with image to each inventaire row
-        data = data.map((row: any) => ({ ...row, livre: imageMap.get(row.livre_id) ?? null }));
+        data = data.map((row: InventaireWithLivre) => ({ 
+          ...row, 
+          livre: imageMap.get(row.livre_id) ?? null 
+        }));
       } else if (livresError) {
         console.warn('Could not fetch livre images for page:', livresError.message);
       }

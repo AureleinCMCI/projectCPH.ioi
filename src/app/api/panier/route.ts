@@ -1,6 +1,38 @@
 import { createClient } from '@/lib/supabase/clients';
 import { NextRequest } from 'next/server';
 
+// Types pour les données du panier
+interface LivreInfo {
+  id: number;
+  isbn: string;
+  author: string;
+  title: string;
+}
+
+interface InventaireInfo {
+  price: number | null;
+}
+
+interface PanierItemRaw {
+  id: number;
+  quantity: number;
+  added_at: string;
+  livre: LivreInfo[];
+}
+
+interface PanierItemWithPrice {
+  id: number;
+  quantity: number;
+  added_at: string;
+  livre: LivreInfo[];
+  inventaire: InventaireInfo;
+}
+
+interface InventaireRow {
+  livre_id: number;
+  price: number;
+}
+
 // GET /api/panier?user_id=...
 export async function GET(request: NextRequest) {
   try {
@@ -41,10 +73,10 @@ export async function GET(request: NextRequest) {
 
     // Récupérer les prix depuis inventaire (price est dans inventaire)
     const livreIds = (items || [])
-      .map((it: any) => it?.livre?.id)
-      .filter((v: unknown): v is number => typeof v === 'number');
+      .map((it: PanierItemRaw) => it?.livre?.[0]?.id)
+      .filter((v: number | undefined): v is number => typeof v === 'number');
 
-    let itemsWithPrice = items || [];
+    let itemsWithPrice: PanierItemWithPrice[] = [];
 
     if (livreIds.length > 0) {
       const uniqueIds = Array.from(new Set(livreIds));
@@ -54,12 +86,24 @@ export async function GET(request: NextRequest) {
         .in('livre_id', uniqueIds);
 
       if (!invErr && invRows) {
-        const priceByLivreId = new Map(invRows.map((r: any) => [r.livre_id, r.price]));
-        itemsWithPrice = (items || []).map((it: any) => ({
+        const priceByLivreId = new Map(invRows.map((r: InventaireRow) => [r.livre_id, r.price]));
+        itemsWithPrice = (items || []).map((it: PanierItemRaw) => ({
           ...it,
-          inventaire: { price: priceByLivreId.get(it?.livre?.id) ?? null },
-        }));
+          inventaire: { price: priceByLivreId.get(it?.livre?.[0]?.id ?? 0) ?? null },
+        })) as PanierItemWithPrice[];
+      } else {
+        // Si pas de données d'inventaire, utiliser les items bruts avec prix null
+        itemsWithPrice = (items || []).map((it: PanierItemRaw) => ({
+          ...it,
+          inventaire: { price: null },
+        })) as PanierItemWithPrice[];
       }
+    } else {
+      // Si pas d'IDs de livre, utiliser les items bruts avec prix null
+      itemsWithPrice = (items || []).map((it: PanierItemRaw) => ({
+        ...it,
+        inventaire: { price: null },
+      })) as PanierItemWithPrice[];
     }
 
     return new Response(JSON.stringify({ data: itemsWithPrice }), { status: 200 });

@@ -1973,21 +1973,6 @@ export default function Commande() {
                   <Button
                     onClick={() => {
                       ajouterAuPanier(livre, supprimer);
-                      setInventaire(prev =>
-                        prev.map(item => {
-                          if (item.id === livre.id) {
-                            const nouvelleQuantite = Math.max(0, (item.quantite || 0) - (supprimer || 1));
-                            return { ...item, quantite: nouvelleQuantite };
-                          }
-                          return item;
-                        })
-                      );
-
-                      // Réajuster la quantité à retirer si elle dépasse le nouveau stock
-                      if (supprimer > Math.max(0, (livre.quantite || 0) - (supprimer || 1))) {
-                        setSupprimer(1);
-                      }
-
                       setFormOpened(false);
                       setPanierOpened(true);
                     }}

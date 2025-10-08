@@ -1,6 +1,34 @@
 import { createClient } from '@/lib/supabase/clients';
 import { NextRequest } from 'next/server';
 
+// Interface pour les données de commande
+interface CommandeData {
+  livre_id: number;
+  quantite: number;
+  user_id: string;
+  vendeur: string;
+  title: string;
+  price: number;
+  transaction_id?: string;
+  prix_original_unitaire?: number;
+  reduction_appliquee?: number;
+  type_reduction?: 'euros' | 'pourcentage';
+  valeur_reduction?: number;
+  total_transaction_original?: number;
+  total_transaction_final?: number;
+}
+
+// Interface pour les informations de transaction
+interface TransactionInfo {
+  transaction_id: string;
+  prix_original_unitaire: number;
+  reduction_appliquee: number;
+  type_reduction: 'euros' | 'pourcentage';
+  valeur_reduction: number;
+  total_transaction_original: number;
+  total_transaction_final: number;
+}
+
 
 export async function GET() {
   const supabase = createClient();
@@ -16,6 +44,7 @@ export async function GET() {
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient();
+    const body = await request.json();
     const { 
       livre_id, 
       quantite, 
@@ -24,10 +53,18 @@ export async function POST(request: NextRequest) {
       title, 
       prix_final,
       transactionInfo
-    } = await request.json();
+    }: {
+      livre_id: number;
+      quantite: number;
+      user_id: string;
+      vendeur: string;
+      title: string;
+      prix_final: number;
+      transactionInfo?: TransactionInfo;
+    } = body;
 
     // Préparer les données de base
-    const commandeData: any = { 
+    const commandeData: CommandeData = { 
       livre_id, 
       quantite, 
       user_id, 
