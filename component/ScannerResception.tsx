@@ -90,7 +90,7 @@ export default function Resception() {
     }
   };
 
-  const handleSaveQuantity = async () => {
+  const ModifyQuantity = async () => {
     if (!selectedBook) return;
     
     try {
@@ -423,7 +423,7 @@ export default function Resception() {
 
 
   // Fonction pour vérifier TOUS les codes scannés (méthode améliorée comme dans commande.tsx)
-  const validateAllScannedCodes = () => {
+  const validateAllScannedCodes = async () => {
     console.log('🔍 Vérification de TOUS les codes scannés...', scannedCodes);
     
     // Vérifier TOUS les ISBNs pour trouver le livre
@@ -453,7 +453,35 @@ export default function Resception() {
         console.log(`✅ Livre trouvé: ${livre.title}`);
         livreFound = livre;
       } else {
-        console.log(`❌ ISBN trouvé mais livre non en stock: ${isbnTrouve.isbn}`);
+        console.log(`ℹ️ ISBN trouvé mais pas dans l'inventaire chargé; vérification serveur...`);
+        try {
+          // Essayer lookup par livre_id en privilégiant l'id si disponible
+          const lookupRes = await fetch(`/api/inventaire?livre_id=${isbnTrouve.livre_id}`);
+          if (lookupRes.ok) {
+            const lookupJson = await lookupRes.json();
+            if (lookupJson && lookupJson.data) {
+              console.log('✅ Livre trouvé via serveur:', lookupJson.data.title || lookupJson.data);
+              // Ajouter localement l'entrée à l'inventaire si elle n'existe pas encore
+              const serveurLivre = lookupJson.data as InventaireItem;
+              setInventaire(prev => {
+                try {
+                  const exists = prev.some(p => p.livre_id === serveurLivre.livre_id || p.id === serveurLivre.id);
+                  if (exists) return prev;
+                  return [serveurLivre, ...prev];
+                } catch (_) {
+                  return prev;
+                }
+              });
+              livreFound = serveurLivre;
+            } else {
+              console.log('❌ Aucun livre trouvé côté serveur pour ce livre_id');
+            }
+          } else {
+            console.warn('Recherche serveur non OK', lookupRes.status);
+          }
+        } catch (err) {
+          console.error('Erreur lors du lookup serveur:', err);
+        }
       }
     } else {
       console.log(`❌ Aucun ISBN valide trouvé dans les codes scannés`);
@@ -470,11 +498,13 @@ export default function Resception() {
     // Décider automatiquement
     if (livreFound) {
       // ✅ ISBN trouvé : ouvrir la popup d'incrémentation
+      alert(`✅ Livre trouvé: ${livreFound.title}`);
       setIsbn(livreFound.isbn.toString());
       setQuantiteToAdd(1);
       setTimeout(() => setIncrementModalOpened(true), 500);
     } else {
       // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout avec ISBNs séparés
+      alert('❌ Aucun livre trouvé - ouverture du formulaire d\'ajout');
       setFormData(prev => ({ 
         ...prev, 
         isbn: scannedCodes[0] || '',
@@ -482,6 +512,14 @@ export default function Resception() {
       }));
       setTimeout(() => setFormOpened(true), 500);
     }
+  };
+
+  // Wrapper pour appeler validateAllScannedCodes depuis les event handlers
+  const handleValidateAllScannedCodes = () => {
+    validateAllScannedCodes().catch(error => {
+      console.error('Erreur lors de la validation des codes scannés:', error);
+      alert('❌ Erreur lors de la validation des codes scannés');
+    });
   };
 
 
@@ -1334,7 +1372,7 @@ export default function Resception() {
                     onClick={() => {
                       setShowPopover(false);
                       setScannerOpened(false);
-                      setFormOpened(true);
+                      handleValidateAllScannedCodes();
                     }}
                     color="green"
                     size="sm"
@@ -1407,7 +1445,7 @@ export default function Resception() {
                     <Button 
                       size="sm"
                       color="blue"
-                      onClick={validateAllScannedCodes} // ← Utiliser la fonction qui vérifie TOUS les codes
+                      onClick={handleValidateAllScannedCodes} // ← Utiliser la fonction qui vérifie TOUS les codes
                       style={{ 
                         marginBottom: '8px', 
                         width: '100%',
@@ -1719,7 +1757,7 @@ export default function Resception() {
                 <Button 
                   size="xs" 
                   color="green"
-                  onClick={() => validateAllScannedCodes()}
+                  onClick={() => handleValidateAllScannedCodes()}
                 >
                   ✓ Choisir
                 </Button>
@@ -1921,7 +1959,7 @@ export default function Resception() {
                       size="xs" 
                       variant="filled" 
                       color="green"
-                      onClick={handleSaveQuantity}
+                      onClick={ModifyQuantity}
                     >
                       ✓
                     </Button>
