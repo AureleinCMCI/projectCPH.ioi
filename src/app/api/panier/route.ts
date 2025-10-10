@@ -76,22 +76,41 @@ export async function GET(request: NextRequest) {
       .map((it: PanierItemRaw) => it?.livre?.[0]?.id)
       .filter((v: number | undefined): v is number => typeof v === 'number');
 
+    console.log('🛒 IDs de livres dans le panier:', livreIds);
+
     let itemsWithPrice: PanierItemWithPrice[] = [];
 
     if (livreIds.length > 0) {
       const uniqueIds = Array.from(new Set(livreIds));
+      console.log('🔍 Recherche des prix pour IDs uniques:', uniqueIds);
+
       const { data: invRows, error: invErr } = await supabase
         .from('inventaire')
         .select('livre_id, price')
         .in('livre_id', uniqueIds);
 
+      if (invErr) {
+        console.error('❌ Erreur récupération inventaire:', invErr);
+      }
+
+      console.log('📊 Données inventaire récupérées:', invRows);
+
       if (!invErr && invRows) {
         const priceByLivreId = new Map<number, number>(invRows.map((r: InventaireRow) => [r.livre_id, r.price]));
-        itemsWithPrice = (items || []).map((it: PanierItemRaw) => ({
-          ...it,
-          inventaire: { price: priceByLivreId.get(it?.livre?.[0]?.id ?? 0) ?? null },
-        })) as PanierItemWithPrice[];
+        console.log('💰 Map des prix:', Object.fromEntries(priceByLivreId));
+
+        itemsWithPrice = (items || []).map((it: PanierItemRaw) => {
+          const livreId = it?.livre?.[0]?.id;
+          const price = priceByLivreId.get(livreId ?? 0) ?? null;
+          console.log(`📚 Item ${it?.livre?.[0]?.title}: livre_id=${livreId}, price=${price}`);
+
+          return {
+            ...it,
+            inventaire: { price },
+          };
+        }) as PanierItemWithPrice[];
       } else {
+        console.warn('⚠️ Aucune donnée inventaire trouvée, utilisation de prix null');
         // Si pas de données d'inventaire, utiliser les items bruts avec prix null
         itemsWithPrice = (items || []).map((it: PanierItemRaw) => ({
           ...it,
@@ -99,12 +118,18 @@ export async function GET(request: NextRequest) {
         })) as PanierItemWithPrice[];
       }
     } else {
+      console.log('⚠️ Aucun ID de livre trouvé dans le panier');
       // Si pas d'IDs de livre, utiliser les items bruts avec prix null
       itemsWithPrice = (items || []).map((it: PanierItemRaw) => ({
         ...it,
         inventaire: { price: null },
       })) as PanierItemWithPrice[];
     }
+
+    console.log('📦 Items avec prix finaux:', itemsWithPrice.map(item => ({
+      title: item.livre?.[0]?.title,
+      price: item.inventaire.price
+    })));
 
     return new Response(JSON.stringify({ data: itemsWithPrice }), { status: 200 });
   } catch (err: unknown) {

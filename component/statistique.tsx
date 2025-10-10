@@ -22,7 +22,8 @@ type Commande = {
   date_achat: string;
   quantite: number;
   title: string;
-  price?: number; // Prix réel de vente (avec réductions)
+  price?: number;
+  total_transaction_final?: number; // Prix total avant réduction
   vendeur?: string; // Nom du vendeur
 };
 
@@ -350,15 +351,23 @@ export default function Statistique() {
   };
 
   // Fonction pour obtenir le prix d'un livre
-  const getPrixLivre = (title: string, commande?: Commande): number => {
-    // Priorité au prix réel de la commande (avec réduction)
-    if (commande?.price && commande.price > 0) {
-      return commande.price;
-    }
-    // Sinon utiliser le prix de l'inventaire
-    const livre = inventaire.find(item => item.title === title);
-    return livre?.price || 0;
-  };
+const getPrixLivre = (title: string, commande?: Commande): number => {
+  // Priorité : utiliser total_transaction_final s'il existe (déjà le prix final avec réduction)
+  if (commande?.total_transaction_final !== undefined && !isNaN(commande.total_transaction_final)) {
+    return commande.total_transaction_final;
+  }
+
+  // Sinon utiliser price s'il représente déjà le total de la ligne
+  if (commande?.price !== undefined && !isNaN(commande.price)) {
+    return commande.price;
+  }
+
+  // Enfin fallback : prix unitaire depuis l'inventaire * quantité
+  const livre = inventaire.find(item => item.title === title);
+  const unitPrice = livre?.price || 0;
+  const qty = commande?.quantite || 1;
+  return unitPrice * qty;
+};
 
   // Fonction pour obtenir le prix original (sans réduction)
   const getPrixOriginal = (title: string, quantite: number): number => {
@@ -628,21 +637,15 @@ export default function Statistique() {
             prixTotal
           ];
         });
-
-      // Construire le contenu CSV
       const csvContent = [
         entetes.join(','),
         ...donneesCSV.map(ligne => ligne.join(','))
       ].join('\n');
-
-      // Ajouter BOM pour l'UTF-8
       const bom = '\uFEFF';
       const csvAvecBom = bom + csvContent;
-
       // Créer et télécharger le fichier
       const blob = new Blob([csvAvecBom], { type: 'text/csv;charset=utf-8;' });
       const lien = document.createElement('a');
-      
       if (lien.download !== undefined) {
         const url = URL.createObjectURL(blob);
         lien.setAttribute('href', url);
@@ -668,7 +671,6 @@ export default function Statistique() {
       alert('Une erreur est survenue lors du téléchargement. Veuillez réessayer.');
     }
   };
-
   // Fonction pour télécharger l'inventaire en CSV
   const telechargerInventaireCSV = () => {
     try {
@@ -919,8 +921,7 @@ export default function Statistique() {
             maxHeight: '80vh',
             overflow: 'hidden',
           },
-        }}
-      >
+        }} >
         <Stack gap="md">
           {/* Filtre par mois et bouton téléchargement */}
           <Group justify="space-between" align="center" wrap="wrap">
@@ -1054,7 +1055,8 @@ export default function Statistique() {
                                   </div>
                                 ) : (
                                   <Text size="sm" fw={700} c="green">
-                                    {formatNumber(prixAvecReduction)}€
+                                    
+                                    {formatNumber(prixAvecReduction / groupe.commandes.length)}€
                                   </Text>
                                 )}
                               </div>
@@ -1420,12 +1422,12 @@ export default function Statistique() {
                                       {formatNumber(prixOriginal)}€
                                     </Text>
                                     <Text size="sm" fw={700} c="red" ml="xs">
-                                      {formatNumber(prixAvecReduction)}€
+                                      {formatNumber(prixAvecReduction / groupe.commandes.length)}€
                                     </Text>
                                   </div>
                                 ) : (
                                   <Text size="sm" fw={700} c="red">
-                                    {formatNumber(prixAvecReduction)}€
+                                    {formatNumber(prixAvecReduction / groupe.commandes.length)}€
                                   </Text>
                                 )}
                               </div>

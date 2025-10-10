@@ -235,6 +235,27 @@ export default function Commande() {
     }
   };
 
+
+
+const getItemPrice = (item: { inventaire?: { price?: number }, livre?: { id?: number } }) => {
+  const apiPrice = item.inventaire?.price;
+  if (typeof apiPrice === 'number' && !isNaN(apiPrice)) return apiPrice;
+  const livreLocal = inventaire.find(inv => inv.livre_id === item.livre?.id);
+  if (livreLocal && typeof livreLocal.price === 'number') return livreLocal.price;
+  return 0;
+};
+
+const [totalPanier, setTotalPanier] = useState<number>(0);
+
+useEffect(() => {
+  const total = panierApiItems.reduce((sum, item) => {
+    const price = getItemPrice(item);
+    const qty = item.quantity || 1;
+    return sum + price * qty;
+  }, 0);
+  setTotalPanier(total);
+}, [panierApiItems, inventaire]);
+
   /* Fonction pour vider complètement le panier */
   const viderPanier = async () => {
     if (!user) return;
@@ -293,6 +314,10 @@ export default function Commande() {
       console.log('📊 Calculs de réduction:', resultatsReduction);
       // Générer un ID unique pour cette transaction
       const transactionId = `TXN_${Date.now()}_${user.id}`;
+
+      // Flag pour n'attacher les totaux globaux qu'une seule fois
+      let totauxAttaches = false;
+
       // Traiter chaque article du panier avec les prix calculés après réduction
       for (const itemAvecReduction of resultatsReduction.itemsAvecReduction) {
         try {
@@ -316,22 +341,30 @@ export default function Commande() {
           // Utiliser le prix unitaire final calculé avec la réduction répartie
           const prixFinalUnitaire = itemAvecReduction.prixUnitaireFinal;
 
-          // Préparer les informations de transaction
-          const transactionInfo = {
+          // Préparer la base des informations de transaction (sans les totaux globaux)
+          const transactionInfoBase: any = {
             transaction_id: transactionId,
             prix_original_unitaire: itemAvecReduction.inventaire?.price || 0,
             reduction_appliquee: itemAvecReduction.reductionAppliquee,
             type_reduction: typeReduction,
-            valeur_reduction: valeurReduction,
-            total_transaction_original: resultatsReduction.totalOriginal,
-            total_transaction_final: resultatsReduction.totalAvecReduction
+            valeur_reduction: valeurReduction
           };
+
+          // N'inclure les totaux globaux que sur la première ligne
+          const transactionInfoToSend = !totauxAttaches
+            ? { ...transactionInfoBase, total_transaction_original: resultatsReduction.totalOriginal, total_transaction_final: resultatsReduction.totalAvecReduction }
+            : transactionInfoBase;
+
+          console.log('DEBUG (panier) total_transaction_final:', transactionInfoToSend.total_transaction_final, 'transactionInfo:', transactionInfoToSend);
 
           // 1. Décrémenter l'inventaire
           await decrementInventaire(livre, quantiteAVendre);
 
           // 2. Enregistrer la commande avec toutes les informations de transaction
-          await ajouterCommande(livre, quantiteAVendre, prixFinalUnitaire, transactionInfo);
+          await ajouterCommande(livre, quantiteAVendre, prixFinalUnitaire, transactionInfoToSend);
+
+          // Marquer les totaux comme attachés après succès d'ajout de la première commande
+          totauxAttaches = true;
 
           ventesReussies++;
           console.log(`✅ Vente réussie: ${livre.title} x${quantiteAVendre} (prix final: ${itemAvecReduction.prixFinal.toFixed(2)}€, réduction: ${itemAvecReduction.reductionAppliquee.toFixed(2)}€)`);
@@ -728,71 +761,72 @@ export default function Commande() {
   };
 
   // Nouvelle fonction pour calculer la réduction sur le TOTAL du panier
-  const calculerReductionPanier = () => {
-    if (!panierApiItems.length) {
-      return {
-        totalOriginal: 0,
-        totalAvecReduction: 0,
-        montantReduction: 0,
-        itemsAvecReduction: []
-      };
-    }
+const calculerReductionPanier = () => {
+  if (!panierApiItems.length) {
+    return {
+      totalOriginal: 0,
+      totalAvecReduction: 0,
+      montantReduction: 0,
+      itemsAvecReduction: []
+    };
+  }
 
-    // 1. Calculer le total original du panier
-    const totalOriginal = panierApiItems.reduce((sum, item) =>
-      sum + ((item.inventaire?.price || 0) * (item.quantity || 1)), 0
-    );
+  // total original en utilisant getItemPrice (fallback API -> inventaire local)
+  const totalOriginal = panierApiItems.reduce((sum, item) => {
+    const unit = getItemPrice(item);
+    const qty = item.quantity || 1;
+    return sum + unit * qty;
+  }, 0);
 
-    // 2. Si pas de réduction, retourner le total original
-    if (valeurReduction === 0) {
-      return {
-        totalOriginal,
-        totalAvecReduction: totalOriginal,
-        montantReduction: 0,
-        itemsAvecReduction: panierApiItems.map(item => ({
-          ...item,
-          prixOriginal: (item.inventaire?.price || 0) * (item.quantity || 1),
-          reductionAppliquee: 0,
-          prixFinal: (item.inventaire?.price || 0) * (item.quantity || 1),
-          prixUnitaireFinal: item.inventaire?.price || 0
-        }))
-      };
-    }
-
-    // 3. Calculer la réduction totale
-    let montantReduction = 0;
-    if (typeReduction === 'euros') {
-      montantReduction = Math.min(valeurReduction, totalOriginal); // Ne pas dépasser le total
-    } else {
-      montantReduction = (totalOriginal * valeurReduction) / 100;
-    }
-
-    // 4. Calculer le total après réduction
-    const totalAvecReduction = Math.max(0, totalOriginal - montantReduction);
-
-    // 5. Répartir la réduction proportionnellement sur chaque article
-    const itemsAvecReduction = panierApiItems.map(item => {
-      const prixOriginalItem = (item.inventaire?.price || 0) * (item.quantity || 1);
-      const proportionItem = totalOriginal > 0 ? prixOriginalItem / totalOriginal : 0;
-      const reductionItem = montantReduction * proportionItem;
-      const prixFinalItem = Math.max(0, prixOriginalItem - reductionItem);
-
-      return {
-        ...item,
-        prixOriginal: prixOriginalItem,
-        reductionAppliquee: reductionItem,
-        prixFinal: prixFinalItem,
-        prixUnitaireFinal: (item.quantity || 1) > 0 ? prixFinalItem / (item.quantity || 1) : 0
-      };
-    });
-
+  if (valeurReduction === 0) {
     return {
       totalOriginal,
-      totalAvecReduction,
-      montantReduction,
-      itemsAvecReduction
+      totalAvecReduction: totalOriginal,
+      montantReduction: 0,
+      itemsAvecReduction: panierApiItems.map(item => {
+        const unit = getItemPrice(item);
+        const qty = item.quantity || 1;
+        const prixOriginal = unit * qty;
+        return {
+          ...item,
+          prixOriginal,
+          reductionAppliquee: 0,
+          prixFinal: prixOriginal,
+          prixUnitaireFinal: unit
+        };
+      })
     };
+  }
+
+  const montantReduction = typeReduction === 'euros'
+    ? Math.min(valeurReduction, totalOriginal)
+    : (totalOriginal * valeurReduction) / 100;
+
+  const totalAvecReduction = Math.max(0, totalOriginal - montantReduction);
+
+  const itemsAvecReduction = panierApiItems.map(item => {
+    const unit = getItemPrice(item);
+    const qty = item.quantity || 1;
+    const prixOriginalItem = unit * qty;
+    const proportionItem = totalOriginal > 0 ? prixOriginalItem / totalOriginal : 0;
+    const reductionItem = montantReduction * proportionItem;
+    const prixFinalItem = Math.max(0, prixOriginalItem - reductionItem);
+    return {
+      ...item,
+      prixOriginal: prixOriginalItem,
+      reductionAppliquee: reductionItem,
+      prixFinal: prixFinalItem,
+      prixUnitaireFinal: qty > 0 ? prixFinalItem / qty : 0
+    };
+  });
+
+  return {
+    totalOriginal,
+    totalAvecReduction,
+    montantReduction,
+    itemsAvecReduction
   };
+};
 
   /* reserver un livre */
   const reserverLivre = (livre: InventaireItem) => {
@@ -1248,6 +1282,18 @@ export default function Commande() {
   const detailvre = (isbn: string) => {
     const livre = inventaire.find(item => String(item.isbn || '') === isbn.trim());
     if (livre) {
+      console.log('📚 Détails de l\'InventaireItem trouvé:', {
+        id: livre.id,
+        livre_id: livre.livre_id,
+        title: livre.title,
+        author: livre.author,
+        quantite: livre.quantite,
+        price: livre.price,
+        isbn: livre.isbn,
+        quantite_reservee: livre.quantite_reservee,
+        date_expiration_reservation: livre.date_expiration_reservation,
+        livre: livre.livre
+      });
       setSelectedLivre(livre);
       setDetailOpened(true);
     }
@@ -1301,14 +1347,14 @@ export default function Commande() {
     }
   };
 
-  const ajouterCommande = async (livre: InventaireItem, quantite: number, prixFinal?: number, transactionInfo?: {
+   const ajouterCommande = async (livre: InventaireItem, quantite: number, prixFinal?: number, transactionInfo?: {
     transaction_id: string;
     prix_original_unitaire: number;
     reduction_appliquee: number;
     type_reduction: 'euros' | 'pourcentage';
     valeur_reduction: number;
-    total_transaction_original: number;
-    total_transaction_final: number;
+    total_transaction_original?: number;
+    total_transaction_final?: number;
   }) => {
     if (!user) {
       alert("Utilisateur non connecté !");
@@ -2045,9 +2091,19 @@ export default function Commande() {
               <Text size="md" c="white" mb="sm">
                 💰 Prix: {selectedLivre.price}€
               </Text>
-              <Text size="md" c="white" mb="md">
+              <Text size="md" c="white" mb="sm">
                 📦 Quantité en stock: {selectedLivre.quantite} exemplaire{selectedLivre.quantite > 1 ? 's' : ''}
               </Text>
+              <Button
+                size="xs"
+                color="green"
+                variant="outline"
+                onClick={() => { setSelectedLivreForStock(selectedLivre);  setStockAdded(false);  setShowQuantitySelection(false);setAddStockModalOpened(true);  setDetailOpened(false); }}
+                leftSection="➕"
+                style={{ marginBottom: '10px' }}
+              >
+                Rajouter au stock
+              </Button>
             </div>
 
             {/* Boutons d'action */}
@@ -2130,7 +2186,7 @@ export default function Commande() {
                       👤 {item.livre?.author || 'Auteur inconnu'}
                     </Text>
                     <Text size="sm" c="blue">
-                      📖 ISBN: {item.livre?.isbn ?? 'N/A'} | 💰 {item.inventaire?.price ?? 'N/A'}€
+                      📖 ISBN: {item.livre?.isbn ?? 'N/A'} | 💰 {(item.inventaire?.price || 'N/A')}€
                     </Text>
                   </div>
                   <div>
@@ -2155,9 +2211,7 @@ export default function Commande() {
               <Text size="md" mb="xs">
                 📚 Nombre de lignes: {panierApiItems.length}
               </Text>
-              <Text size="md" fw={600} c="green">
-                💰 Total: {panierApiItems.reduce((total, item) => total + (item.inventaire?.price || 0) * (item.quantity || 1), 0).toFixed(2)}€
-              </Text>
+              <Text size="md" fw={600} c="green">💰 Total: {totalPanier.toFixed(2)}€</Text>
             </div>
 
             {/* Boutons d'action */}
@@ -2167,13 +2221,9 @@ export default function Commande() {
                   color="red"
                   variant="outline"
                   onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    console.log('🏆 Bouton Ajouté cliqué !');
+
                     setVenteOpened(true);
-                    if (selectedLivre) {
-                      ajouterAuPanier(selectedLivre);
-                    }
+                    setPanierOpened(false);
                   }}>
                   A.Manuel
                 </Button>
@@ -2448,7 +2498,7 @@ export default function Commande() {
                     title: panierApiItems[0].livre.title,
                     author: panierApiItems[0].livre.author,
                     quantite: 1,
-                    price: panierApiItems[0].inventaire?.price || 0,
+                    price: panierApiItems[0].inventaire?.price ||  0,
                     isbn: panierApiItems[0].livre.isbn
                   } : null);
                   setQuantiteVente(panierApiItems.length);
@@ -2456,7 +2506,6 @@ export default function Commande() {
                   setTypeReduction('euros');
                   setReductionOpened(true);
                 } else {
-                  // Vente individuelle avec réduction - ouvrir d'abord la liste des livres
                   setVenteOpened(true);
                 }
               }}
@@ -2464,24 +2513,17 @@ export default function Commande() {
             >
               ✅ Oui, avec réduction
             </Button>
-
             <Button
               size="lg"
               color="blue"
               variant="outline"
               onClick={() => {
-                // Fermer la confirmation
                 setConfirmReductionOpened(false);
-
-                // Si le panier contient des articles, vendre directement sans réduction
                 if (panierApiItems.length > 0) {
-                  // S'assurer qu'aucune réduction n'est appliquée pour cette vente
                   setValeurReduction(0);
                   setTypeReduction('euros');
-                  // Lancer la validation du panier (vente)
                   validerVentePanier();
                 } else {
-                  // Sinon, ouvrir la liste des livres pour vente individuelle
                   setVenteOpened(true);
                 }
               }}
@@ -2489,7 +2531,6 @@ export default function Commande() {
               💰 Non, vendre directement
             </Button>
           </div>
-
           <Text size="sm" c="dimmed" mt="md" style={{ fontStyle: 'italic' }}>
             💡 {panierApiItems.length > 0
               ? `Panier contient ${panierApiItems.length} article(s)`
@@ -2525,9 +2566,8 @@ export default function Commande() {
                       </div>
                     ))}
                   </div>
-                  <Text size="sm" fw={600}>
-                    💰 Total: {panierApiItems.reduce((total, item) => total + (item.inventaire?.price || 0) * (item.quantity || 1), 0).toFixed(2)}€
-                  </Text>
+                  <Text size="md" fw={600} c="green">💰 Total: {totalPanier.toFixed(2)}€</Text>
+
                 </>
               ) : (
                 <>
@@ -2540,7 +2580,6 @@ export default function Commande() {
                 </>
               )}
             </div>
-
             {/* Sélection de la quantité */}
             {modeModal === 'vente' && panierApiItems.length > 0 ? (
               <div style={{
@@ -2650,14 +2689,7 @@ export default function Commande() {
                 borderRadius: '8px',
                 marginBottom: '20px'
               }}>
-                <Text size="sm" c="dimmed">
-                  Prix original: {modeModal === 'vente' && panierApiItems.length > 0 ?
-                    (() => {
-                      const resultats = calculerReductionPanier();
-                      return resultats.totalOriginal.toFixed(2);
-                    })() :
-                    (livreEnVente.price * quantiteVente).toFixed(2)}€
-                </Text>
+                <Text size="md" fw={600} c="green">💰 Total: {totalPanier.toFixed(2)}€</Text>
                 {valeurReduction > 0 && (
                   <Text size="sm" c="red">
                     Réduction: -{typeReduction === 'euros'
