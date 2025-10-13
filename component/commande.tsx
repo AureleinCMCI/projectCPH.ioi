@@ -294,115 +294,93 @@ useEffect(() => {
 
 
   // Fonction pour valider la vente de tous les livres du panier
+// ...existing code...
+  // Fonction pour valider la vente de tous les livres du panier
   const validerVentePanier = async () => {
     if (panierApiItems.length === 0) {
       alert('❌ Le panier est vide !');
       return;
     }
-
     if (!user) {
       alert('❌ Utilisateur non connecté !');
       return;
     }
 
     try {
-      let ventesReussies = 0;
-      let ventesEchouees = 0;
-      const erreurs: string[] = [];
-      // Calculer la réduction sur le total du panier
+      // Calculer la réduction répartie
       const resultatsReduction = calculerReductionPanier();
-      console.log('📊 Calculs de réduction:', resultatsReduction);
-      // Générer un ID unique pour cette transaction
       const transactionId = `TXN_${Date.now()}_${user.id}`;
 
-      // Flag pour n'attacher les totaux globaux qu'une seule fois
-      let totauxAttaches = false;
-
-      // Traiter chaque article du panier avec les prix calculés après réduction
-      for (const itemAvecReduction of resultatsReduction.itemsAvecReduction) {
-        try {
-          const livre = inventaire.find(inv => inv.livre_id === itemAvecReduction.livre?.id);
-
-          if (!livre) {
-            erreurs.push(`❌ "${itemAvecReduction.livre?.title || 'Livre inconnu'}" : Livre non trouvé dans l'inventaire`);
-            ventesEchouees++;
-            continue;
-          }
-          const quantiteReservee = livre.quantite_reservee || 0;
-          const quantiteDisponible = livre.quantite - quantiteReservee;
-          const quantiteAVendre = itemAvecReduction.quantity || 1;
-
-          if (quantiteDisponible < quantiteAVendre) {
-            erreurs.push(`❌ "${livre.title}" : Stock insuffisant (${quantiteDisponible} disponibles, ${quantiteAVendre} demandés)`);
-            ventesEchouees++;
-            continue;
-          }
-
-          // Utiliser le prix unitaire final calculé avec la réduction répartie
-          const prixFinalUnitaire = itemAvecReduction.prixUnitaireFinal;
-
-          // Préparer la base des informations de transaction (sans les totaux globaux)
-          const transactionInfoBase: any = {
-            transaction_id: transactionId,
-            prix_original_unitaire: itemAvecReduction.inventaire?.price || 0,
-            reduction_appliquee: itemAvecReduction.reductionAppliquee,
-            type_reduction: typeReduction,
-            valeur_reduction: valeurReduction
-          };
-
-          // N'inclure les totaux globaux que sur la première ligne
-          const transactionInfoToSend = !totauxAttaches
-            ? { ...transactionInfoBase, total_transaction_original: resultatsReduction.totalOriginal, total_transaction_final: resultatsReduction.totalAvecReduction }
-            : transactionInfoBase;
-
-          console.log('DEBUG (panier) total_transaction_final:', transactionInfoToSend.total_transaction_final, 'transactionInfo:', transactionInfoToSend);
-
-          // 1. Décrémenter l'inventaire
-          await decrementInventaire(livre, quantiteAVendre);
-
-          // 2. Enregistrer la commande avec toutes les informations de transaction
-          await ajouterCommande(livre, quantiteAVendre, prixFinalUnitaire, transactionInfoToSend);
-
-          // Marquer les totaux comme attachés après succès d'ajout de la première commande
-          totauxAttaches = true;
-
-          ventesReussies++;
-          console.log(`✅ Vente réussie: ${livre.title} x${quantiteAVendre} (prix final: ${itemAvecReduction.prixFinal.toFixed(2)}€, réduction: ${itemAvecReduction.reductionAppliquee.toFixed(2)}€)`);
-
-        } catch (error) {
-          console.error(`❌ Erreur lors de la vente de ${itemAvecReduction.livre?.title}:`, error);
-          erreurs.push(`❌ "${itemAvecReduction.livre?.title || 'Livre inconnu'}" : Erreur lors de la vente`);
-          ventesEchouees++;
+      // Vérifier disponibilité pour TOUTES les lignes avant d'agir
+      const items = resultatsReduction.itemsAvecReduction;
+      const erreurs: string[] = [];
+      for (const it of items) {
+        const livreId = it.livre?.id ?? it.id;
+        const livre = inventaire.find(inv => inv.livre_id === livreId);
+        const quantiteDemandee = it.quantity || 1;
+        if (!livre) {
+          erreurs.push(`Livre introuvable (livre_id=${String(livreId)})`);
+          continue;
+        }
+        const quantiteReservee = livre.quantite_reservee || 0;
+        const quantiteDisponible = livre.quantite - quantiteReservee;
+        if (quantiteDisponible < quantiteDemandee) {
+          erreurs.push(`Stock insuffisant pour "${livre.title}" (${quantiteDisponible} disponibles, ${quantiteDemandee} demandés)`);
         }
       }
 
-      if (ventesReussies > 0) {
-        const messageReduction = resultatsReduction.montantReduction > 0 ?
-          `\n💰 Prix original: ${resultatsReduction.totalOriginal.toFixed(2)}€\n🎉 Réduction appliquée: ${resultatsReduction.montantReduction.toFixed(2)}€\n💵 Prix final: ${resultatsReduction.totalAvecReduction.toFixed(2)}€\n🆔 Transaction: ${transactionId}` :
-          `\n🆔 Transaction: ${transactionId}`;
-
-        const message = `✅ Ventes effectuées avec succès !${messageReduction}\n\n📊 Résumé:\n• ${ventesReussies} vente(s) réussie(s)\n• ${ventesEchouees} échec(s)`;
-
-        if (erreurs.length > 0) {
-          alert(`${message}\n\n❌ Erreurs:\n${erreurs.join('\n')}`);
-        } else {
-          alert(message);
-        }
-        viderPanier();
-        setPanierOpened(false);
-      } else {
-        alert(`❌ Aucune vente n'a pu être effectuée !\n\nErreurs:\n${erreurs.join('\n')}`);
+      if (erreurs.length > 0) {
+        alert(`❌ Impossible de valider la vente :\n• ${erreurs.join('\n• ')}`);
+        return;
       }
+
+      // Décrémenter l'inventaire pour chaque ligne (séquentiel)
+      for (const it of items) {
+        const livreId = it.livre?.id ?? it.id;
+        const livre = inventaire.find(inv => inv.livre_id === livreId);
+        const quantiteDemandee = it.quantity || 1;
+        if (!livre) continue;
+        await decrementInventaire(livre, quantiteDemandee);
+      }
+
+      // Préparer les lignes pour l'API agrégée
+      const lignesPayload = items.map(it => {
+        const livreId = it.livre?.id ?? it.id;
+        return {
+          livre_id: livreId,
+          title: it.livre?.title || '',
+          quantite: it.quantity || 1,
+          prix_unitaire_final: Number(it.prixUnitaireFinal ?? it.prixUnitaireFinal === 0 ? it.prixUnitaireFinal : (getItemPrice(it) || 0)),
+          prix_ligne_final: Number(it.prixFinal ?? 0),
+          reduction_appliquee: Number(it.reductionAppliquee ?? 0)
+        };
+      });
+
+      // Appeler l'API une seule fois avec payload agrégé
+      const payload = {
+        transaction_id: transactionId,
+        user_id: user.id,
+        vendeur: user.name,
+        total_transaction_original: resultatsReduction.totalOriginal,
+        total_transaction_final: resultatsReduction.totalAvecReduction,
+        montant_reduction: resultatsReduction.montantReduction,
+        type_reduction: typeReduction,
+        valeur_reduction: valeurReduction,
+        lignes: lignesPayload
+      };
+
+      await envoyerCommandeAgregee(payload);
+
+      // Succès : vider panier + message
+      alert(`✅ Ventes effectuées !\n🆔 Transaction: ${transactionId}\n💰 Total: ${resultatsReduction.totalAvecReduction.toFixed(2)}€`);
+      viderPanier();
+      setPanierOpened(false);
 
     } catch (error) {
       console.error('❌ Erreur lors de la validation du panier:', error);
       alert('❌ Erreur lors de la validation du panier');
     }
   };
-
-  // Charger le panier au démarrage
-
-
   // Détection automatique du type d'appareil et choix du scanner
   useEffect(() => {
     const detectMobileAndScanner = () => {
@@ -3141,4 +3119,18 @@ const calculerReductionPanier = () => {
       </Modal>
     </div>
   );
+}
+
+async function envoyerCommandeAgregee(payload: any) {
+  const res = await fetch('/api/commande', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => null);
+    console.error('Erreur API commande:', res.status, err);
+    throw new Error(err?.error || 'Erreur lors de l\'envoi commande');
+  }
+  return res.json();
 }

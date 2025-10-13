@@ -1,105 +1,66 @@
 import { createClient } from '@/lib/supabase/clients';
-import { NextRequest } from 'next/server';
-
-// Interface pour les données de commande
-interface CommandeData {
-  livre_id: number;
-  quantite: number;
-  user_id: string;
-  vendeur: string;
-  title: string;
-  price: number;
-  transaction_id?: string;
-  prix_original_unitaire?: number;
-  reduction_appliquee?: number;
-  type_reduction?: 'euros' | 'pourcentage';
-  valeur_reduction?: number;
-  total_transaction_original?: number;
-  total_transaction_final?: number;
-}
-
-// Interface pour les informations de transaction
-interface TransactionInfo {
-  transaction_id: string;
-  prix_original_unitaire: number;
-  reduction_appliquee: number;
-  type_reduction: 'euros' | 'pourcentage';
-  valeur_reduction: number;
-  total_transaction_original: number;
-  total_transaction_final: number;
-}
-
 
 export async function GET() {
   const supabase = createClient();
   const { data, error } = await supabase.from('commande').select('*');
-
-  if (error) {
-    return new Response(JSON.stringify({ error: error.message }), { status: 400 });
-  }
-  return new Response(JSON.stringify({ data }), { status:  200 });
+  if (error) return new Response(JSON.stringify({ error: error.message }), { status: 400 });
+  return new Response(JSON.stringify({ data }), { status: 200 });
 }
 
-/* Ajouter une commande avec informations de transaction */
-export async function POST(request: NextRequest) {
+export async function POST(req: Request) {
   try {
-    const supabase = createClient();
-    const body: {
-      livre_id: number;
-      quantite: number;
-      user_id: string;
-      vendeur: string;
-      title: string;
-      prix_final: number;
-      transactionInfo?: TransactionInfo;
-    } = await request.json();
-    const { 
-      livre_id, 
-      quantite, 
-      user_id, 
-      vendeur, 
-      title, 
-      prix_final,
-      transactionInfo
+    const body = await req.json();
+    const {
+      transaction_id,
+      user_id,
+      vendeur,
+      total_transaction_original,
+      total_transaction_final,
+      montant_reduction,
+      type_reduction,
+      valeur_reduction,
+      lignes
     } = body;
 
-    // Préparer les données de base
-    const commandeData: CommandeData = { 
-      livre_id, 
-      quantite, 
-      user_id, 
-      vendeur, 
-      title,
-      price: prix_final // Le prix avec réduction devient le prix de vente
-    };
-
-    // Ajouter les informations de transaction si présentes
-    if (transactionInfo) {
-      commandeData.transaction_id = transactionInfo.transaction_id;
-      commandeData.prix_original_unitaire = transactionInfo.prix_original_unitaire;
-      commandeData.reduction_appliquee = transactionInfo.reduction_appliquee;
-      commandeData.type_reduction = transactionInfo.type_reduction;
-      commandeData.valeur_reduction = transactionInfo.valeur_reduction;
-      commandeData.total_transaction_original = transactionInfo.total_transaction_original;
-      commandeData.total_transaction_final = transactionInfo.total_transaction_final;
+    if (!transaction_id || !user_id || !Array.isArray(lignes) || lignes.length === 0) {
+      return new Response(JSON.stringify({ error: 'transaction_id, user_id et lignes requis' }), { status: 400 });
     }
 
-    const { data } = await supabase.from('commande').insert([commandeData]).select();
+    const titles = lignes.map((l: any) => (l.title || '').trim()).filter(Boolean).join(', ');
+    const totalQuantite = lignes.reduce((s: number, l: any) => s + (Number(l.quantite) || 0), 0);
 
-    return new Response(
-      JSON.stringify({ 
-        message: 'Commande ajoutée avec succès', 
-        produit: data, 
-        success: true,
-        transactionInfo: transactionInfo || null
-      }),
-      { status: 200 }
-    );
-  } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : String(err);
-    return new Response(
-      JSON.stringify({ error: "Erreur serveur", details: message }),
-      { status: 500 }
-    );
+    const payload: any = {
+      transaction_id,
+      user_id,
+      vendeur: vendeur ?? null,
+      title: titles || null,
+      quantite: totalQuantite || 1,
+      // stocker le total global
+      price: total_transaction_final ? Number(total_transaction_final) / Math.max(1, totalQuantite) : null,
+      total_transaction_original: total_transaction_original ?? null,
+      total_transaction_final: total_transaction_final ?? null,
+      reduction_appliquee: montant_reduction ?? null,
+      type_reduction: type_reduction ?? null,
+      valeur_reduction: valeur_reduction ?? null,
+      lignes_json: JSON.stringify(lignes),
+      date_achat: new Date().toISOString(),
+      statut: 'completed'
+    };
+
+    // Supprimer les clés nulles si besoin
+    Object.keys(payload).forEach(k => payload[k] === null && delete payload[k]);
+
+    const supabase = createClient();
+    const { data, error } = await supabase.from('commande').insert([payload]).select('*');
+
+    if (error) {
+      console.error('Supabase insert error:', error);
+      return new Response(JSON.stringify({ success: false, error: error.message || error }), { status: 500 });
+    }
+
+    return new Response(JSON.stringify({ success: true, inserted: data, transaction_id }), { status: 200 });
+  } catch (err: any) {
+    console.error('API /commande exception:', err);
+    return new Response(JSON.stringify({ success: false, error: String(err) }), { status: 500 });
   }
 }
