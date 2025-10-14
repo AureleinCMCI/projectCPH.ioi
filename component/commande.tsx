@@ -6,11 +6,8 @@ import { IconCamera } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
-
 import styles from './style/ScannerResception.module.css';
-
 import stylesCommande from './style/commande.module.css';
-
 
 // Interface pour BarcodeDetector
 interface BarcodeDetectorInterface {
@@ -18,7 +15,6 @@ interface BarcodeDetectorInterface {
     detect(video: HTMLVideoElement): Promise<Array<{ rawValue: string }>>
   };
 }
-
 
 type InventaireItem = {
   id: number;
@@ -33,50 +29,20 @@ type InventaireItem = {
   livre?: { image?: string };
 };
 
-/*Récupération des informations de l'utilisateur , verifié qui est connecté via jeto*/
-let user: { id: string; name: string; avatar?: string } | null = null;
-if (typeof window !== 'undefined') {
-  const token = localStorage.getItem('jwt');
-  if (token) {
-    try {
-      user = jwtDecode<{ id: string; name: string; avatar?: string }>(token);
-    } catch { }
-  }
-}
 
-// Composant affichant les commandes
-
-function formatDateTimeParis(dateString: string) {
-  const date = new Date(dateString);
-  const options: Intl.DateTimeFormatOptions = {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  };
-  // Format: 16/07/2025, 14:08:56
-  const parts = new Intl.DateTimeFormat('fr-FR', options).formatToParts(date);
-  const get = (type: string) => parts.find(p => p.type === type)?.value || '';
-  return `${get('day')}_${get('month')}_${get('year')} ${get('hour')}.${get('minute')}.${get('second')}`;
-}
-
-export default function Commande() {
-  useEffect(() => {
-    const token = localStorage.getItem('jwt');
-    if (!token) {
-      window.location.href = '/';
-      return;
-    }
-    try {
-      jwtDecode<{ id: string; name: string }>(token);
-    } catch {
-      window.location.href = '/';
-    }
-  }, []);
-
+/*constante des scanner */
   const [scannerOpened, setScannerOpened] = useState(false);
   const [scannerReady, setScannerReady] = useState(false);
   const scannerRef = useRef<HTMLDivElement | null>(null);
+  const [isMobile, setIsMobile] = useState(false); // Détection mobile
+  const [scanner, setScanner] = useState<Html5QrcodeScanner | boolean | null>(null);
+  const [scannerType, setScannerType] = useState<'html5' | 'quagga'>('html5');
+  const [androidCleanup, setAndroidCleanup] = useState<(() => void) | null>(null);
+  const [showCodesList, setShowCodesList] = useState(false);
+  const [scannedCodes, setScannedCodes] = useState<string[]>([]);
+  /* états pour la recherche et l'affichage des livres */
   const [search, setSearch] = useState('');
+  /* états pour l'ouverture du formulaire de vente */
   const [formOpened, setFormOpened] = useState(false);
   const [isbn, setIsbn] = useState('');
   const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
@@ -91,31 +57,81 @@ export default function Commande() {
   const [commandes, setCommandes] = useState<{
     user_id: number; date_achat: string; title: string; quantite: number; price?: number; vendeur?: string; user?: { name?: string };
   }[]>([]);
-  const [isMobile, setIsMobile] = useState(false); // Détection mobile
-  const [scanner, setScanner] = useState<Html5QrcodeScanner | boolean | null>(null);
-  const [scannerType, setScannerType] = useState<'html5' | 'quagga'>('html5');
-  const [androidCleanup, setAndroidCleanup] = useState<(() => void) | null>(null);
-  const [showCodesList, setShowCodesList] = useState(false);
-  const [scannedCodes, setScannedCodes] = useState<string[]>([]);
+
+
   const [isbnList, setIsbnList] = useState<{ isbn: number; livre_id: number }[]>([]);
-  const [panierApiItems, setPanierApiItems] = useState<{
-    id: number;
-    quantity: number;
-    added_at: string;
-    livre?: { id: number; isbn: number; author: string; title: string };
-    inventaire?: { price: number };
-  }[]>([]);
-
-
+  const [panierApiItems, setPanierApiItems] = useState<{ id: number; quantity: number; added_at: string; livre?: { id: number; isbn: number; author: string; title: string }; inventaire?: { price: number }; }[]>([]);
   const [panierApiLoading, setPanierApiLoading] = useState(false);
-
-  const [detailOpened, setDetailOpened] = useState(false);
-  const [selectedLivre, setSelectedLivre] = useState<InventaireItem | null>(null);
-
+  const [detailOpened, setDetailOpened] = useState(false);const [selectedLivre, setSelectedLivre] = useState<InventaireItem | null>(null);
   const [listeCommandeOpened, setListeCommandeOpened] = useState(false);
-
   const [venteOpened, setVenteOpened] = useState(false);
+  const [confirmReductionOpened, setConfirmReductionOpened] = useState(false);
+  const [reductionOpened, setReductionOpened] = useState(false);
+  const [livreEnVente, setLivreEnVente] = useState<InventaireItem | null>(null);
+  const [quantiteVente, setQuantiteVente] = useState(1);
+  const [typeReduction, setTypeReduction] = useState<'euros' | 'pourcentage'>('euros');
+  const [valeurReduction, setValeurReduction] = useState(0);
+  const [modeModal, setModeModal] = useState<'vente' | 'reservation'>('vente');
+  const [dateReservation, setDateReservation] = useState('');
+  const [panierOpened, setPanierOpened] = useState(false);
+  const [panier, setPanier] = useState<InventaireItem[]>([]);
+  const [reservationsOpened, setReservationsOpened] = useState(false);
+  const [reservations, setReservations] = useState<{ id: number; inventaire_id: number; quantite_bloquee: number; date_expiration: string; date_creation: string; name?: string; telephone?: string; user_id?: number; inventaire?: { title: string; author: string; price: number; isbn?: number; } }[]>([]);
+  const [totalPanier, setTotalPanier] = useState<number>(0);
+  const lastScanTime = useRef<number>(0);
+  const lastScannedCode = useRef<string>('');
+  const [quantitePanier, setQuantitePanier] = useState<number>(1);
+  const [preferBack, setPreferBack] = useState<boolean>(false);
+  const [addStockModalOpened, setAddStockModalOpened] = useState(false);
+  const [selectedLivreForStock, setSelectedLivreForStock] = useState<InventaireItem | null>(null);
+  const [stockAdded, setStockAdded] = useState(false);
+  const [showQuantitySelection, setShowQuantitySelection] = useState(false);
 
+
+  /*Récupération des informations de l'utilisateur , verifié qui est connecté via jeto*/
+let user: { id: string; name: string; avatar?: string } | null = null;
+if (typeof window !== 'undefined') {
+  const token = localStorage.getItem('jwt');
+  if (token) {
+    try {
+      user = jwtDecode<{ id: string; name: string; avatar?: string }>(token);
+    } catch { }
+  }
+}
+
+// Composant affichant les commandes
+
+
+export default function Commande() {
+  useEffect(() => {
+    const token = localStorage.getItem('jwt');
+    if (!token) {
+      window.location.href = '/';
+      return;
+    }
+    try {
+      jwtDecode<{ id: string; name: string }>(token);
+    } catch {
+      window.location.href = '/';
+    }
+  }, []);
+  /* Fonction pour le format de date */
+  function formatDateTimeParis(dateString: string) {
+    const date = new Date(dateString);
+    const options: Intl.DateTimeFormatOptions = {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+    };
+    // Format: 16/07/2025, 14:08:56
+    const parts = new Intl.DateTimeFormat('fr-FR', options).formatToParts(date);
+    const get = (type: string) => parts.find(p => p.type === type)?.value || '';
+    return `${get('day')}_${get('month')}_${get('year')} ${get('hour')}.${get('minute')}.${get('second')}`;
+  }
+  /* Fin fonction */
+
+
+  /* Fonction pour la pagnination de l'inventaire 'modale de vente' */
   useEffect(() => {
     if (!venteOpened) return;
     const abort = new AbortController();
@@ -156,53 +172,19 @@ export default function Commande() {
     return () => abort.abort();
   }, [page, venteOpened]);
 
-  const [confirmReductionOpened, setConfirmReductionOpened] = useState(false);
 
-  const [reductionOpened, setReductionOpened] = useState(false);
-  const [livreEnVente, setLivreEnVente] = useState<InventaireItem | null>(null);
-  const [quantiteVente, setQuantiteVente] = useState(1);
-  const [typeReduction, setTypeReduction] = useState<'euros' | 'pourcentage'>('euros');
-  const [valeurReduction, setValeurReduction] = useState(0);
-  const [modeModal, setModeModal] = useState<'vente' | 'reservation'>('vente');
-  const [dateReservation, setDateReservation] = useState('');
-  const [panierOpened, setPanierOpened] = useState(false);
-  const [panier, setPanier] = useState<InventaireItem[]>([]);
-  // État pour la modale des réservations
-  const [reservationsOpened, setReservationsOpened] = useState(false);
-  const [reservations, setReservations] = useState<{
-    id: number;
-    inventaire_id: number;
-    quantite_bloquee: number;
-    date_expiration: string;
-    date_creation: string;
-    name?: string;
-    telephone?: string;
-    user_id?: number;
-    inventaire?: {
-      title: string;
-      author: string;
-      price: number;
-      isbn: number;
-    };
-    "USER"?: {
-      id: number;
-      name: string;
-      admin: boolean;
-    };
-  }[]>([]);
-  // à ajouter au panier depuis la modale de détails
-  const [quantitePanier, setQuantitePanier] = useState<number>(1);
-  // Préférence d'utilisation de la caméra arrière
-  const [preferBack, setPreferBack] = useState<boolean>(false);
+  const getItemPrice = (item: { inventaire?: { price?: number }, livre?: { id?: number } }) => 
+  { 
+    const apiPrice = item.inventaire?.price; 
+    if (typeof apiPrice === 'number' && !isNaN(apiPrice)){
+    return apiPrice; 
+    } 
+    const livreLocal = inventaire.find(inv => inv.livre_id === item.livre?.id); 
+    if (livreLocal && typeof livreLocal.price === 'number')
+      return livreLocal.price; return 0; 
+  };
 
-  // État pour la modale du panier
-
-  // État pour la modal d'ajout au stock
-  const [addStockModalOpened, setAddStockModalOpened] = useState(false);
-  const [selectedLivreForStock, setSelectedLivreForStock] = useState<InventaireItem | null>(null);
-  const [stockAdded, setStockAdded] = useState(false);
-  const [showQuantitySelection, setShowQuantitySelection] = useState(false);
-
+  /* Fonction pour ajouter un livre au panier de la base de donnés post*/
   const ajouterAuPanier = async (livre: InventaireItem, quantite: number = 1) => {
     try {
       const response = await fetch('/api/panier', {
@@ -220,6 +202,7 @@ export default function Commande() {
       console.error("Erreur lors de l'ajout au panier :", error);
     }
   };
+
   /* Fonction supprimer un livre du panier de la base de donnés delete*/
   const supprimerDuPanier = (itemId: number) => {
     try {
@@ -236,27 +219,18 @@ export default function Commande() {
   };
 
 
+ /* Calcul du total du panier à chaque changement */
+  useEffect(() => {
+    const total = panierApiItems.reduce((sum, item) => {
+      const price = getItemPrice(item);
+      const qty = item.quantity || 1;
+      return sum + price * qty;
+    }, 0);
+    setTotalPanier(total);
+  }, [panierApiItems, inventaire]);
+  /* Fin fonction */
 
-const getItemPrice = (item: { inventaire?: { price?: number }, livre?: { id?: number } }) => {
-  const apiPrice = item.inventaire?.price;
-  if (typeof apiPrice === 'number' && !isNaN(apiPrice)) return apiPrice;
-  const livreLocal = inventaire.find(inv => inv.livre_id === item.livre?.id);
-  if (livreLocal && typeof livreLocal.price === 'number') return livreLocal.price;
-  return 0;
-};
-
-const [totalPanier, setTotalPanier] = useState<number>(0);
-
-useEffect(() => {
-  const total = panierApiItems.reduce((sum, item) => {
-    const price = getItemPrice(item);
-    const qty = item.quantity || 1;
-    return sum + price * qty;
-  }, 0);
-  setTotalPanier(total);
-}, [panierApiItems, inventaire]);
-
-  /* Fonction pour vider complètement le panier */
+  /* Fonction pour vider le panier de la base de donnés */
   const viderPanier = async () => {
     if (!user) return;
 
@@ -274,6 +248,7 @@ useEffect(() => {
       console.error("Erreur lors du vidage du panier :", error);
     }
   };
+  /* fin fonction */
 
   // Charger le panier depuis l'API /api/panier (panier_item + livre)
   const fetchPanierApi = async () => {
@@ -290,11 +265,9 @@ useEffect(() => {
       setPanierApiLoading(false);
     }
   };
+  /* fin fonction */
 
 
-
-  // Fonction pour valider la vente de tous les livres du panier
-// ...existing code...
   // Fonction pour valider la vente de tous les livres du panier
   const validerVentePanier = async () => {
     if (panierApiItems.length === 0) {
@@ -328,12 +301,10 @@ useEffect(() => {
           erreurs.push(`Stock insuffisant pour "${livre.title}" (${quantiteDisponible} disponibles, ${quantiteDemandee} demandés)`);
         }
       }
-
       if (erreurs.length > 0) {
         alert(`❌ Impossible de valider la vente :\n• ${erreurs.join('\n• ')}`);
         return;
       }
-
       // Décrémenter l'inventaire pour chaque ligne (séquentiel)
       for (const it of items) {
         const livreId = it.livre?.id ?? it.id;
@@ -381,6 +352,8 @@ useEffect(() => {
       alert('❌ Erreur lors de la validation du panier');
     }
   };
+  /* fin fonction */
+
   // Détection automatique du type d'appareil et choix du scanner
   useEffect(() => {
     const detectMobileAndScanner = () => {
@@ -402,6 +375,8 @@ useEffect(() => {
 
     detectMobileAndScanner();
   }, []);
+  /*fin fonction */
+
 
   // Fonction de diagnostic pour vérifier la compatibilité
   const checkCompatibility = async () => {
@@ -428,16 +403,9 @@ useEffect(() => {
   const downloadCSV = () => {
     console.log('📥 Bouton CSV cliqué !');
     console.log('Commandes disponibles:', commandes);
-
     const header = ["Date", "Utilisateur", "Titre", "Quantité"];
-    const rows = commandes.map(cmd => [
-      cmd.date_achat,
-      cmd.vendeur,
-      cmd.title,
-      cmd.quantite
-    ]);
+    const rows = commandes.map(cmd => [  cmd.date_achat, cmd.vendeur,  cmd.title,  cmd.quantite]);
     const csvContent = [header, ...rows].map(e => e.join(",")).join("\n");
-
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -446,22 +414,28 @@ useEffect(() => {
     link.click();
     setTimeout(() => window.URL.revokeObjectURL(url), 100);
     console.log('✅ Téléchargement CSV terminé');
-  };
-
-  if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
-    navigator.mediaDevices.enumerateDevices()
-      .then((devices) => {
-
+  }; 
+  /* fin fonction */
+  /* condition  pour lister les appareils médias disponibles */
+  if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices)
+    {
+      navigator.mediaDevices.enumerateDevices()
+      .then((devices) =>
+        {
         devices.forEach((device) => {
-          console.log(`Appareil Id: ${device.deviceId}, Type: ${device.kind}, Label: ${device.label}`);
+        console.log(`Appareil Id: ${device.deviceId}, Type: ${device.kind}, Label: ${device.label}`);
         });
       })
       .catch((error) => {
         console.error('Erreur lors de la récupération des appareils médias :', error);
       });
-  } else {
-    console.warn("navigator.mediaDevices ou enumerateDevices non disponible");
-  }
+    } else 
+    {
+      console.warn("navigator.mediaDevices ou enumerateDevices non disponible");
+    }
+  /* fin fonction */
+
+
   /* recupére les commandes */
   useEffect(() => {
     const fetchCommandes = async () => {
@@ -471,6 +445,7 @@ useEffect(() => {
     };
     fetchCommandes();
   }, []);
+  /* fin fonction */
 
   /* récupérer les réservations de l'utilisateur connecté */
   const fetchReservations = async () => {
@@ -485,13 +460,16 @@ useEffect(() => {
       setReservations([]);
     }
   };
+  /* fin fonction */
 
-  // Charger les réservations au démarrage
-  useEffect(() => {
+  /* Charger les réservations au démarrage */
+  useEffect(() => 
+  {
     if (user) {
       fetchReservations();
     }
   }, [user]);
+  /* fin fonction */
 
   /* annuler une réservation */
   const annulerReservation = async (reservationId: number) => {
@@ -527,14 +505,14 @@ useEffect(() => {
       alert('❌ Erreur de connexion');
     }
   };
+  /* fin fonction */
 
+  /* vendre une réservation */
   const vendreReservation = async (reservationId: number) => {
     if (!user) return;
-
     if (!confirm('💰 Confirmer la vente ? La réservation sera supprimée sans remettre le stock.')) {
       return;
     }
-
     try {
       // Suppression directe de la réservation SANS remettre le stock
       const res = await fetch('/api/reservations', {
@@ -564,32 +542,32 @@ useEffect(() => {
     scannerRef.current = node;
     setScannerReady(!!node);
   }, []);
-  /* fin  */
+  /* fin fonction   */
 
-  /* fonction pour ajouter un livre au panier */
 
-  /* fonction pour supprimer un livre du panier */
 
-  /* recupére les isbn selon livre id */
-  useEffect(() => {
-    const recupereIsbnLivreId = async () => {
-      try {
-        // Récupérer tous les ISBN pour tous les livres
-        const response = await fetch('/api/isbn?livre_id=all', {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' }
-        });
-        const result = await response.json();
-        setIsbnList(result.data || []);
-        console.log('📚 ISBN récupérés:', result.data);
-      } catch (error) {
-        console.error('Erreur récupération ISBN:', error);
-      }
-    };
 
-    recupereIsbnLivreId();
-  }, []);
+   /* récupérer les isbn selon livre id */
+    useEffect(() => {
+      const recupereIsbnLivreId = async () => {
+        try {
+          // Récupérer tous les ISBN pour tous les livres
+          const response = await fetch('/api/isbn?livre_id=all', {
+            method: 'GET',
+            headers: { 'Content-Type': 'application/json' }
+          });
+          const result = await response.json();
+          setIsbnList(result.data || []);
+          console.log('📚 ISBN récupérés:', result.data);
+        } catch (error) {
+          console.error('Erreur récupération ISBN:', error);
+        }
+      };
 
+      recupereIsbnLivreId();
+    }, []);
+    /* fin fonction   */
+  /* Configuration du scanner */
   const SCANNER_CONFIG = {
     fps: 30,
     frequency: 30,
@@ -605,107 +583,67 @@ useEffect(() => {
   /* Fonction de validation ISBN flexible */
   const isValidISBN = (code: string): boolean => {
     // Vérifier le cache d'abord
-    if (isbnValidationCache.current.has(code)) {
+    if (isbnValidationCache.current.has(code)) 
+    {
       return isbnValidationCache.current.get(code)!;
     }
-
-    // Nettoyer le code (supprimer espaces, tirets, etc.)
     const cleanCode = code.replace(/[\s-]/g, '');
-
-    // Validation plus flexible - accepter plus de formats
     const len = cleanCode.length;
-
-    // Accepter les codes de 8 à 15 caractères (plus flexible)
     if (len < 8 || len > 15) {
       isbnValidationCache.current.set(code, false);
       return false;
     }
-
-    // Vérifier que c'est principalement numérique
     const numericCount = (cleanCode.match(/[0-9]/g) || []).length;
     const alphaCount = (cleanCode.match(/[A-Za-z]/g) || []).length;
-
-    // Accepter si au moins 80% de chiffres ou contient des lettres valides
     if (numericCount < len * 0.8 && alphaCount === 0) {
       isbnValidationCache.current.set(code, false);
       return false;
     }
-
     console.log(`✅ Code valide détecté: ${cleanCode} (${len} caractères)`);
     isbnValidationCache.current.set(code, true);
     return true;
   };
+  /* Fin fonction */
 
-  /* Système de debounce pour éviter les scans répétés */
-  const lastScanTime = useRef<number>(0);
-  const lastScannedCode = useRef<string>('');
 
   /* fonctionalité du scan optimisée avec validation flexible */
   const handleScan = (decodedText: string) => {
     if (!decodedText || decodedText.length < 5) return;
-
     const now = Date.now();
-
-    // Debounce plus souple
     if (decodedText === lastScannedCode.current &&
       now - lastScanTime.current < SCANNER_CONFIG.debounceDelay) {
       return;
     }
-
     lastScanTime.current = now;
     lastScannedCode.current = decodedText;
-
     console.log('📱 Code scanné:', decodedText);
-
     // Validation plus flexible
     const isValid = isValidISBN(decodedText);
-
     if (!isValid) {
       console.log('❌ Code rejeté (format non valide)');
       return;
     }
-
     // Nettoyer le code
     const cleanCode = decodedText.replace(/[\s-]/g, '');
     console.log('✅ Code valide scanné:', cleanCode);
     setIsbn(cleanCode);
-
     // Ajouter le code à la liste
-    setScannedCodes(prev => {
-      if (!prev.includes(cleanCode)) {
-        const newCodes = [...prev, cleanCode];
-        console.log('📋 Codes scannés:', newCodes);
-        setShowCodesList(true);
-        return newCodes;
-      }
-      return prev;
-    });
-
-    // Recherche dans la base de données avec plusieurs formats
+    setScannedCodes(prev => {if (!prev.includes(cleanCode)) {const newCodes = [...prev, cleanCode];console.log('📋 Codes scannés:', newCodes);  setShowCodesList(true);  return newCodes;  }  return prev;});
     const searchStart = performance.now();
-
-    // Essayer plusieurs formats de recherche
     let isbnTrouve = isbnList.find(item => item.isbn.toString() === cleanCode);
-
-    // Si pas trouvé, essayer avec des formats partiels
     if (!isbnTrouve && cleanCode.length >= 10) {
-      // Essayer les 10 derniers chiffres
       const last10 = cleanCode.slice(-10);
       isbnTrouve = isbnList.find(item => item.isbn.toString().endsWith(last10));
     }
-
-    // Si pas trouvé, essayer les 13 premiers chiffres
     if (!isbnTrouve && cleanCode.length >= 13) {
       const first13 = cleanCode.slice(0, 13);
       isbnTrouve = isbnList.find(item => item.isbn.toString().startsWith(first13));
     }
-
     const searchTime = performance.now() - searchStart;
     console.log(`🔍 Recherche BD: ${searchTime.toFixed(1)}ms`);
-
-    if (isbnTrouve) {
+    if (isbnTrouve) 
+    {
       const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
-
       if (livre) {
         console.log(`✅ Livre trouvé : ${livre.title}`);
         // Auto-ouvrir le formulaire de vente
@@ -718,10 +656,12 @@ useEffect(() => {
       console.log(`❌ Code non trouvé dans la base : ${cleanCode}`);
     }
   };
+  /* fin fonction */
+  
+  // Gestion des erreurs de scan
+  const handleError = (errorMessage: string) => {console.error('Erreur de scan:', errorMessage);};
+  // fin de fonction 
 
-  const handleError = (errorMessage: string) => {
-    console.error('Erreur de scan:', errorMessage);
-  };
 
   // Fonction pour calculer le prix avec réduction (pour un livre individuel - ancienne méthode)
   const calculerPrixAvecReduction = (prixOriginal: number, quantite: number) => {
@@ -737,7 +677,7 @@ useEffect(() => {
       return Math.max(0, prixTotal - reduction);
     }
   };
-
+  // fin fonction
   // Nouvelle fonction pour calculer la réduction sur le TOTAL du panier
 const calculerReductionPanier = () => {
   if (!panierApiItems.length) {
