@@ -31,6 +31,24 @@ type InventaireItem = {
 
 
 /*constante des scanner */
+
+
+
+/*Récupération des informations de l'utilisateur , verifié qui est connecté via jeto*/
+let user: { id: string; name: string; avatar?: string } | null = null;
+if (typeof window !== 'undefined') {
+  const token = localStorage.getItem('jwt');
+  if (token) {
+    try {
+      user = jwtDecode<{ id: string; name: string; avatar?: string }>(token);
+    } catch { }
+  }
+}
+
+// Composant affichant les commandes
+
+
+export default function Commande() {
   const [scannerOpened, setScannerOpened] = useState(false);
   const [scannerReady, setScannerReady] = useState(false);
   const scannerRef = useRef<HTMLDivElement | null>(null);
@@ -62,7 +80,7 @@ type InventaireItem = {
   const [isbnList, setIsbnList] = useState<{ isbn: number; livre_id: number }[]>([]);
   const [panierApiItems, setPanierApiItems] = useState<{ id: number; quantity: number; added_at: string; livre?: { id: number; isbn: number; author: string; title: string }; inventaire?: { price: number }; }[]>([]);
   const [panierApiLoading, setPanierApiLoading] = useState(false);
-  const [detailOpened, setDetailOpened] = useState(false);const [selectedLivre, setSelectedLivre] = useState<InventaireItem | null>(null);
+  const [detailOpened, setDetailOpened] = useState(false); const [selectedLivre, setSelectedLivre] = useState<InventaireItem | null>(null);
   const [listeCommandeOpened, setListeCommandeOpened] = useState(false);
   const [venteOpened, setVenteOpened] = useState(false);
   const [confirmReductionOpened, setConfirmReductionOpened] = useState(false);
@@ -88,21 +106,6 @@ type InventaireItem = {
   const [showQuantitySelection, setShowQuantitySelection] = useState(false);
 
 
-  /*Récupération des informations de l'utilisateur , verifié qui est connecté via jeto*/
-let user: { id: string; name: string; avatar?: string } | null = null;
-if (typeof window !== 'undefined') {
-  const token = localStorage.getItem('jwt');
-  if (token) {
-    try {
-      user = jwtDecode<{ id: string; name: string; avatar?: string }>(token);
-    } catch { }
-  }
-}
-
-// Composant affichant les commandes
-
-
-export default function Commande() {
   useEffect(() => {
     const token = localStorage.getItem('jwt');
     if (!token) {
@@ -132,14 +135,16 @@ export default function Commande() {
 
 
   /* Fonction pour la pagnination de l'inventaire 'modale de vente' */
-  useEffect(() => {
+    useEffect(() => {
     if (!venteOpened) return;
     const abort = new AbortController();
 
     const fetchPage = async () => {
       try {
         setLivresLoading(true);
-        const res = await fetch(`/api/inventaire?page=${page}`, { signal: abort.signal });
+        // include search in the query so server returns results across all pages matching the term
+        const q = `/api/inventaire?page=${page}&search=${encodeURIComponent(search || '')}`;
+        const res = await fetch(q, { signal: abort.signal });
         if (!res.ok) {
           console.error('Erreur fetch inventaire page', res.status);
           setLivres([]);
@@ -170,18 +175,17 @@ export default function Commande() {
 
     fetchPage();
     return () => abort.abort();
-  }, [page, venteOpened]);
+  }, [page, venteOpened, search]); // <-- add search to depen
 
 
-  const getItemPrice = (item: { inventaire?: { price?: number }, livre?: { id?: number } }) => 
-  { 
-    const apiPrice = item.inventaire?.price; 
-    if (typeof apiPrice === 'number' && !isNaN(apiPrice)){
-    return apiPrice; 
-    } 
-    const livreLocal = inventaire.find(inv => inv.livre_id === item.livre?.id); 
+  const getItemPrice = (item: { inventaire?: { price?: number }, livre?: { id?: number } }) => {
+    const apiPrice = item.inventaire?.price;
+    if (typeof apiPrice === 'number' && !isNaN(apiPrice)) {
+      return apiPrice;
+    }
+    const livreLocal = inventaire.find(inv => inv.livre_id === item.livre?.id);
     if (livreLocal && typeof livreLocal.price === 'number')
-      return livreLocal.price; return 0; 
+      return livreLocal.price; return 0;
   };
 
   /* Fonction pour ajouter un livre au panier de la base de donnés post*/
@@ -219,7 +223,7 @@ export default function Commande() {
   };
 
 
- /* Calcul du total du panier à chaque changement */
+  /* Calcul du total du panier à chaque changement */
   useEffect(() => {
     const total = panierApiItems.reduce((sum, item) => {
       const price = getItemPrice(item);
@@ -383,7 +387,6 @@ export default function Commande() {
     console.log('=== Diagnostic Scanner ===');
     console.log('User Agent:', navigator.userAgent);
     console.log('Est mobile:', isMobile);
-
     try {
       const devices = await navigator.mediaDevices.enumerateDevices();
       const videoDevices = devices.filter(device => device.kind === 'videoinput');
@@ -404,7 +407,7 @@ export default function Commande() {
     console.log('📥 Bouton CSV cliqué !');
     console.log('Commandes disponibles:', commandes);
     const header = ["Date", "Utilisateur", "Titre", "Quantité"];
-    const rows = commandes.map(cmd => [  cmd.date_achat, cmd.vendeur,  cmd.title,  cmd.quantite]);
+    const rows = commandes.map(cmd => [cmd.date_achat, cmd.vendeur, cmd.title, cmd.quantite]);
     const csvContent = [header, ...rows].map(e => e.join(",")).join("\n");
     const blob = new Blob([csvContent], { type: "text/csv" });
     const url = window.URL.createObjectURL(blob);
@@ -414,25 +417,22 @@ export default function Commande() {
     link.click();
     setTimeout(() => window.URL.revokeObjectURL(url), 100);
     console.log('✅ Téléchargement CSV terminé');
-  }; 
+  };
   /* fin fonction */
   /* condition  pour lister les appareils médias disponibles */
-  if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices)
-    {
-      navigator.mediaDevices.enumerateDevices()
-      .then((devices) =>
-        {
+  if (navigator.mediaDevices && navigator.mediaDevices.enumerateDevices) {
+    navigator.mediaDevices.enumerateDevices()
+      .then((devices) => {
         devices.forEach((device) => {
-        console.log(`Appareil Id: ${device.deviceId}, Type: ${device.kind}, Label: ${device.label}`);
+          console.log(`Appareil Id: ${device.deviceId}, Type: ${device.kind}, Label: ${device.label}`);
         });
       })
       .catch((error) => {
         console.error('Erreur lors de la récupération des appareils médias :', error);
       });
-    } else 
-    {
-      console.warn("navigator.mediaDevices ou enumerateDevices non disponible");
-    }
+  } else {
+    console.warn("navigator.mediaDevices ou enumerateDevices non disponible");
+  }
   /* fin fonction */
 
 
@@ -463,8 +463,7 @@ export default function Commande() {
   /* fin fonction */
 
   /* Charger les réservations au démarrage */
-  useEffect(() => 
-  {
+  useEffect(() => {
     if (user) {
       fetchReservations();
     }
@@ -547,26 +546,26 @@ export default function Commande() {
 
 
 
-   /* récupérer les isbn selon livre id */
-    useEffect(() => {
-      const recupereIsbnLivreId = async () => {
-        try {
-          // Récupérer tous les ISBN pour tous les livres
-          const response = await fetch('/api/isbn?livre_id=all', {
-            method: 'GET',
-            headers: { 'Content-Type': 'application/json' }
-          });
-          const result = await response.json();
-          setIsbnList(result.data || []);
-          console.log('📚 ISBN récupérés:', result.data);
-        } catch (error) {
-          console.error('Erreur récupération ISBN:', error);
-        }
-      };
+  /* récupérer les isbn selon livre id */
+  useEffect(() => {
+    const recupereIsbnLivreId = async () => {
+      try {
+        // Récupérer tous les ISBN pour tous les livres
+        const response = await fetch('/api/isbn?livre_id=all', {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' }
+        });
+        const result = await response.json();
+        setIsbnList(result.data || []);
+        console.log('📚 ISBN récupérés:', result.data);
+      } catch (error) {
+        console.error('Erreur récupération ISBN:', error);
+      }
+    };
 
-      recupereIsbnLivreId();
-    }, []);
-    /* fin fonction   */
+    recupereIsbnLivreId();
+  }, []);
+  /* fin fonction   */
   /* Configuration du scanner */
   const SCANNER_CONFIG = {
     fps: 30,
@@ -583,8 +582,7 @@ export default function Commande() {
   /* Fonction de validation ISBN flexible */
   const isValidISBN = (code: string): boolean => {
     // Vérifier le cache d'abord
-    if (isbnValidationCache.current.has(code)) 
-    {
+    if (isbnValidationCache.current.has(code)) {
       return isbnValidationCache.current.get(code)!;
     }
     const cleanCode = code.replace(/[\s-]/g, '');
@@ -628,7 +626,7 @@ export default function Commande() {
     console.log('✅ Code valide scanné:', cleanCode);
     setIsbn(cleanCode);
     // Ajouter le code à la liste
-    setScannedCodes(prev => {if (!prev.includes(cleanCode)) {const newCodes = [...prev, cleanCode];console.log('📋 Codes scannés:', newCodes);  setShowCodesList(true);  return newCodes;  }  return prev;});
+    setScannedCodes(prev => { if (!prev.includes(cleanCode)) { const newCodes = [...prev, cleanCode]; console.log('📋 Codes scannés:', newCodes); setShowCodesList(true); return newCodes; } return prev; });
     const searchStart = performance.now();
     let isbnTrouve = isbnList.find(item => item.isbn.toString() === cleanCode);
     if (!isbnTrouve && cleanCode.length >= 10) {
@@ -641,8 +639,7 @@ export default function Commande() {
     }
     const searchTime = performance.now() - searchStart;
     console.log(`🔍 Recherche BD: ${searchTime.toFixed(1)}ms`);
-    if (isbnTrouve) 
-    {
+    if (isbnTrouve) {
       const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
       if (livre) {
         console.log(`✅ Livre trouvé : ${livre.title}`);
@@ -657,9 +654,9 @@ export default function Commande() {
     }
   };
   /* fin fonction */
-  
+
   // Gestion des erreurs de scan
-  const handleError = (errorMessage: string) => {console.error('Erreur de scan:', errorMessage);};
+  const handleError = (errorMessage: string) => { console.error('Erreur de scan:', errorMessage); };
   // fin de fonction 
 
 
@@ -679,72 +676,72 @@ export default function Commande() {
   };
   // fin fonction
   // Nouvelle fonction pour calculer la réduction sur le TOTAL du panier
-const calculerReductionPanier = () => {
-  if (!panierApiItems.length) {
-    return {
-      totalOriginal: 0,
-      totalAvecReduction: 0,
-      montantReduction: 0,
-      itemsAvecReduction: []
-    };
-  }
+  const calculerReductionPanier = () => {
+    if (!panierApiItems.length) {
+      return {
+        totalOriginal: 0,
+        totalAvecReduction: 0,
+        montantReduction: 0,
+        itemsAvecReduction: []
+      };
+    }
 
-  // total original en utilisant getItemPrice (fallback API -> inventaire local)
-  const totalOriginal = panierApiItems.reduce((sum, item) => {
-    const unit = getItemPrice(item);
-    const qty = item.quantity || 1;
-    return sum + unit * qty;
-  }, 0);
+    // total original en utilisant getItemPrice (fallback API -> inventaire local)
+    const totalOriginal = panierApiItems.reduce((sum, item) => {
+      const unit = getItemPrice(item);
+      const qty = item.quantity || 1;
+      return sum + unit * qty;
+    }, 0);
 
-  if (valeurReduction === 0) {
+    if (valeurReduction === 0) {
+      return {
+        totalOriginal,
+        totalAvecReduction: totalOriginal,
+        montantReduction: 0,
+        itemsAvecReduction: panierApiItems.map(item => {
+          const unit = getItemPrice(item);
+          const qty = item.quantity || 1;
+          const prixOriginal = unit * qty;
+          return {
+            ...item,
+            prixOriginal,
+            reductionAppliquee: 0,
+            prixFinal: prixOriginal,
+            prixUnitaireFinal: unit
+          };
+        })
+      };
+    }
+
+    const montantReduction = typeReduction === 'euros'
+      ? Math.min(valeurReduction, totalOriginal)
+      : (totalOriginal * valeurReduction) / 100;
+
+    const totalAvecReduction = Math.max(0, totalOriginal - montantReduction);
+
+    const itemsAvecReduction = panierApiItems.map(item => {
+      const unit = getItemPrice(item);
+      const qty = item.quantity || 1;
+      const prixOriginalItem = unit * qty;
+      const proportionItem = totalOriginal > 0 ? prixOriginalItem / totalOriginal : 0;
+      const reductionItem = montantReduction * proportionItem;
+      const prixFinalItem = Math.max(0, prixOriginalItem - reductionItem);
+      return {
+        ...item,
+        prixOriginal: prixOriginalItem,
+        reductionAppliquee: reductionItem,
+        prixFinal: prixFinalItem,
+        prixUnitaireFinal: qty > 0 ? prixFinalItem / qty : 0
+      };
+    });
+
     return {
       totalOriginal,
-      totalAvecReduction: totalOriginal,
-      montantReduction: 0,
-      itemsAvecReduction: panierApiItems.map(item => {
-        const unit = getItemPrice(item);
-        const qty = item.quantity || 1;
-        const prixOriginal = unit * qty;
-        return {
-          ...item,
-          prixOriginal,
-          reductionAppliquee: 0,
-          prixFinal: prixOriginal,
-          prixUnitaireFinal: unit
-        };
-      })
+      totalAvecReduction,
+      montantReduction,
+      itemsAvecReduction
     };
-  }
-
-  const montantReduction = typeReduction === 'euros'
-    ? Math.min(valeurReduction, totalOriginal)
-    : (totalOriginal * valeurReduction) / 100;
-
-  const totalAvecReduction = Math.max(0, totalOriginal - montantReduction);
-
-  const itemsAvecReduction = panierApiItems.map(item => {
-    const unit = getItemPrice(item);
-    const qty = item.quantity || 1;
-    const prixOriginalItem = unit * qty;
-    const proportionItem = totalOriginal > 0 ? prixOriginalItem / totalOriginal : 0;
-    const reductionItem = montantReduction * proportionItem;
-    const prixFinalItem = Math.max(0, prixOriginalItem - reductionItem);
-    return {
-      ...item,
-      prixOriginal: prixOriginalItem,
-      reductionAppliquee: reductionItem,
-      prixFinal: prixFinalItem,
-      prixUnitaireFinal: qty > 0 ? prixFinalItem / qty : 0
-    };
-  });
-
-  return {
-    totalOriginal,
-    totalAvecReduction,
-    montantReduction,
-    itemsAvecReduction
   };
-};
 
   /* reserver un livre */
   const reserverLivre = (livre: InventaireItem) => {
@@ -1051,7 +1048,6 @@ const calculerReductionPanier = () => {
                 decoder: {
                   readers: [
                     "ean_reader",
-                    "ean_8_reader",
                     "code_128_reader",
                     "code_39_reader",
                     "codabar_reader"
@@ -1088,19 +1084,15 @@ const calculerReductionPanier = () => {
                   console.log('❌ Code ignoré (trop court):', code);
                 }
               };
-
               Quagga.onDetected(onDetected);
-
               return () => {
                 console.log('Nettoyage QuaggaJS...');
                 Quagga.offDetected(onDetected as QuaggaJSResultCallbackFunction);
                 Quagga.stop();
                 setScanner(null);
               };
-
             } catch (error) {
               console.error('❌ Erreur énumération caméras iOS:', error);
-
               // Fallback classique si l'énumération échoue
               Quagga.init({
                 inputStream: {
@@ -1145,7 +1137,6 @@ const calculerReductionPanier = () => {
     }
   }, [scannerOpened, scannerReady, scannerType]);
   /* fin scan */
-
   // Nettoyage quand le scanner se ferme
   useEffect(() => {
     if (!scannerOpened && scanner) {
@@ -1165,7 +1156,6 @@ const calculerReductionPanier = () => {
       setAndroidCleanup(null);
     }
   }, [scannerOpened, scanner, scannerType, androidCleanup]);
-
   // Diagnostic quand le scanner s'ouvre
   useEffect(() => {
     if (scannerOpened) {
@@ -1197,25 +1187,36 @@ const calculerReductionPanier = () => {
   // filteredInventaire supprimé car il n'est pas utilisé
 
   // Fonction pour afficher les détails du livre
-  const detailvre = (isbn: string) => {
-    const livre = inventaire.find(item => String(item.isbn || '') === isbn.trim());
-    if (livre) {
-      console.log('📚 Détails de l\'InventaireItem trouvé:', {
-        id: livre.id,
-        livre_id: livre.livre_id,
-        title: livre.title,
-        author: livre.author,
-        quantite: livre.quantite,
-        price: livre.price,
-        isbn: livre.isbn,
-        quantite_reservee: livre.quantite_reservee,
-        date_expiration_reservation: livre.date_expiration_reservation,
-        livre: livre.livre
-      });
-      setSelectedLivre(livre);
-      setDetailOpened(true);
+const detailvre = async (isbn: string) => {
+  // Cherche d'abord dans inventaire local
+  let livre = inventaire.find(item => String(item.isbn || '') === isbn.trim());
+  // Si pas trouvé, cherche dans la page courante 'livres'
+  if (!livre) {
+    livre = livres.find(item => String(item.isbn || '') === isbn.trim());
+  }
+  // Si toujours pas trouvé, demande au serveur par livre_id/isbn
+  if (!livre) {
+    try {
+      const res = await fetch(`/api/inventaire?isbn=${encodeURIComponent(isbn.trim())}`);
+      if (res.ok) {
+        const json = await res.json();
+        const serveurLivre = Array.isArray(json.data) ? json.data[0] : json.data;
+        if (serveurLivre) {
+          livre = serveurLivre as InventaireItem;
+          setInventaire(prev => (serveurLivre ? [serveurLivre as InventaireItem, ...prev] : prev));
+        }
+      }
+    } catch (err) {
+      console.error('Erreur lookup detailvre:', err);
     }
-  };
+  }
+  if (livre) {
+    setSelectedLivre(livre);
+    setDetailOpened(true);
+  } else {
+    console.warn('Livre introuvable pour ISBN', isbn);
+  }
+};
 
   // Suppression de la fonction inutilisée listeCommande
 
@@ -1265,7 +1266,7 @@ const calculerReductionPanier = () => {
     }
   };
 
-   const ajouterCommande = async (livre: InventaireItem, quantite: number, prixFinal?: number, transactionInfo?: {
+  const ajouterCommande = async (livre: InventaireItem, quantite: number, prixFinal?: number, transactionInfo?: {
     transaction_id: string;
     prix_original_unitaire: number;
     reduction_appliquee: number;
@@ -1906,7 +1907,7 @@ const calculerReductionPanier = () => {
                       classNames={isMobile ? { input: styles.iosModalInput } : undefined}
                       style={{ flex: 1 }}
                     />
-                    
+
                     <Button
                       size="sm"
                       color="green"
@@ -1934,6 +1935,7 @@ const calculerReductionPanier = () => {
                 />
 
                 <Center>
+                {selectedLivre && selectedLivre.quantite > 0 && (
                   <Button
                     onClick={() => {
                       ajouterAuPanier(livre, supprimer);
@@ -1943,10 +1945,23 @@ const calculerReductionPanier = () => {
                   >
                     A.panier
                   </Button>
-
+                )}
+                {livre && livre.quantite > 0 && (
+                  <Button
+                    onClick={() => {
+                      ajouterAuPanier(livre, supprimer);
+                      setFormOpened(false);
+                      setPanierOpened(true);
+                    }}
+                  >
+                    A.panier
+                  </Button>
+                )}
+                {livre && livre.quantite > 0 && (
                   <Button style={{ marginLeft: '8px' }} onClick={() => reserverLivre(livre)}>
                     Réserver
                   </Button>
+                )}
                 </Center>
               </div>
             );
@@ -2016,7 +2031,7 @@ const calculerReductionPanier = () => {
                 size="xs"
                 color="green"
                 variant="outline"
-                onClick={() => { setSelectedLivreForStock(selectedLivre);  setStockAdded(false);  setShowQuantitySelection(false);setAddStockModalOpened(true);  setDetailOpened(false); }}
+                onClick={() => { setSelectedLivreForStock(selectedLivre); setStockAdded(false); setShowQuantitySelection(false); setAddStockModalOpened(true); setDetailOpened(false); }}
                 leftSection="➕"
                 style={{ marginBottom: '10px' }}
               >
@@ -2037,21 +2052,27 @@ const calculerReductionPanier = () => {
                 />
               </div>
               <div>
+
                 <Center>
-                  <Button
-                    size="m"
-                    color="blue"
-                    onClick={() => {
-                      setDetailOpened(false);
-                      setPanierOpened(true);
-                      ajouterAuPanier(selectedLivre, quantitePanier);
-                    }}
-                  >
-                    panier
-                  </Button>
-                  <Button onClick={() => {
-                    reserverLivre(selectedLivre);
-                  }}>Reserver</Button>
+                    {selectedLivre.quantite > 0 && (
+                        <Button
+                          size="m"
+                          color="blue"
+                          onClick={() => {
+                            setDetailOpened(false);
+                            setPanierOpened(true);
+                            ajouterAuPanier(selectedLivre, quantitePanier);
+                          }}
+                          title="Ajouter au panier"
+                        >
+                          panier
+                        </Button>
+                      )}
+                      {selectedLivre.quantite > 0 && (
+                        <Button onClick={() => {
+                          reserverLivre(selectedLivre);
+                        }}>Reserver</Button>
+                      )}
                 </Center>
               </div>
             </div>
@@ -2255,30 +2276,23 @@ const calculerReductionPanier = () => {
       </Modal>
 
       {/* Modale de liste des livres pour vente */}
-      <Modal  opened={listeCommandeOpened}  onClose={() => setListeCommandeOpened(false)} title="📚 Liste des livres disponibles à la vente" centered  size="xl">
+      <Modal opened={listeCommandeOpened} onClose={() => setListeCommandeOpened(false)} title="📚 Liste des livres disponibles à la vente" centered size="xl">
         {/*bar de recherche */}
         <div style={{ marginBottom: '20px' }}>
-          <TextInput placeholder="🔍 Rechercher un livre par titre, auteur ou ISBN..."  value={search} onChange={(e) => { setSearch(e.currentTarget.value); setPage(1); }}
+          <TextInput placeholder="🔍 Rechercher un livre par titre, auteur ou ISBN..." value={search} onChange={(e) => { setSearch(e.currentTarget.value); setPage(1); }}
             onKeyDown={(e) => {
               if (e.key === 'Enter' || e.key === 'Escape') {
                 e.currentTarget.blur(); // Désactive le clavier
                 (document.activeElement as HTMLElement)?.blur(); // Force la désactivation du focus
               }
-            }} style={{ marginBottom: '15px' }} styles={{input: { borderRadius: '10px',  border: '2px solid #e0e0e0', fontSize: '16px', transform: 'scale(1)',   touchAction: 'manipulation'} }} inputMode="search"  autoComplete="off" 
+            }} style={{ marginBottom: '15px' }} styles={{ input: { borderRadius: '10px', border: '2px solid #e0e0e0', fontSize: '16px', transform: 'scale(1)', touchAction: 'manipulation' } }} inputMode="search" autoComplete="off"
           />
         </div>
         <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
-          {inventaire.length === 0 ? ( <Text c="dimmed" ta="center" py="xl"> Aucun livre en stock </Text>): 
-          (
-            <div className={stylesCommande.transactionsList}>  {inventaire.filter(item =>
-                item.title.toLowerCase().includes(search.toLowerCase()) ||
-                item.author.toLowerCase().includes(search.toLowerCase()) ||
-                item.isbn.toString().includes(search)
-                ).map((item) => (
-                <div key={item.id} onClick={() => {
-                  detailvre(item.isbn.toString());
-                  setListeCommandeOpened(false);
-                }} className={stylesCommande.transaction}>
+          {inventaire.length === 0 ? (<Text c="dimmed" ta="center" py="xl"> Aucun livre en stock </Text>) :
+            (<div className={stylesCommande.transactionsList}>  {inventaire.filter(item => item.title.toLowerCase().includes(search.toLowerCase()) ||item.author.toLowerCase().includes(search.toLowerCase()) ||  item.isbn.toString().includes(search)
+              ).map((item) => (<div key={item.id} onClick={() => {detailvre(item.isbn.toString()); setListeCommandeOpened(false);}} 
+                className={stylesCommande.transaction}>
                   <div className={stylesCommande.transactionIcon}>
                     {item.livre?.image ?
                       <Image src={item.livre.image} alt="Livre" style={{ width: '30px', height: '30px' }} />
@@ -2301,15 +2315,15 @@ const calculerReductionPanier = () => {
                   </div>
                 </div>
               ))}
-            </div>
-          )}
+              </div>
+            )}
         </div>
         <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
           <Text size="sm" c="dimmed">💡 Cliquez sur un livre pour voir ses détails et le vendre </Text>
         </div>
       </Modal>
       {/* Modale de vente - Liste des livres pour vente */}
-      <Modal  opened={venteOpened} onClose={() => setVenteOpened(false)} title="📚 Liste des livres disponibles à la vente" centered  size="xl">
+      <Modal opened={venteOpened} onClose={() => setVenteOpened(false)} title="📚 Liste des livres disponibles à la vente" centered size="xl">
         {/*bar de recherche */}
         <div style={{ marginBottom: '20px' }}>
           <TextInput
@@ -2391,16 +2405,11 @@ const calculerReductionPanier = () => {
       {/* Modale de confirmation de réduction */}
       <Modal
         opened={confirmReductionOpened}
-        onClose={() => setConfirmReductionOpened(false)}
-        title="🏷️ Appliquer une réduction ?"
-        centered
-        size="sm"
-      >
+        onClose={() => setConfirmReductionOpened(false)} title="🏷️ Appliquer une réduction ?" centered size="sm">
         <div style={{ padding: '20px', textAlign: 'center' }}>
           <Text size="lg" fw={600} mb="xl">
             Voulez-vous appliquer une réduction à cette vente ?
           </Text>
-
           <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
             <Button
               size="lg"
@@ -2416,7 +2425,7 @@ const calculerReductionPanier = () => {
                     title: panierApiItems[0].livre.title,
                     author: panierApiItems[0].livre.author,
                     quantite: 1,
-                    price: panierApiItems[0].inventaire?.price ||  0,
+                    price: panierApiItems[0].inventaire?.price || 0,
                     isbn: panierApiItems[0].livre.isbn
                   } : null);
                   setQuantiteVente(panierApiItems.length);

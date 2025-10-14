@@ -5,6 +5,8 @@ import { IconCurrencyEuro, IconDownload, IconPackage, IconShoppingCart, IconTren
 import React, { useEffect, useRef, useState } from 'react';
 import styles from './style/statistique.module.css';
 
+
+
 type StatsGlobales = {
   totalVentes: number;
   totalReceptions: number;
@@ -18,6 +20,7 @@ type StatsGlobales = {
   receptionsMoisActuel: number;
 };
 
+
 type Commande = {
   date_achat: string;
   quantite: number;
@@ -26,7 +29,6 @@ type Commande = {
   total_transaction_final?: number; // Prix total avant réduction
   vendeur?: string; // Nom du vendeur
 };
-
 type Reception = {
   id?: number;
   user_id: number;
@@ -37,29 +39,27 @@ type Reception = {
   name_user: string;
   livre_title: string;
 };
-
 type Reservation = {
   id: number;
   inventaire_id: number;
   quantite_bloquee: number;
   date_expiration: string;
   date_creation: string;
-   name?: string;
-    telephone?: string;
-  inventaire?: {
+  name?: string;
+  telephone?: string;
+  inventaire?: 
+  {
     title: string;
     author: string;
     price: number;
     isbn: number;
   };
 };
-
 type InventaireItem = {
   title: string;
   price: number;
   quantite: number;
 };
-
 // Composant pour animer les compteurs
 function AnimatedCounter({ value, duration = 1000, formatFn }: { 
   value: number; 
@@ -69,7 +69,6 @@ function AnimatedCounter({ value, duration = 1000, formatFn }: {
   const [displayValue, setDisplayValue] = useState(0);
   const [previousValue, setPreviousValue] = useState(0);
   const countRef = useRef<number | null>(null);
-
   useEffect(() => {
     if (previousValue !== value) {
       // Annuler l'animation précédente si elle existe

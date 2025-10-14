@@ -756,11 +756,9 @@ export default function Resception() {
           },
           decoder: {
             readers: [
-              "ean_reader", // ISBN-13 et EAN-13
-              "ean_8_reader", // EAN-8
+              "ean_reader", // ISBN-13 et EAN-1
               "code_128_reader", // Codes-barres 128
-              "code_39_reader", // Code 39
-              "codabar_reader" // Codabar
+              "code_39_reader", // Code 39" // Codabar
             ] // Plus de formats supportés
           },
           locate: true,
