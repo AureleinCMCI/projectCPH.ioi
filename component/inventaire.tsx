@@ -116,7 +116,6 @@ export default function Inventaire() {
         {/* Boutons d'action dans la partie blanche */}
         <Center>
           <div className={styles.featureIcons}>
-            {user?.admin === true && (
               <div className={styles.featureIcon}>
                 <Link href="/inventaire/ScannerResception">
                   <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
@@ -125,7 +124,6 @@ export default function Inventaire() {
                   </div>
                 </Link>
               </div>
-            )}
 
             <div className={styles.featureIcon} onClick={() => setOpened(true)}>
               <span>📋</span>
