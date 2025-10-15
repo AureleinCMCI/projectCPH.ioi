@@ -96,11 +96,11 @@ graph TB
     LOCAL_STORAGE --> AUTH
 
     %% Styling
-    classDef frontend fill:#e1f5fe
-    classDef backend fill:#f3e5f5
-    classDef database fill:#e8f5e8
-    classDef external fill:#fff3e0
-    classDef client fill:#fce4ec
+    classDef frontend fill:#000000,stroke:#ffffff,color:#ffffff
+    classDef backend fill:#000000,stroke:#ffffff,color:#ffffff
+    classDef database fill:#000000,stroke:#ffffff,color:#ffffff
+    classDef external fill:#000000,stroke:#ffffff,color:#ffffff
+    classDef client fill:#000000,stroke:#ffffff,color:#ffffff
 
     class UI,COMP,PAGES,STYLES frontend
     class AUTH,BOOKS,INVENTORY,ORDERS,RESERVATIONS,SCANNER,ACCOUNT backend
