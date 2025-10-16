@@ -6,7 +6,7 @@ import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './style/ScannerResception.module.css';
-import stylesCommande from './style/commande.module.css';
+import stylesCompte from './style/monCompte.module.css';
 
 type InventaireItem = {
   id: number;
@@ -464,37 +464,32 @@ useEffect(() => {
   const validateAllScannedCodes = () => {
     console.log('🔍 Vérification de tous les codes scannés...', scannedCodes);
     
-    // Vérifier TOUS les ISBNs pour trouver le livre
+    // Chercher si AU MOINS UN ISBN existe dans la base de données
     let livreFound = null;
-    let isbnTrouve = null;
     
-    // Première passe : chercher un ISBN valide
     for (const code of scannedCodes) {
-      console.log(`�� Vérification de l'ISBN: ${code}`);
-      
       // Vérifier si l'ISBN existe dans la liste des ISBN
-      const isbnMatch = isbnList.find(item => item.isbn.toString() === code.trim());
+      const isbnTrouve = isbnList.find(item => item.isbn.toString() === code.trim());
       
-      if (isbnMatch) {
-        console.log(`✅ ISBN trouvé dans la base: ${isbnMatch.isbn}`);
-        isbnTrouve = isbnMatch;
-        break; // On a trouvé un ISBN valide, on peut arrêter
+      if (isbnTrouve) {
+        // ISBN trouvé - chercher le livre correspondant dans l'inventaire
+        const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
+        if (livre) {
+          livreFound = livre;
+          break; // Arrêter dès qu'on trouve un match
+        }
       }
-    }
-    
-    // Si on a trouvé un ISBN, chercher le livre correspondant
-    if (isbnTrouve) {
-      console.log(`�� Recherche du livre pour l'ISBN: ${isbnTrouve.isbn}`);
-      const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
-      
-      if (livre) {
-        console.log(`✅ Livre trouvé: ${livre.title}`);
-        livreFound = livre;
-      } else {
-        console.log(`❌ ISBN trouvé mais livre non en stock: ${isbnTrouve.isbn}`);
+      else if (!isbnTrouve) {
+        alert(`❌ Aucun livre trouvé en stock`);
+        /*redirige vers la page scannerResception */
+        // Stocker l'ISBN et indiquer d'ouvrir automatiquement le formulaire
+        localStorage.setItem('IsbnScanner', scannedCodes.toString());
+        localStorage.setItem('autoOpenForm', 'true');
+        localStorage.setItem('returnToCommande', 'true');
+        window.location.href = '/inventaire/ScannerResception';
+        /*fin redirige vers la page commande */
+        return; 
       }
-    } else {
-      console.log(`❌ Aucun ISBN valide trouvé dans les codes scannés`);
     }
     
     // Fermer le scanner
@@ -505,20 +500,16 @@ useEffect(() => {
     setShowCodesList(false);
     setScannedCodes([]);
     
-    // Décider selon les résultats
+    // Décider automatiquement
     if (livreFound) {
-      // ✅ Livre trouvé : ouvrir le formulaire de décrémentation
+      // ✅ ISBN trouvé : ouvrir le formulaire de décrémentation
       alert(`✅ Livre trouvé : ${livreFound.title}`);
       setIsbn(livreFound.isbn.toString());
-      setSupprimer(1);
-      setTimeout(() => setFormOpened(true), 500);
+      setSupprimer(1); // Initialiser la quantité à décrémenter
+      setTimeout(() => setFormOpened(true), 500); // Ouvre le formulaire de décrémentation
     } else {
-      // ❌ Aucun livre trouvé : rediriger vers réception
+      // ❌ ISBN non trouvé
       alert(`❌ Aucun livre trouvé en stock`);
-      localStorage.setItem('pendingIsbn', scannedCodes.join(', '));
-      localStorage.setItem('autoOpenForm', 'true');
-      localStorage.setItem('returnToCommande', 'true');
-      window.location.href = '/inventaire/ScannerResception';
     }
   };
 
@@ -604,26 +595,26 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
 
 
   return (
-    <div className={stylesCommande.StyleCommandeGenerale}>
+    <div className={stylesCompte.revolutStyle}>
       {/* Header avec icône livre */}
 
 
       {/* Section montant principal */}
-      <div className={stylesCommande.revolutAmount}>
-        <div className={stylesCommande.revolutLabel}>Commandes</div>
-        <div className={stylesCommande.TtileCommande}>Voici l&apos;interface de vente de livres</div>
-        <div className={stylesCommande.revolutQuickActions}>
-          <div className={stylesCommande.quickAction}>
-            <div onClick={() => setScannerOpened(true)} className={stylesCommande.revolutdiv}>
+      <div className={stylesCompte.revolutAmount}>
+        <div className={stylesCompte.revolutLabel}>Commandes</div>
+        <div className={stylesCompte.revolutValue}>Voici l&apos;interface de vente de livres</div>
+        <div className={stylesCompte.revolutQuickActions}>
+          <div className={stylesCompte.quickAction}>
+            <div onClick={() => setScannerOpened(true)} className={stylesCompte.revolutdiv}>
               <span>📱</span>
-              <div className={stylesCommande.quickActionLabel}>Scanner</div>
+              <div className={stylesCompte.quickActionLabel}>Scanner</div>
             </div>
           </div>
 
-          <div className={stylesCommande.quickAction}>
-          <div onClick={() => listeCommande(true)} className={stylesCommande.revolutdiv}>
+          <div className={stylesCompte.quickAction}>
+          <div onClick={() => listeCommande(true)} className={stylesCompte.revolutdiv}>
               <span>📋</span>
-              <div className={stylesCommande.quickActionLabel}>Commande</div>
+              <div className={stylesCompte.quickActionLabel}>Commande</div>
             </div>
           </div>
         </div>
@@ -635,28 +626,27 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
           placeholder="Rechercher un livre..."
           value={search}
           onChange={(e) => setSearch(e.currentTarget.value)}
-          className={stylesCommande.searchInput}
+          className={stylesCompte.searchInput}
         />
       </div>
 
       {/* Liste des livres */}
-      {/*
-      <div className={stylesCommande.transactionsList}>
+      <div className={stylesCompte.transactionsList}>
         {loading ? (
           <Center>
             <Loader />
           </Center>
         ) : (
           filteredInventaire.map((item) => (
-            <div key={item.id} onClick={() => detailvre(item.isbn.toString())} className={stylesCommande.transaction}>
-              <div className={stylesCommande.transactionIcon}>{item.livre?.image ? <img src={item.livre.image} alt="Livre" style={{  width: '30px', height: '30px' }} /> : '📚'}</div>
-              <div className={stylesCommande.transactionInfo}>
-                <div className={stylesCommande.transactionTitle}>{item.title}</div>
-                <div className={stylesCommande.transactionTime}>
+            <div key={item.id} onClick={() => detailvre(item.isbn.toString())} className={stylesCompte.transaction}>
+              <div className={stylesCompte.transactionIcon}>{item.livre?.image ? <img src={item.livre.image} alt="Livre" style={{  width: '30px', height: '30px' }} /> : '📚'}</div>
+              <div className={stylesCompte.transactionInfo}>
+                <div className={stylesCompte.transactionTitle}>{item.title}</div>
+                <div className={stylesCompte.transactionTime}>
                   👤 {item.author} | 📖 ISBN: {item.isbn}
                 </div>
               </div>
-              <div className={stylesCommande.transactionAmount}>
+              <div className={stylesCompte.transactionAmount}>
                 <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
                   {item.quantite}x
                 </div>
@@ -668,7 +658,7 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
           ))
         )}
       </div>
-*/}
+
       {/* Scanner en DIV plein écran */}
       {scannerOpened && (
         <div className={styles.scannerFullScreen}>
@@ -776,7 +766,7 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
                       fontWeight: "bold",
                     }}
                   >
-                      ✅ {scannedCodes.length > 1 ? "VALIDER TOUS LES CODES" : "VALIDER LE CODE"}
+                    ✅ VALIDER TOUS LES CODES
                     
                   </Button>
 
@@ -993,7 +983,14 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
         })()}
       </Modal>
 
-      <Modal   opened={detailOpened}     onClose={() => setDetailOpened(false)}   title="Détails du livre"     centered    size="xs">
+      {/* Modale de détails du livre */}
+      <Modal 
+        opened={detailOpened} 
+        onClose={() => setDetailOpened(false)} 
+        title="Détails du livre" 
+        centered 
+        size="xs"
+      >
         {selectedLivre && (
           <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
             {/* Image du livre */}
@@ -1003,7 +1000,7 @@ const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
                   src={selectedLivre.livre.image} 
                   alt={selectedLivre.title} 
                   style={{ 
-                    width: '100px', 
+                    width: '120px', 
                     height: '150px', 
                     objectFit: 'cover',
                     borderRadius: '8px',
