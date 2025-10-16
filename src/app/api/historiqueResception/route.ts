@@ -19,16 +19,17 @@ export type Reception = {
   livre_id: number;
   info: number;
   livre_title: string;
+  date_de_production?: string;
 }
 export async function POST(request: NextRequest) {
   const supabase = createClient();
-  const { quantite, name_user, livre_id, info  , user_id, livre_title} = await request.json();
+  const { quantite, name_user, livre_id, info, user_id, livre_title, date_de_production} = await request.json();
   if (!quantite || !name_user || !livre_id || !livre_title) {
     return new Response(JSON.stringify({ error: "Champs manquants" }), { status: 400 });
   }
   const { data, error } = await supabase
     .from('reception')
-    .insert([{ quantite, name_user, livre_id, info ,user_id, livre_title }])
+    .insert([{ quantite, name_user, livre_id, info, user_id, livre_title, date_de_production }])
     .select();
   if (error) {
     return new Response(JSON.stringify({ error: error.message }), { status: 400 });

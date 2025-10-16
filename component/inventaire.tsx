@@ -1,18 +1,10 @@
 'use client';
 
-import { Button, Center, Loader, Modal, Table, TextInput } from '@mantine/core';
+import { Button, Center, Modal, Table } from '@mantine/core';
 import Link from 'next/link';
 import { useEffect, useState } from 'react';
-import styles from './style/monCompte.module.css';
+import styles from './style/inventaire.module.css';
 
-type InventaireItem = {
-  id: number;
-  title: string;
-  author: string;
-  quantite: number;
-  price: number;
-  isbn: number;
-};
 type HistoriqueItem = {
   id: number;
   date_reception: string;
@@ -26,13 +18,10 @@ type HistoriqueItem = {
 
 export default function Inventaire() {
 
-  const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
   const [opened, setOpened] = useState(false);
   const [historique, setHistorique] = useState<HistoriqueItem[]>([]);
   const [user, setUser] = useState<{ admin?: boolean } | null>(null);
   /*Si l'utilisateur n'est pas connecté, il est redirigé vers la page de connexion*/
-  const [search, setSearch] = useState('');
   useEffect(() => {
     const token = localStorage.getItem('jwt');
     if (!token) {
@@ -63,23 +52,14 @@ export default function Inventaire() {
       const token = localStorage.getItem('jwt');
       if (!token) return;
       const decoded = JSON.parse(atob(token.split('.')[1]));
-      const response = await fetch(`/api/acount?id=${decoded.id}`, { method: 'GET' });
+      const response = await fetch(`/api/account?id=${decoded.id}`, { method: 'GET' });
       const result = await response.json();
       setUser(result.data);
     };
     fetchUser();
   }, []);
 
-  /*Récupération des livres en stock*/
-  useEffect(() => {
-    async function fetchInventaire() {
-      const response = await fetch('/api/inventaire');
-      const result = await response.json();
-      setInventaire(result.data || []);
-      setLoading(false);
-    }
-    fetchInventaire();
-  }, []);
+
 
   /*Récupération de l'historique des réceptions*/
   useEffect(() => {
@@ -96,7 +76,7 @@ export default function Inventaire() {
   const downloadCSV = () => {
     const header = ["Date", "Utilisateur", "Titre", "Quantité"];
     const rows = historique.map(item => [
-      item.date_reception,
+      new Date(item.date_reception).toLocaleDateString('fr-FR'),
       item.name_user,
       item.livre_title,
       item.quantite
@@ -111,75 +91,47 @@ export default function Inventaire() {
     setTimeout(() => window.URL.revokeObjectURL(url), 100);
   };
 
-  const filteredInventaire = inventaire.filter((item) =>
-    (item.title ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (item.author ?? '').toLowerCase().includes(search.toLowerCase())
-  );
+
 
   return (
-    <div className={styles.revolutStyle}>
-      {/* Section montant principal */}
+    <div className={styles.StyleInventaireGenerale}>
+      {/* Section orange en haut - exactement comme l'image */}
       <div className={styles.revolutAmount}>
-        <div className={styles.revolutLabel}>Inventaire</div>
-        <div className={styles.revolutValue}>{inventaire.length}</div>
-        <div className={styles.revolutQuickActions}>
-          {user?.admin === true && (
-            <div className={styles.quickAction}>
-              <Link href="/inventaire/ScannerResception" passHref legacyBehavior>
-                <div className={styles.revolutdiv}>
-                  <span>➕</span>
-                  <div className={styles.quickActionLabel}>Ajouter</div>
-                </div>
-              </Link>
-            </div>
-          )}
-
-          <div className={styles.quickAction}>
-            <div onClick={() => setOpened(true)} className={styles.revolutButton}>
-              <span>📋</span>
-              <div className={styles.quickActionLabel}>Historique</div>
-            </div>
-          </div>
+        <div className={styles.inventaireTitle}>
+          <div className={styles.titleLine} style={{ position: 'fixed', top: '100px', left: '0', right: '0' , bottom: '0'}}>INVENTAIRE</div>
         </div>
       </div>
 
-      {/* Barre de recherche */}
-      <div style={{ padding: '0 20px', marginBottom: '20px' }}>
-        <TextInput
-          placeholder="Rechercher un livre..."
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-          className={styles.searchInput}
-        />
-      </div>
+      {/* Section blanche en bas - exactement comme l'image */}
+      <div className={styles.productCard} style={{ position: 'fixed', bottom: '0', left: '0', right: '0' ,top: '370px'  }}>
+        <div className={styles.productHeader}>
+          <div className={styles.productTitle}>Livres en stock</div>
+          <div className={styles.productHeart}>📖</div>
+        </div>
+        
+        <div className={styles.productDescription}>
+          Gérez votre inventaire de livres, consultez les stocks et l&apos;historique des réceptions
+        </div>
 
-      {/* Liste des livres */}
-      <div className={styles.transactionsList}>
-        {loading ? (
-          <Center>
-            <Loader />
-          </Center>
-        ) : (
-          filteredInventaire.map((item) => (
-            <div key={item.id} className={styles.transaction}>
-              <div className={styles.transactionIcon}>📚</div>
-              <div className={styles.transactionInfo}>
-                <div className={styles.transactionTitle}>{item.title}</div>
-                <div className={styles.transactionTime}>
-                  👤 {item.author} | 📖 ISBN: {item.isbn}
-                </div>
+        {/* Boutons d'action dans la partie blanche */}
+        <Center>
+          <div className={styles.featureIcons}>
+              <div className={styles.featureIcon}>
+                <Link href="/inventaire/ScannerResception">
+                  <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', cursor: 'pointer' }}>
+                    <span>➕</span>
+                    <div className={styles.featureIconLabel}>Ajouter</div>
+                  </div>
+                </Link>
               </div>
-              <div className={styles.transactionAmount}>
-                <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                  {item.quantite}x
-                </div>
-                <div style={{ fontSize: '12px', color: '#666' }}>
-                  {item.price}€
-                </div>
-              </div>
+
+            <div className={styles.featureIcon} onClick={() => setOpened(true)}>
+              <span>📋</span>
+              <div className={styles.featureIconLabel}>Historique</div>
             </div>
-          ))
-        )}
+          </div>
+        </Center>
+        {/* Liste des livres */}        
       </div>
 
       {/* Modal Historique */}
@@ -199,7 +151,7 @@ export default function Inventaire() {
               <Table.Tbody>
                 {historique.map((item) => (
                   <Table.Tr key={item.id}>
-                    <Table.Td>{item.date_reception}</Table.Td>
+                    <Table.Td>{new Date(item.date_reception).toLocaleDateString('fr-FR')}</Table.Td>
                     <Table.Td>{item.quantite}</Table.Td>
                     <Table.Td>{item.livre_title}</Table.Td>
                     <Table.Td>{item.name_user}</Table.Td>

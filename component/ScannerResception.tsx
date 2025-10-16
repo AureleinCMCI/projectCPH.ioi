@@ -1,14 +1,33 @@
 'use client';
 
 import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
-import { Button, Center, Loader, Modal, Paper, Text, Textarea, TextInput } from '@mantine/core';
+import { Button, Center, Loader, Modal, Paper, Text, Textarea, TextInput , Pagination } from '@mantine/core';
+import { IconCamera, IconEdit } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
-import styles from './style/monCompte.module.css';
-import scannerStyles from './style/ScannerResception.module.css';
+
+import { default as scannerStyles, default as styles } from './style/ScannerResception.module.css';
 
 type InventaireItem = { id: number; livre_id: number; title: string; author: string; quantite: number; price: number; isbn: number; livre?: { image?: string };};
+
+// Interface pour BarcodeDetector (API native du navigateur)
+interface BarcodeDetectorInterface {
+  new (options: { formats: string[] }): {
+    detect(video: HTMLVideoElement): Promise<Array<{ rawValue: string }>>;
+  };
+}
+
+/* Configuration scanner optimisée pour ISBN */
+const SCANNER_CONFIG = {
+  // Fréquence de scan optimisée
+  fps: 30,
+  frequency: 30,
+  debounceDelay: 200, // Augmenté pour éviter les scans multiples
+  validationTimeout: 100, // Plus de temps pour la validation
+  workers: 4, // Réduit pour plus de stabilité
+  confidenceThreshold: 0.3, // Seuil de confiance plus bas
+};
 
 export default function Resception() {
   // États pour le formulaire d'ajout
@@ -21,6 +40,11 @@ export default function Resception() {
   
   // États pour la détection des plateformes
   const [isMobile, setIsMobile] = useState(false);
+  const [page, setPage] = useState(1);
+  const [livres, setLivres] = useState<InventaireItem[]>([]);
+  const [totalPages, setTotalPages] = useState(1);
+  const PAGE_SIZE = 20;
+  const [livresLoading, setLivresLoading] = useState(false);
   const [scanner, setScanner] = useState<Html5QrcodeScanner | boolean | null>(null);
   const [scannerType, setScannerType] = useState<'html5' | 'quagga'>('html5');
 
@@ -28,7 +52,7 @@ export default function Resception() {
     title: '', author: '', price: '', quantite: '', isbn: '', 
     description: '', image: '', livre_id: '', livre_title: '', 
     name_user: '', info: '', user_id: '', date_reception: '',
-    additionalIsbns: [] as string[] // Nouveau champ pour les ISBNs additionnels
+    date_de_production: '', additionalIsbns: [] as string[] // Nouveau champ pour les ISBNs additionnels
   });
   const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
@@ -47,10 +71,124 @@ export default function Resception() {
   // États pour la modale de détails du livre (nouvelle fonctionnalité)
   const [bookDetailsModalOpened, setBookDetailsModalOpened] = useState(false);
   const [selectedBook, setSelectedBook] = useState<InventaireItem | null>(null);
+  const [inventaireModalOpened, setInventaireModalOpened] = useState(false);
+  
+  // États pour l'ajout de plusieurs ISBN dans la modale
+  const [newIsbn, setNewIsbn] = useState('');
+  const [bookAdditionalIsbns, setBookAdditionalIsbns] = useState<string[]>([]);
+  const [isAddingIsbn, setIsAddingIsbn] = useState(false);
+  
+  // État pour le mode édition de la quantité
+  const [isEditingQuantity, setIsEditingQuantity] = useState(false);
+  const [tempQuantity, setTempQuantity] = useState<number>(0);
+
+  // Fonctions pour gérer l'édition de la quantité
+  const handleEditQuantity = () => {
+    if (selectedBook) {
+      setTempQuantity(selectedBook.quantite);
+      setIsEditingQuantity(true);
+    }
+  };
+
+  const ModifyQuantity = async () => {
+    if (!selectedBook) return;
+    
+    try {
+      const response = await fetch('/api/ScannerResception', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          id: selectedBook.id, 
+          ajout: tempQuantity - selectedBook.quantite 
+        }),
+      });
+
+      if (response.ok) {
+        // Mettre à jour l'état local
+        setSelectedBook(prev => prev ? { ...prev, quantite: tempQuantity } : null);
+        setInventaire(prev => prev.map(book => 
+          book.id === selectedBook.id ? { ...book, quantite: tempQuantity } : book
+        ));
+        setIsEditingQuantity(false);
+        alert('Quantité mise à jour avec succès !');
+      } else {
+        throw new Error('Erreur lors de la mise à jour');
+      }
+    } catch (error) {
+      console.error('Erreur:', error);
+      alert('Erreur lors de la mise à jour de la quantité');
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditingQuantity(false);
+    setTempQuantity(0);
+  };
+
+  // Fonction pour ajouter un nouvel ISBN au livre sélectionné
+  const addIsbnToBook = async () => {
+    if (!selectedBook || !newIsbn.trim()) {
+      alert('Veuillez saisir un ISBN valide');
+      return;
+    }
+
+    const cleanIsbn = newIsbn.trim();
+    
+    // Vérifier si l'ISBN n'existe pas déjà dans la liste complète
+    if (bookAdditionalIsbns.includes(cleanIsbn)) {
+      alert('Cet ISBN existe déjà pour ce livre');
+      return;
+    }
+
+    setIsAddingIsbn(true);
+    try {
+      // Appeler l'API pour ajouter l'ISBN
+      const response = await fetch('/api/isbn', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          isbn: cleanIsbn,
+          livre_id: selectedBook.livre_id
+        }),
+      });
+
+      if (response.ok) {
+        // Ajouter à la liste locale
+        setBookAdditionalIsbns(prev => [...prev, cleanIsbn]);
+        setNewIsbn('');
+        alert('✅ ISBN ajouté avec succès !');
+      } else {
+        throw new Error('Erreur lors de l\'ajout');
+      }
+    } catch (error) {
+      console.error('Erreur lors de l\'ajout de l\'ISBN:', error);
+      alert('❌ Erreur lors de l\'ajout de l\'ISBN');
+    } finally {
+      setIsAddingIsbn(false);
+    }
+  };
+  // Fonction pour charger les ISBN existants depuis la base de données
+  const loadExistingIsbns = async (livre_id: number) => {
+    try {
+      const response = await fetch(`/api/isbn?livre_id=${livre_id}`);
+      if (response.ok) {
+        const result = await response.json();
+        const isbns = result.data || [];
+        // Récupérer TOUS les ISBN pour ce livre (y compris le principal)
+        const allIsbns = isbns.map((item: { isbn: number }) => item.isbn.toString());
+        setBookAdditionalIsbns(allIsbns);
+      }
+    } catch (error) {
+      console.error('Erreur lors du chargement des ISBN:', error);
+    }
+  };
+
+  // Plus de fonction de suppression - on garde tous les ISBN !
 
   // Ajouter un nouvel état pour la liste des codes scannés
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
   const [showCodesList, setShowCodesList] = useState(false);
+  const [isbnList, setIsbnList] = useState<{ isbn: number; livre_id: number }[]>([]);
 
   const setScannerNode = useCallback((node: HTMLDivElement | null) => {
     scannerRef.current = node;
@@ -85,10 +223,25 @@ export default function Resception() {
     const autoOpenForm = localStorage.getItem('autoOpenForm');
     
     if (autoOpenForm === 'true') {
-      // Récupérer tous les ISBNs scannés
+      // Récupérer tous les ISBNs scannés (depuis commande.tsx ou scanner direct)
+      const scannedIsbns = localStorage.getItem('scannedIsbns');
       const IsbnScanner = localStorage.getItem('IsbnScanner');
-      if (IsbnScanner) {
-        const isbns = IsbnScanner.split(', ');
+      
+      let isbns: string[] = [];
+      
+      if (scannedIsbns) {
+        // ISBNs venant de commande.tsx (format JSON)
+        try {
+          isbns = JSON.parse(scannedIsbns);
+        } catch (e) {
+          console.error('Erreur parsing scannedIsbns:', e);
+        }
+      } else if (IsbnScanner) {
+        // ISBNs venant du scanner direct (format string avec virgules)
+        isbns = IsbnScanner.split(', ');
+      }
+      
+      if (isbns.length > 0) {
         setFormData(prev => ({
           ...prev,
           isbn: isbns[0] || '', // Premier ISBN comme ISBN principal
@@ -99,6 +252,8 @@ export default function Resception() {
       // Ouvrir automatiquement le formulaire d'ajout
       setTimeout(() => setFormOpened(true), 500);
       localStorage.removeItem('autoOpenForm');
+      localStorage.removeItem('scannedIsbns'); // Nettoyer
+      localStorage.removeItem('IsbnScanner'); // Nettoyer
     }
   }, []);
 
@@ -144,68 +299,285 @@ export default function Resception() {
     checkPendingIsbn();
   }, []);
 
-  // Gestionnaires pour html5-qrcode
-  const handleScan = async (decodedText: string) => {
-    if (decodedText) {
-      console.log('✅ Code scanné:', decodedText);
-      
-      // Ajouter le code à la liste s'il n'y est pas déjà
-      setScannedCodes(prev => {
-        if (!prev.includes(decodedText)) {
-          const newCodes = [...prev, decodedText];
-          console.log('📋 Codes scannés:', newCodes);
-          setShowCodesList(true); // Afficher immédiatement
-          return newCodes;
-        }
-        return prev;
-      });
-      
-      // ❌ NE PAS fermer le scanner ici !
-      // Le scanner continue à tourner
+  /* Cache pour optimiser les validations ISBN répétées */
+  const isbnValidationCache = useRef<Map<string, boolean>>(new Map());
+  
+  /* Fonction de validation ISBN flexible */
+  const isValidISBN = (code: string): boolean => {
+    // Vérifier le cache d'abord
+    if (isbnValidationCache.current.has(code)) {
+      return isbnValidationCache.current.get(code)!;
     }
+    
+    // Nettoyer le code (supprimer espaces, tirets, etc.)
+    const cleanCode = code.replace(/[\s-]/g, '');
+    
+    // Validation plus flexible - accepter plus de formats
+    const len = cleanCode.length;
+    
+    // Accepter les codes de 8 à 15 caractères (plus flexible)
+    if (len < 8 || len > 15) {
+      isbnValidationCache.current.set(code, false);
+      return false;
+    }
+    
+    // Vérifier que c'est principalement numérique
+    const numericCount = (cleanCode.match(/[0-9]/g) || []).length;
+    const alphaCount = (cleanCode.match(/[A-Za-z]/g) || []).length;
+    
+    // Accepter si au moins 80% de chiffres ou contient des lettres valides
+    if (numericCount < len * 0.8 && alphaCount === 0) {
+      isbnValidationCache.current.set(code, false);
+      return false;
+    }
+    
+    console.log(`✅ Code valide détecté: ${cleanCode} (${len} caractères)`);
+    isbnValidationCache.current.set(code, true);
+    return true;
   };
+
+  /* fonctionalité du scan optimisée avec validation flexible */
+  const handleScan = useCallback((decodedText: string) => {
+    if (!decodedText || decodedText.length < 5) return;
+    
+    const now = Date.now();
+    
+    // Debounce plus souple
+    if (decodedText === lastScannedCode.current && 
+        now - lastScanTime.current < SCANNER_CONFIG.debounceDelay) {
+      return;
+    }
+    
+    lastScanTime.current = now;
+    lastScannedCode.current = decodedText;
+    
+    console.log('📱 Code scanné:', decodedText);
+    
+    // Validation plus flexible
+    const isValid = isValidISBN(decodedText);
+    
+    if (!isValid) {
+      console.log('❌ Code rejeté (format non valide)');
+      return;
+    }
+    
+    // Nettoyer le code
+    const cleanCode = decodedText.replace(/[\s-]/g, '');
+    console.log('✅ Code valide scanné:', cleanCode);
+    
+    // Ajouter le code à la liste
+    setScannedCodes(prev => {
+      if (!prev.includes(cleanCode)) {
+        const newCodes = [...prev, cleanCode];
+        console.log('📋 Codes scannés:', newCodes);
+        setShowCodesList(true);
+        return newCodes;
+      }
+      return prev;
+    });
+
+    // Recherche dans la base de données avec plusieurs formats
+    const searchStart = performance.now();
+    
+    // Essayer plusieurs formats de recherche
+    let isbnTrouve = isbnList.find(item => item.isbn.toString() === cleanCode);
+    
+    // Si pas trouvé, essayer avec des formats partiels
+    if (!isbnTrouve && cleanCode.length >= 10) {
+      // Essayer les 10 derniers chiffres
+      const last10 = cleanCode.slice(-10);
+      isbnTrouve = isbnList.find(item => item.isbn.toString().endsWith(last10));
+    }
+    
+    // Si pas trouvé, essayer les 13 premiers chiffres
+    if (!isbnTrouve && cleanCode.length >= 13) {
+      const first13 = cleanCode.slice(0, 13);
+      isbnTrouve = isbnList.find(item => item.isbn.toString().startsWith(first13));
+    }
+    
+    const searchTime = performance.now() - searchStart;
+    console.log(`🔍 Recherche BD: ${searchTime.toFixed(1)}ms`);
+    
+    if (isbnTrouve) {
+      const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
+      
+      if (livre) {
+        console.log(`✅ Livre trouvé : ${livre.title}`);
+        // Auto-ouvrir la modale d'incrémentation
+        setIsbn(livre.isbn.toString());
+        setQuantiteToAdd(1);
+        setTimeout(() => setIncrementModalOpened(true), 100);
+      } else {
+        console.log(`✅ Code trouvé mais livre non en stock : ${isbnTrouve.isbn}`);
+      }
+    } else {
+      console.log(`❌ Code non trouvé dans la base : ${cleanCode}`);
+    }
+  }, [isbnList, inventaire]);
 
   const handleError = (errorMessage: string) => {
     console.error('Erreur de scan:', errorMessage);
   };
 
   // Fonction pour valider un code choisi
-  const validateSelectedCode = async (selectedCode: string) => {
-    console.log('🎯 Code sélectionné:', selectedCode);
+
+
+  // Fonction pour vérifier TOUS les codes scannés (méthode améliorée comme dans commande.tsx)
+  const validateAllScannedCodes = async () => {
+    console.log('🔍 Vérification de TOUS les codes scannés...', scannedCodes);
     
-    // Arrêter le scanner maintenant
-    if (scannerType === 'quagga' || scannerType === 'html5') {
-      Quagga.stop();
+    // Vérifier TOUS les ISBNs pour trouver le livre
+    let livreFound = null;
+    let isbnTrouve = null;
+    
+    // Première passe : chercher un ISBN valide
+    for (const code of scannedCodes) {
+      console.log(`🔍 Vérification de l'ISBN: ${code}`);
+      
+      // Vérifier si l'ISBN existe dans la liste des ISBN
+      const isbnMatch = isbnList.find(item => item.isbn.toString() === code.trim());
+      
+      if (isbnMatch) {
+        console.log(`✅ ISBN trouvé dans la base: ${isbnMatch.isbn}`);
+        isbnTrouve = isbnMatch;
+        break; // On a trouvé un ISBN valide, on peut arrêter
+      }
     }
     
-    // Vérifier si l'ISBN existe en stock
-    const livre = inventaire.find(item => item.isbn.toString() === selectedCode.trim());
+    // Si on a trouvé un ISBN, chercher le livre correspondant
+    if (isbnTrouve) {
+      console.log(`🔍 Recherche du livre pour l'ISBN: ${isbnTrouve.isbn}`);
+      const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
+      
+      if (livre) {
+        console.log(`✅ Livre trouvé: ${livre.title}`);
+        livreFound = livre;
+      } else {
+        console.log(`ℹ️ ISBN trouvé mais pas dans l'inventaire chargé; vérification serveur...`);
+        try {
+          // Essayer lookup par livre_id en privilégiant l'id si disponible
+          const lookupRes = await fetch(`/api/inventaire?livre_id=${isbnTrouve.livre_id}`);
+          if (lookupRes.ok) {
+            const lookupJson = await lookupRes.json();
+            if (lookupJson && lookupJson.data) {
+              console.log('✅ Livre trouvé via serveur:', lookupJson.data.title || lookupJson.data);
+              // Ajouter localement l'entrée à l'inventaire si elle n'existe pas encore
+              const serveurLivre = lookupJson.data as InventaireItem;
+              setInventaire(prev => {
+                try {
+                  const exists = prev.some(p => p.livre_id === serveurLivre.livre_id || p.id === serveurLivre.id);
+                  if (exists) return prev;
+                  return [serveurLivre, ...prev];
+                } catch (_) {
+                  return prev;
+                }
+              });
+              livreFound = serveurLivre;
+            } else {
+              console.log('❌ Aucun livre trouvé côté serveur pour ce livre_id');
+            }
+          } else {
+            console.warn('Recherche serveur non OK', lookupRes.status);
+          }
+        } catch (err) {
+          console.error('Erreur lors du lookup serveur:', err);
+        }
+      }
+    } else {
+      console.log(`❌ Aucun ISBN valide trouvé dans les codes scannés`);
+    }
     
-    if (livre) {
+    // Fermer le scanner
+    if (scannerType === 'quagga') {
+      Quagga.stop();
+    }
+    setScannerOpened(false);
+    setShowCodesList(false);
+    setScannedCodes([]);
+    
+    // Décider automatiquement
+    if (livreFound) {
       // ✅ ISBN trouvé : ouvrir la popup d'incrémentation
-      setIsbn(livre.isbn.toString());
+      alert(`✅ Livre trouvé: ${livreFound.title}`);
+      setIsbn(livreFound.isbn.toString());
       setQuantiteToAdd(1);
-      
-      setScannerOpened(false);
-      setShowCodesList(false);
-      setScannedCodes([]);
-      
       setTimeout(() => setIncrementModalOpened(true), 500);
-         } else {
-       // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout
-       alert(`ISBN ${selectedCode} - Livre pas en stock !`);
-       setFormData(prev => ({ 
-         ...prev, 
-         isbn: selectedCode,
-         additionalIsbns: [] // Pas d'ISBNs additionnels pour un code sélectionné individuellement
-       }));
-       
-       setScannerOpened(false);
-       setShowCodesList(false);
-       setScannedCodes([]);
-       
-       setTimeout(() => setFormOpened(true), 500);
-     }
+    } else {
+      // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout avec ISBNs séparés
+      alert('❌ Aucun livre trouvé - ouverture du formulaire d\'ajout');
+      setFormData(prev => ({ 
+        ...prev, 
+        isbn: scannedCodes[0] || '',
+        additionalIsbns: scannedCodes.slice(1)
+      }));
+      setTimeout(() => setFormOpened(true), 500);
+    }
+  };
+
+  // Wrapper pour appeler validateAllScannedCodes depuis les event handlers
+  const handleValidateAllScannedCodes = () => {
+    validateAllScannedCodes().catch(error => {
+      console.error('Erreur lors de la validation des codes scannés:', error);
+      alert('❌ Erreur lors de la validation des codes scannés');
+    });
+  };
+
+
+
+  /* Système de debounce pour éviter les scans répétés */
+  const lastScanTime = useRef<number>(0);
+  const lastScannedCode = useRef<string>('');
+
+  // Fonction de diagnostic pour vérifier la compatibilité
+  const checkCompatibility = useCallback(async () => {
+    console.log('=== Diagnostic Scanner ===');
+    console.log('User Agent:', navigator.userAgent);
+    console.log('Est mobile:', isMobile);
+    
+    try {
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      const videoDevices = devices.filter(device => device.kind === 'videoinput');
+      console.log('Appareils vidéo disponibles:', videoDevices);
+      
+      if (videoDevices.length === 0) {
+        console.warn('Aucun appareil vidéo détecté');
+      }
+    } catch (error) {
+      console.error('Erreur lors de la détection des appareils:', error);
+    }
+  }, [isMobile]);
+
+  // Fonction pour forcer l'accès à la caméra sur Android
+  const forceCameraAccessAndroid = async () => {
+    try {
+      console.log('🔐 Tentative d\'accès forcé à la caméra sur Android...');
+      
+      // Détecter si c'est Android
+      const isAndroid = /android/i.test(navigator.userAgent);
+      if (!isAndroid) {
+        console.log('📱 Pas Android, accès normal');
+        return true;
+      }
+      
+      // Sur Android, essayer d'accéder directement à la caméra
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: {
+          facingMode: 'environment',
+          width: { ideal: 1280, max: 1920 },
+          height: { ideal: 720, max: 1080 }
+        }
+      });
+      
+      console.log('✅ Accès caméra Android forcé réussi');
+      
+      // Arrêter immédiatement le stream pour libérer la caméra
+      stream.getTracks().forEach(track => track.stop());
+      
+      return true;
+    } catch (error) {
+      console.warn('⚠️ Accès forcé Android échoué:', error);
+      return false;
+    }
   };
 
   // Initialisation scanner adaptatif (html5-qrcode OU QuaggaJS)
@@ -213,58 +585,191 @@ export default function Resception() {
     if (scannerOpened && scannerReady && scannerRef.current) {
       console.log(`Scanner ${scannerType} prêt à être utilisé`);
       
-      if (scannerType === 'html5') {
-        // ANDROID/DESKTOP : html5-qrcode
-        const html5QrcodeScanner = new Html5QrcodeScanner(
-          "reader",
-          { 
-            fps: 10, 
-            aspectRatio: 2.5,
-            videoConstraints: {
-              facingMode: 'environment'
+      // Détecter Android pour utiliser une approche différente
+      const isAndroid = /android/i.test(navigator.userAgent);
+      
+      if (isAndroid && scannerType === 'html5') {
+        // APPROCHE SPÉCIALE POUR ANDROID - Contourner le bouton de permission
+        console.log('🤖 Android détecté - Utilisation de l\'approche directe');
+        
+        // Créer un scanner personnalisé pour Android
+        const initAndroidScanner = async () => {
+          try {
+            // Accéder directement à la caméra
+            const stream = await navigator.mediaDevices.getUserMedia({
+              video: {
+                facingMode: 'environment',
+                width: { ideal: 1280, max: 1920 },
+                height: { ideal: 720, max: 1080 }
+              }
+            });
+            
+            // Créer un élément vidéo
+            const video = document.createElement('video');
+            video.srcObject = stream;
+            video.style.width = '100%';
+            video.style.height = '100%';
+            video.style.objectFit = 'cover';
+            video.autoplay = true;
+            video.playsInline = true;
+            
+            // Ajouter au container
+            const reader = document.getElementById('reader');
+            if (reader) {
+              reader.innerHTML = '';
+              reader.appendChild(video);
             }
-          },
-          false
-        );
-
-        html5QrcodeScanner.render(handleScan, handleError);
-        setScanner(html5QrcodeScanner);
-
-        return () => {
-          if (html5QrcodeScanner) {
-            html5QrcodeScanner.clear();
+            
+            // Utiliser l'API native de détection de codes-barres si disponible
+            if ('BarcodeDetector' in window) {
+              const BarcodeDetector = (window as unknown as { BarcodeDetector: BarcodeDetectorInterface }).BarcodeDetector;
+              const barcodeDetector = new BarcodeDetector({
+                formats: ['ean_13', 'ean_8', 'code_128']
+              });
+              
+              const detectBarcodes = async () => {
+                try {
+                  const barcodes = await barcodeDetector.detect(video);
+                  if (barcodes.length > 0) {
+                    const code = barcodes[0].rawValue;
+                    console.log('📱 Code détecté via BarcodeDetector:', code);
+                    handleScan(code);
+                  }
+                } catch (error) {
+                  console.log('Détection BarcodeDetector:', error);
+                }
+                requestAnimationFrame(detectBarcodes);
+              };
+              
+              video.addEventListener('loadedmetadata', () => {
+                detectBarcodes();
+              });
+            }
+            
+            setScanner(true);
+            
+            // Fonction de nettoyage pour Android
+            const cleanup = () => {
+              stream.getTracks().forEach(track => track.stop());
+              if (reader) {
+                reader.innerHTML = '';
+              }
+              setScanner(null);
+            };
+            
+            // Retourner la fonction de nettoyage
+            return cleanup;
+            
+          } catch (error) {
+            console.error('Erreur scanner Android direct:', error);
+            // Fallback vers html5-qrcode normal
+            console.log('🔄 Fallback vers scanner normal...');
+            // Utiliser html5-qrcode en fallback
+            const html5QrcodeScanner = new Html5QrcodeScanner(
+              "reader",
+              { 
+                fps: SCANNER_CONFIG.fps,
+                aspectRatio: 2.5,
+                qrbox: { width: 250, height: 250 },
+                videoConstraints: {
+                  facingMode: 'environment',
+                  width: { ideal: 1280, max: 1920 },
+                  height: { ideal: 720, max: 1080 }
+                }
+              },
+              false
+            );
+            html5QrcodeScanner.render(handleScan, handleError);
+            setScanner(html5QrcodeScanner);
           }
         };
+        
+        initAndroidScanner();
+        
       } else {
+        // APPROCHE NORMALE POUR AUTRES PLATEFORMES
+        const initNormalScanner = () => {
+          // Essayer d'abord l'accès forcé à la caméra sur Android
+          forceCameraAccessAndroid().then(() => {
+            if (scannerType === 'html5') {
+          // ANDROID/DESKTOP : html5-qrcode optimisé pour détection
+          const html5QrcodeScanner = new Html5QrcodeScanner(
+            "reader",
+            { 
+              fps: SCANNER_CONFIG.fps,
+              aspectRatio: 1.0, // Ratio carré pour meilleure détection
+              qrbox: { width: 300, height: 300 }, // Zone de scan plus grande
+              videoConstraints: {
+                facingMode: 'environment',
+                width: { ideal: 640, max: 1280 }, // Résolution plus basse = plus stable
+                height: { ideal: 480, max: 720 }
+              },
+              experimentalFeatures: {
+                useBarCodeDetectorIfSupported: true
+              },
+              // Configuration pour meilleure détection
+              showTorchButtonIfSupported: true, // Permettre la torche
+              showZoomSliderIfSupported: true, // Permettre le zoom
+              defaultZoomValueIfSupported: 2, // Zoom par défaut
+              rememberLastUsedCamera: true,
+              useBarCodeDetectorIfSupported: true
+            },
+            true // verbose = true pour debug
+          );
+
+          // Rendre le scanner avec gestion d'erreur personnalisée
+          html5QrcodeScanner.render(
+            handleScan, 
+            (error) => {
+              console.error('Erreur de scan HTML5:', error);
+              // Ne pas afficher l'erreur à l'utilisateur, juste logger
+              handleError(error);
+            }
+          );
+          setScanner(html5QrcodeScanner);
+
+          return () => {
+            if (html5QrcodeScanner) {
+              html5QrcodeScanner.clear();
+            }
+          };
+        } else {
+        // IOS : QuaggaJS optimisé pour détection
+        console.log('🚀 Initialisation QuaggaJS optimisée...');
         Quagga.init({
           inputStream: {
             name: "Live",
             type: "LiveStream",
             target: document.getElementById('reader') as HTMLElement,
             constraints: {
-              width: { min: 640, ideal: 1280 },
-              height: { min: 480, ideal: 720 },
-              facingMode: "environment"
+              width: { min: 320, ideal: 640, max: 1280 }, // Résolution plus basse
+              height: { min: 240, ideal: 480, max: 720 },
+              facingMode: "environment",
+              frameRate: { ideal: SCANNER_CONFIG.fps, max: 30 } // FPS stable
+            },
+            area: { // Zone de scan plus grande pour meilleure détection
+              top: "10%",
+              right: "10%", 
+              left: "10%",
+              bottom: "10%"
             }
           },
           decoder: {
             readers: [
-              "ean_reader",
-              "ean_8_reader",
-              "code_128_reader",
-              "code_39_reader",
-              "codabar_reader",
-              "i2of5_reader"
-            ]
+              "ean_reader", // ISBN-13 et EAN-1
+              "code_128_reader", // Codes-barres 128
+              "code_39_reader", // Code 39" // Codabar
+            ] // Plus de formats supportés
           },
-          locate: false,
+          locate: true,
           locator: {
-            patchSize: "large",
-            halfSample: true
+            patchSize: "medium", // Taille moyenne pour meilleure détection
+            halfSample: true // Activé pour performance
           },
-          numOfWorkers: 2,
-          frequency: 10
-        }, (err) => {
+          numOfWorkers: SCANNER_CONFIG.workers,
+          frequency: SCANNER_CONFIG.frequency,
+          debug: true // Debug activé pour diagnostic
+        }, (err: Error | null) => {
           if (err) {
             console.error('Erreur initialisation Quagga:', err);
             handleError(err.message);
@@ -274,11 +779,18 @@ export default function Resception() {
           Quagga.start();
           setScanner(true);
         });
+
         const onDetected = (result: QuaggaJSResultObject) => {  
           const code = result.codeResult.code;
-          console.log('Code détecté par Quagga:', code);
-          if (code) {
+          const confidence = result.codeResult.format;
+          
+          console.log('📱 Code détecté par Quagga:', code, 'Format:', confidence);
+          
+          // Filtrage plus souple - accepter plus de codes
+          if (code && code.length >= 5) { // Accepter des codes plus courts
             handleScan(code);
+          } else {
+            console.log('❌ Code ignoré (trop court):', code);
           }
         };
         Quagga.onDetected(onDetected);
@@ -288,39 +800,123 @@ export default function Resception() {
           Quagga.stop();
           setScanner(null);
         };
+        }
+      });
+        };
+        
+        initNormalScanner();
       }
     }
-  }, [scannerOpened, scannerReady, scannerType]);
+  }, [scannerOpened, scannerReady, scannerType, handleScan]);
+  // Nettoyage quand le scanner se ferme
   useEffect(() => {
     if (!scannerOpened && scanner) {
       console.log('Scanner fermé, nettoyage des ressources...');
       
-      if (scannerType === 'html5') {
-        (scanner as Html5QrcodeScanner).clear();
-      } else {
-        Quagga.stop();
+      try {
+        if (scannerType === 'html5') {
+          // Vérifier que scanner est bien une instance de Html5QrcodeScanner
+          if (scanner && typeof scanner === 'object' && 'clear' in scanner) {
+            (scanner as Html5QrcodeScanner).clear();
+            console.log('✅ Scanner HTML5 nettoyé');
+          } else if (scanner === true) {
+            // Scanner Android direct - nettoyer le DOM
+            const reader = document.getElementById('reader');
+            if (reader) {
+              reader.innerHTML = '';
+            }
+            console.log('✅ Scanner Android nettoyé');
+          }
+        } else {
+          // Scanner QuaggaJS
+          Quagga.stop();
+          console.log('✅ Scanner QuaggaJS nettoyé');
+        }
+      } catch (error) {
+        console.error('Erreur lors du nettoyage du scanner:', error);
       }
       
       setScanner(null);
     }
   }, [scannerOpened, scanner, scannerType]);
 
-  // Récupération de l'inventaire au chargement
+  // Diagnostic quand le scanner s'ouvre
   useEffect(() => {
-    async function fetchInventaire() {
+    if (scannerOpened) {
+      console.log('🎯 Scanner ouvert - diagnostic en cours...');
+      checkCompatibility();
+    }
+  }, [scannerOpened, checkCompatibility]);
+
+  // Récupération de l'inventaire et de la liste des ISBNs au chargement
+  useEffect(() => {
+    async function fetchData() {
       setLoading(true);
       try {
-        const response = await fetch('/api/inventaire', { method: 'GET' });
-        const result = await response.json();
-        setInventaire(result.data || []);
-      } catch {
+        // Récupérer l'inventaire
+        const inventaireResponse = await fetch('/api/inventaire', { method: 'GET' });
+        const inventaireResult = await inventaireResponse.json();
+        setInventaire(inventaireResult.data || []);
+        
+        // Récupérer la liste des ISBNs
+        const isbnResponse = await fetch('/api/isbn', { method: 'GET' });
+        const isbnResult = await isbnResponse.json();
+        setIsbnList(isbnResult.data || []);
+      } catch (error) {
+        console.error('Erreur lors de la récupération des données:', error);
         setInventaire([]);
+        setIsbnList([]);
       } finally {
         setLoading(false);
       }
     }
-    fetchInventaire();
+    fetchData();
   }, []);
+
+  // Récupération paginée des livres pour la modale d'inventaire
+  useEffect(() => {
+    if (!inventaireModalOpened) return;
+    const abort = new AbortController();
+
+    const fetchPage = async () => {
+      try {
+        setLivresLoading(true);
+        const searchParam = search.trim() ? `&search=${encodeURIComponent(search.trim())}` : '';
+        const res = await fetch(`/api/inventaire?page=${page}&pageSize=${PAGE_SIZE}${searchParam}`, { signal: abort.signal });
+        if (!res.ok) {
+          console.error('Erreur fetch inventaire page', res.status);
+          setLivres([]);
+          setTotalPages(1);
+          return;
+        }
+        const json = await res.json();
+        const pageSize = Number(json.pageSize ?? PAGE_SIZE);
+        const pageData = Array.isArray(json.data) ? json.data : [];
+
+        setLivres(pageData);
+
+      
+        const total = typeof json.total === 'number' ? Number(json.total) : null;
+        if (total !== null) {
+          setTotalPages(Math.max(1, Math.ceil(total / pageSize)));
+        } else {
+          if (pageData.length < pageSize) {
+            setTotalPages(page);
+          } else {
+            setTotalPages(page + 1);
+          }
+        }
+      } catch (err: any) {
+        if (err.name === 'AbortError') return;
+        console.error('Erreur chargement livres:', err);
+      } finally {
+        setLivresLoading(false);
+      }
+    };
+
+    fetchPage();
+    return () => abort.abort();
+  }, [page, inventaireModalOpened, search]);
 
   // Gestion du formulaire d'ajout
   const handleFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
@@ -352,7 +948,8 @@ export default function Resception() {
           author: String(formData.author),
           description: formData.description,
           isbn: String(formData.isbn),
-          image: capturedImage
+          image: capturedImage,
+          date_de_production: formData.date_de_production
         }),
       });
       const livreData = await livreRes.json();
@@ -372,7 +969,8 @@ export default function Resception() {
           author: String(formData.author),
           quantite: Number(formData.quantite),
           price: Number(formData.price),
-          isbn: String(formData.isbn)
+          isbn: String(formData.isbn),
+          date_de_production: formData.date_de_production
         }),
       });
 
@@ -417,7 +1015,8 @@ export default function Resception() {
           name_user: user.name,
           livre_id: livreId,
           info: 0,
-          livre_title: formData.title
+          livre_title: formData.title,
+          date_de_production: formData.date_de_production
         }),
       });
 
@@ -427,7 +1026,7 @@ export default function Resception() {
          title: '', author: '', price: '', quantite: '', isbn: '', 
          description: '', image: '', livre_id: '', livre_title: '', 
          name_user: '', info: '', user_id: '', date_reception: '',
-         additionalIsbns: [] 
+         date_de_production: '', additionalIsbns: [] 
        });
        setResult('');
        setCapturedImage('');
@@ -508,6 +1107,10 @@ export default function Resception() {
       alert("Le titre du livre est manquant !");
       return;
     }
+    
+    // Vérifier si la quantité à ajouter est supérieure au stock disponible
+
+    
     try {
       setLoading(true);
 
@@ -540,7 +1143,7 @@ export default function Resception() {
       const result = await response.json();
       setInventaire(result.data || []);
       setLoading(false);
-      alert(`Quantité du livre "${livre.title}" incrémentée de ${ajout} !`);
+      alert(`✅ Quantité du livre "${livre.title}" incrémentée de ${ajout} !`);
     } catch (error) {
       console.error('Erreur:', error);
       setLoading(false);
@@ -550,44 +1153,30 @@ export default function Resception() {
 
 
 
-  const filteredInventaire = inventaire.filter((item) =>
-    (item.title ?? '').toLowerCase().includes(search.toLowerCase()) ||
-    (item.author ?? '').toLowerCase().includes(search.toLowerCase())
-  );
-
-  const [showCamera, setShowCamera] = useState(false);
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const [capturedImage, setCapturedImage] = useState('');
-  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
 
-  useEffect(() => {
-    if (showCamera && videoRef.current) {
-      navigator.mediaDevices.getUserMedia({ video: { facingMode } }).then(stream => {
-        if (videoRef.current) videoRef.current.srcObject = stream;
-      });
-    }
-    const localVideo = videoRef.current;
-    return () => {
-      if (localVideo && localVideo.srcObject) {
-        (localVideo.srcObject as MediaStream).getTracks().forEach(track => track.stop());
+  const handleTakePhoto = () => {
+    // Créer un input file caché pour accéder à l'appareil photo
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/*';
+    input.capture = 'environment'; // Force la caméra arrière sur mobile
+    
+    input.onchange = (e) => {
+      const file = (e.target as HTMLInputElement).files?.[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const dataUrl = event.target?.result as string;
+          setCapturedImage(dataUrl);
+          setFormData(prev => ({ ...prev, image: dataUrl }));
+        };
+        reader.readAsDataURL(file);
       }
     };
-  }, [showCamera, facingMode]);
-
-  const handleCapture = () => {
-    const video = videoRef.current;
-    if (!video) return;
-    const canvas = document.createElement('canvas');
-    canvas.width = video.videoWidth;
-    canvas.height = video.videoHeight;
-    canvas.getContext('2d')?.drawImage(video, 0, 0);
-    const dataUrl = canvas.toDataURL('image/jpeg');
-    setCapturedImage(dataUrl);
-    setFormData(prev => ({ ...prev, image: dataUrl }));
-    setShowCamera(false);
-    if (video.srcObject) {
-      (video.srcObject as MediaStream).getTracks().forEach(track => track.stop());
-    }
+    
+    // Déclencher le clic sur l'input
+    input.click();
   };
 
   let user: { id: string; name: string; avatar?: string } | null = null;
@@ -600,120 +1189,158 @@ export default function Resception() {
     }
   }
 
-  // Ajouter cette fonction pour valider tous les codes
-  const validateAllScannedCodes = () => {
-    console.log('🔍 Vérification de tous les codes scannés...', scannedCodes);
-    
-    // Chercher si AU MOINS UN ISBN existe dans la base de données
-    let livreFound = null;
-    
-    for (const code of scannedCodes) {
-      const livre = inventaire.find(item => item.isbn.toString() === code.trim());
-      
-      if (livre) {
-        livreFound = livre;
-        break; // Arrêter dès qu'on trouve un match
-      }
-    }
-    
-    // Fermer le scanner
-    if (scannerType === 'quagga') {
-      Quagga.stop();
-    }
-    setScannerOpened(false);
-    setShowCodesList(false);
-    setScannedCodes([]);
-    
-    // Décider automatiquement
-    if (livreFound) {
-      // ✅ ISBN trouvé : ouvrir la popup d'incrémentation (comme dans commande.tsx)
-      setIsbn(livreFound.isbn.toString());
-      setQuantiteToAdd(1); // Initialiser la quantité à ajouter
-      setTimeout(() => setIncrementModalOpened(true), 500); // Ouvre la popup d'incrémentation
-          } else {
-        // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout avec ISBNs séparés
-        setFormData(prev => ({ 
-          ...prev, 
-          isbn: scannedCodes[0] || '', // Premier ISBN comme ISBN principal
-          additionalIsbns: scannedCodes.slice(1) // Autres ISBNs comme ISBNs additionnels
-        }));
-        setTimeout(() => setFormOpened(true), 500);
-      }
-  };
+
 
   return (
-    <div className={styles.revolutStyle}>
+    <div className={styles.StyleCommandeGenerale}>
+      {/* Icônes flottantes décoratives */}
+      <div className={styles.floatingBooks}>
+        {/* Livres flottants */}
+        <div className={styles.floatingBook} style={{ top: '10%', left: '15%', animationDelay: '0s' }}>
+              <img src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '20%', right: '20%', animationDelay: '1s' }}>
+              <img src="/41--eGipgSL.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '35%', left: '10%', animationDelay: '2s' }}>
+              <img src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '45%', right: '15%', animationDelay: '3s' }}>
+              <img src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '15%', left: '50%', animationDelay: '1.5s' }}>
+              <img src="/41--eGipgSL.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '30%', right: '45%', animationDelay: '2.5s' }}>
+              <img src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '50%', left: '25%', animationDelay: '0.5s' }}>
+              <img src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+            <div className={styles.floatingBook} style={{ top: '40%', right: '35%', animationDelay: '3.5s' }}>
+              <img src="/28635380.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            </div>
+        
+        {/* Machines de production flottantes */}
+        <div className={styles.floatingDollar} style={{ top: '25%', left: '35%', animationDelay: '0.8s' }}>⚙️</div>
+        <div className={styles.floatingDollar} style={{ top: '55%', right: '25%', animationDelay: '2.2s' }}>🏭</div>
+        <div className={styles.floatingDollar} style={{ top: '12%', right: '40%', animationDelay: '1.8s' }}>🔧</div>
+        <div className={styles.floatingDollar} style={{ top: '48%', left: '45%', animationDelay: '3.2s' }}>⚡</div>
+        <div className={styles.floatingDollar} style={{ top: '8%', left: '65%', animationDelay: '0.3s' }}>🔩</div>
+        <div className={styles.floatingDollar} style={{ top: '38%', right: '60%', animationDelay: '2.8s' }}>🏗️</div>
+        <div className={styles.floatingDollar} style={{ top: '22%', left: '75%', animationDelay: '1.2s' }}>⚒️</div>
+      </div>
+
       {/* Section montant principal */}
       <div className={styles.revolutAmount}>
-        <div className={styles.revolutLabel}>Scanner Réception</div>
-        <div className={styles.revolutValue}>{inventaire.length}</div>
         <div className={styles.revolutQuickActions}>
           <div className={styles.quickAction}>
-            <div onClick={() => setScannerOpened(true)} className={styles.revolutdiv}>
-              <span>📱</span>
-              <div className={styles.quickActionLabel}>Scanner</div>
-            </div>
+          <div className={styles.mainIcon} onClick={() => setScannerOpened(true)}>
+            <IconCamera size={80} color="white" />
           </div>
-
-          <div className={styles.quickAction}>
-            <div onClick={() => setFormOpened(true)} className={styles.revolutButton}>
-              <span>➕</span>
-              <div className={styles.quickActionLabel}>Ajouter</div>
-            </div>
           </div>
+          <Center> 
+            <div className={styles.productCard} style={{ position: 'fixed', bottom: '0', left: '0', right: '0', top: '370px' }}>
+              <div className={styles.productHeader}>
+                <div className={styles.productTitle}>Réception de livres </div>
+                <div className={styles.productHeart}> </div>
+              </div>
+              <div className={styles.productDescription}>
+                Réception de livres , rajouté vos livres directement dans l&apos;inventaire
+              </div>
+              <Center style={{display: 'flex', flexDirection: 'row', gap: '30px'}}>
+                <div onClick={() => setFormOpened(true)} className={styles.featureIcon}>
+                  <span>➕</span>
+                  <div className={styles.featureIconLabel}>Ajouter</div>
+                </div>
+                <div onClick={() => setInventaireModalOpened(true)} className={styles.featureIcon}>
+                  <span>📚</span>
+                  <div className={styles.featureIconLabel}>Inventaire</div>
+                </div>
+              </Center>
+            </div>
+          </Center>
         </div>
       </div>
 
-      {/* Barre de recherche */}
-      <div style={{ padding: '0 20px', marginBottom: '20px' }}>
-        <TextInput
-          placeholder="Rechercher un livre..."
-          value={search}
-          onChange={(e) => setSearch(e.currentTarget.value)}
-          className={styles.searchInput}
-        />
-      </div>
-
-      {/* Liste des livres */}
-      <div className={styles.transactionsList}>
-        {loading ? (
-          <Center>
-            <Loader />
-          </Center>
-        ) : (
-          filteredInventaire.map((item) => (
-            <div 
-              key={item.id} 
-              className={styles.transaction}
-              onClick={() => {
-                setSelectedBook(item);
-                setBookDetailsModalOpened(true);
-              }}
-              style={{ cursor: 'pointer' }}
-            >
-              <div className={styles.transactionIcon}>{item.livre?.image ? <img src={item.livre.image} alt="image" style={{width: '50px', height: '50px'}} /> : '📚'}</div>
-              <div className={styles.transactionInfo}>
-                <div className={styles.transactionTitle}>{item.title}</div>
-                <div className={styles.transactionTime}>
-                  👤 {item.author} | 📖 ISBN: {item.isbn}
+      <Modal opened={inventaireModalOpened} onClose={() => setInventaireModalOpened(false)}> 
+        <div style={{ padding: '20px' }}>
+          <h3 style={{ marginBottom: '20px', textAlign: 'center' }}>📚 Livres en Stock</h3>
+          
+          <div style={{ padding: '0 0 20px 0' }}>
+            <TextInput
+              placeholder="Rechercher un livre..."
+              value={search}
+              onChange={(e) => { setSearch(e.currentTarget.value); setPage(1); }}
+              className={styles.searchInput}
+              
+            />
+          </div>
+          
+          <div className={styles.transactionsList}>
+            {livresLoading ? (
+              <Center>
+                <Loader />
+              </Center>
+            ) : livres.length === 0 ? (
+              <Center>
+                <Text c="dimmed">Aucun livre trouvé</Text>
+              </Center>
+            ) : (
+              livres.map((item) => (
+                <div 
+                  key={item.id} 
+                  className={styles.transaction}
+                  style={{ cursor: 'pointer' }}
+                  onClick={async () => {
+                    setSelectedBook(item);
+                    setNewIsbn(''); // Réinitialiser le champ d'ajout
+                    setInventaireModalOpened(false);
+                    setBookDetailsModalOpened(true);
+                    // Réinitialiser l'état d'édition
+                    setIsEditingQuantity(false);
+                    setTempQuantity(0);
+                    // Charger les ISBN existants depuis la base de données
+                    await loadExistingIsbns(item.livre_id);
+                  }}
+                >
+                  <div className={styles.transactionIcon}>
+                    {item.livre?.image ? 
+                      <img loading="lazy" src={item.livre.image} alt="image" style={{width: '50px', height: '50px'}} /> 
+                      : '📚'
+                    }
+                  </div>
+                  <div className={styles.transactionInfo}>
+                    <div className={styles.transactionTitle}>{item.title}</div>
+                    <div className={styles.transactionTime}>
+                      👤 {item.author} | 📖 ISBN: {item.isbn}
+                    </div>
+                  </div>
+                  <div className={styles.transactionAmount}>
+                    <div style={{ fontSize: '20px', fontWeight: 'bold' }}>
+                      {item.quantite}x
+                    </div>
+                    <div style={{ fontSize: '14px', color: '#666' }}>
+                      {item.price}€
+                    </div>
+                  </div>
                 </div>
-              </div>
-              <div className={styles.transactionAmount}>
-                <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                  {item.quantite}x
-                </div>
-                <div style={{ fontSize: '12px', color: '#666' }}>
-                  {item.price}€
-                </div>
-              </div>
-            </div>
-          ))
-        )}
-      </div>
-
+              ))
+            )}
+          </div>
+        </div>
+        <Pagination value={page} onChange={setPage} total={totalPages} siblings={2} boundaries={1} />
+      </Modal>
       {/* Scanner en DIV plein écran - AUCUNE compression */}
       {scannerOpened && (
           <div className={scannerStyles.scannerFullScreen}>
+            <style jsx>{`
+              @keyframes pulse {
+                0% { opacity: 1; }
+                50% { opacity: 0.5; }
+                100% { opacity: 1; }
+              }
+            `}</style>
             {/* Header avec bouton fermer */}
             <div className={scannerStyles.scannerHeader}>
               <Text className={scannerStyles.scannerTitle}>
@@ -743,7 +1370,7 @@ export default function Resception() {
                     onClick={() => {
                       setShowPopover(false);
                       setScannerOpened(false);
-                      setFormOpened(true);
+                      handleValidateAllScannedCodes();
                     }}
                     color="green"
                     size="sm"
@@ -762,6 +1389,37 @@ export default function Resception() {
             )}
             <div ref={setScannerNode} className={scannerStyles.cameraContainer}>
               <div id="reader" className={scannerStyles.reader}></div>
+              
+              {/* Indicateur de scan pour aider l'utilisateur */}
+              <div style={{
+                position: 'absolute',
+                top: '50%',
+                left: '50%',
+                transform: 'translate(-50%, -50%)',
+                width: '250px',
+                height: '150px',
+                border: '3px solid #00ff00',
+                borderRadius: '10px',
+                zIndex: 1000,
+                pointerEvents: 'none',
+                animation: 'pulse 2s infinite'
+              }}>
+                <div style={{
+                  position: 'absolute',
+                  top: '50%',
+                  left: '50%',
+                  transform: 'translate(-50%, -50%)',
+                  color: '#00ff00',
+                  fontSize: '14px',
+                  fontWeight: 'bold',
+                  textAlign: 'center',
+                  backgroundColor: 'rgba(0,0,0,0.7)',
+                  padding: '5px 10px',
+                  borderRadius: '5px'
+                }}>
+                  📱 Pointez vers le code-barres
+                </div>
+              </div>
               
               {/* 📱 LISTE TRANSPARENTE EN TEMPS RÉEL - OVERLAY SUR LA CAMÉRA */}
               {showCodesList && scannedCodes.length > 0 && (
@@ -785,7 +1443,7 @@ export default function Resception() {
                     <Button 
                       size="sm"
                       color="blue"
-                      onClick={validateAllScannedCodes} // ← Utiliser la fonction qui vérifie TOUS les codes
+                      onClick={handleValidateAllScannedCodes} // ← Utiliser la fonction qui vérifie TOUS les codes
                       style={{ 
                         marginBottom: '8px', 
                         width: '100%',
@@ -815,9 +1473,14 @@ export default function Resception() {
             <div className={scannerStyles.infoPanel}>
               <div className={scannerStyles.controlsContainer}>
                 <TextInput
-                  placeholder="ISBN manuel"
+                  placeholder="ISBN 10 ou 13 chiffres"
                   value={isbn}
-                  onChange={(e) => setIsbn(e.target.value)}
+                  onChange={(e) => {
+                    const value = e.currentTarget.value;
+                    // Permettre seulement les chiffres, tirets et X
+                    const cleanValue = value.replace(/[^0-9\-X]/g, '');
+                    setIsbn(cleanValue);
+                  }}
                   className={scannerStyles.isbnInput}
                   styles={{
                     input: { 
@@ -828,31 +1491,51 @@ export default function Resception() {
                       minHeight: '44px' // Taille minimale recommandée pour iOS
                     }
                   }}
+                  error={isbn && !isValidISBN(isbn) ? "Format ISBN invalide" : null}
                 />
                 <Button 
                   onClick={() => {
                     if (isbn.trim()) {
-                      // Vérifier si l'ISBN existe dans l'inventaire
-                      const livre = inventaire.find(item => item.isbn.toString() === isbn.trim());
+                      // Valider le format ISBN avant de tester
+                      if (!isValidISBN(isbn)) {
+                        alert("❌ Format ISBN invalide !\n\n📚 Un ISBN doit contenir :\n• 10 chiffres (avec éventuel X à la fin)\n• 13 chiffres\n• Peut contenir des tirets");
+                        return;
+                      }
                       
-                      if (livre) {
-                        // ✅ ISBN trouvé : ouvrir la popup d'incrémentation
-                        setQuantiteToAdd(1);
-                        setTimeout(() => setIncrementModalOpened(true), 500);
-                                             } else {
-                         // ❌ ISBN non trouvé : ouvrir le formulaire d'ajout
-                         setFormData(prev => ({ 
-                           ...prev, 
-                           isbn: isbn,
-                           additionalIsbns: [] // Pas d'ISBNs additionnels pour une saisie manuelle
-                         }));
-                         setTimeout(() => setFormOpened(true), 500);
-                       }
+                      // Nettoyer l'ISBN pour la recherche
+                      const cleanISBN = isbn.replace(/[\s-]/g, '');
+                      
+                      // Vérifier si l'ISBN existe dans la liste des ISBN
+                      const isbnTrouve = isbnList.find(item => item.isbn.toString() === cleanISBN);
+                      
+                      if (isbnTrouve) {
+                        // ISBN trouvé - chercher le livre correspondant dans l'inventaire
+                        const livre = inventaire.find(item => item.livre_id === isbnTrouve.livre_id);
+                        
+                        if (livre) {
+                          alert(`✅ ISBN trouvé : ${livre.title} (ISBN: ${isbnTrouve.isbn}, Livre ID: ${isbnTrouve.livre_id})`);
+                          setIsbn(livre.isbn.toString());
+                          setQuantiteToAdd(1);
+                          setScannerOpened(false);
+                          setTimeout(() => setIncrementModalOpened(true), 500);
+                        } else {
+                          alert(`✅ ISBN trouvé mais livre non en stock : ${isbnTrouve.isbn} (Livre ID: ${isbnTrouve.livre_id})`);
+                        }
+                      } else {
+                        // ISBN non trouvé : ouvrir le formulaire d'ajout
+                        setFormData(prev => ({ 
+                          ...prev, 
+                          isbn: cleanISBN,
+                          additionalIsbns: [] // Pas d'ISBNs additionnels pour une saisie manuelle
+                        }));
+                        setScannerOpened(false);
+                        setTimeout(() => setFormOpened(true), 500);
+                      }
                     } else {
                       alert("Veuillez saisir un ISBN");
                     }
                   }}
-                  disabled={!isbn}
+                  disabled={!isbn || !isValidISBN(isbn)}
                   color="green"
                   size="md"
                 >
@@ -867,8 +1550,19 @@ export default function Resception() {
       {/* Formulaire d'ajout */}
       <Modal style={{height: '400px', zIndex: 1000}}
         opened={formOpened} 
-        onClose={() => setFormOpened(false)} 
-        title="Ajouter ou incrémenter un livre" 
+        onClose={() => {
+          setFormOpened(false);
+          // Si on vient de la page commande, retourner automatiquement
+          const returnToCommande = localStorage.getItem('returnToCommande');
+          if (returnToCommande === 'true') {
+            localStorage.removeItem('returnToCommande');
+            localStorage.removeItem('autoOpenForm');
+            localStorage.removeItem('scannedIsbns');
+            localStorage.removeItem('IsbnScanner');
+            window.location.href = '/commande';
+          }
+        }} 
+        title="Ajouter  un livre" 
         centered 
         size={isMobile ? "xs" : "xl"}
       >
@@ -958,57 +1652,7 @@ export default function Resception() {
             style={{fontSize: '10px',}}
           />
 
-          <TextInput 
-            label="Prix" 
-            name="price" 
-            value={formData.price} 
-            onChange={handleFormChange} 
-            required 
-            mb="sm" 
-            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
-            style={{fontSize: '10px',}}
-          />
 
-          <TextInput 
-            label="Titre du livre" 
-            name="title" 
-            value={formData.title} 
-            onChange={handleFormChange} 
-            required 
-            mb="sm" 
-            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
-            style={{fontSize: '10px',}}
-          />
-          <TextInput 
-            label="Auteur" 
-            name="author" 
-            value={formData.author} 
-            onChange={handleFormChange} 
-            required 
-            mb="sm" 
-            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
-            style={{fontSize: '10px',}}
-          />
-          <Textarea 
-            label="Description" 
-            name="description" 
-            value={formData.description} 
-            onChange={handleFormChange} 
-            minRows={1} 
-            mb="sm" 
-            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
-            style={{fontSize: '10px',}}
-          />
-          <TextInput 
-            label="Prix" 
-            name="price" 
-            value={formData.price} 
-            onChange={handleFormChange} 
-            required 
-            mb="sm" 
-            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
-            style={{fontSize: '10px',}}
-          />
           <TextInput 
             label="Quantité" 
             name="quantite" 
@@ -1019,30 +1663,35 @@ export default function Resception() {
             classNames={isMobile ? { input: styles.iosModalInput } : undefined}
             style={{fontSize: '10px',}}
           />
+          <TextInput 
+            label="Prix" 
+            name="price" 
+            value={formData.price} 
+            onChange={handleFormChange} 
+            required 
+            mb="sm"
+            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+            style={{fontSize: '10px',}}
+          />
+          <TextInput 
+            label="Date de production (Mois/Année)" 
+            name="date_de_production" 
+            type="month"
+            value={formData.date_de_production} 
+            onChange={handleFormChange} 
+            required 
+            mb="sm"
+            classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+            style={{fontSize: '10px',}}
+          />
           <center>
-            <Button  mt="sm"  onClick={e => { e.preventDefault(); setShowCamera(true); }}   className={isMobile ? styles.iosModalButton : ''} style={{fontSize: '10px',}}  >
-              prendre photo
+            <Button  mt="sm"  onClick={e => { e.preventDefault(); handleTakePhoto(); }}   className={isMobile ? styles.iosModalButton : ''} style={{fontSize: '10px',}}  >
+              📸 Prendre photo
             </Button>
             <Button  mt="sm"   type="submit"   className={isMobile ? styles.iosModalButton : ''} style={{fontSize: '10px', marginLeft: '10px'}} >
              Ajouter le livre
             </Button>
             </center>
-          {showCamera && (
-            <div style={{ marginTop: 16, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <video ref={videoRef} autoPlay style={{ width: 320, height: 240, borderRadius: 12, background: '#000' }} />
-              <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', marginTop: 16, gap: 24 }}>
-                <Button variant="outline" color="gray" radius="xl" size="md" style={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { e.preventDefault(); setFacingMode(facingMode === 'user' ? 'environment' : 'user'); }} title="Retourner la caméra" >
-                  {facingMode === 'user' ? '🔄 Arrière' : '🔄 Avant'}
-                </Button>
-                <Button color="teal" radius="xl" size="xl" style={{ width: 64, height: 64, borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: 32, boxShadow: '0 2px 8px #0002' }} onClick={e => { e.preventDefault(); handleCapture(); }} title="Prendre la photo" >
-                  📸
-                </Button>
-                <Button color="red" radius="xl" size="md" style={{ width: 48, height: 48, display: 'flex', alignItems: 'center', justifyContent: 'center' }} onClick={e => { e.preventDefault(); setShowCamera(false); }} title="Annuler" >
-                  ✖
-                </Button>
-              </div>
-            </div>
-          )}
           {capturedImage && (
             <div style={{ marginTop: 10 }}>
               <Text size="sm" color="dimmed" mb="xs">Aperçu de la photo :</Text>
@@ -1106,7 +1755,7 @@ export default function Resception() {
                 <Button 
                   size="xs" 
                   color="green"
-                  onClick={() => validateSelectedCode(code)}
+                  onClick={() => handleValidateAllScannedCodes()}
                 >
                   ✓ Choisir
                 </Button>
@@ -1134,7 +1783,7 @@ export default function Resception() {
       <Modal 
         opened={incrementModalOpened} 
         onClose={() => { setIncrementModalOpened(false); setQuantiteToAdd(1); }} 
-        title="Incrémenter l'inventaire" 
+        title="Ajouté à l'inventaire" 
         centered 
         size={isMobile ? "xs" : "md"}
       >
@@ -1144,7 +1793,7 @@ export default function Resception() {
             return (
               <div style={{ width: 400, maxWidth: '80vw', margin: '0 auto' }}>
                 <Text color="green" ta="center" size="lg" mb="xl">
-                  📚 Livre trouvé - Incrémenter l&apos;inventaire
+                  📚 Livre trouvé - Ajouté à  l&apos;inventaire
                 </Text>
                 
                 <TextInput 
@@ -1199,19 +1848,17 @@ export default function Resception() {
                     if (quantiteToAdd <= 0) {
                       alert('Veuillez saisir une quantité supérieure à 0');
                       return;
+                    }    
+                    try {
+                      await incrementInventaire(livre, quantiteToAdd);
+                      setIncrementModalOpened(false);
+                    } catch (error) {
+                      console.error('Erreur lors de l&apos;incrémentation:', error);
+                      alert('Erreur lors de l&apos;incrémentation');
                     }
-                    
-                                         try {
-                       await incrementInventaire(livre, quantiteToAdd);
-                       setIncrementModalOpened(false);
-                       alert(`Quantité du livre "${livre.title}" incrémentée de ${quantiteToAdd} !`);
-                     } catch (error) {
-                       console.error('Erreur lors de l&apos;incrémentation:', error);
-                       alert('Erreur lors de l&apos;incrémentation');
-                     }
                   }}
                 >
-                  ✅ Incrémenter l&apos;inventaire
+                  ✅ Ajouté à l&apos;inventaire
                 </Button>
               </div>
             );
@@ -1230,6 +1877,8 @@ export default function Resception() {
         onClose={() => { 
           setBookDetailsModalOpened(false); 
           setSelectedBook(null); 
+          setBookAdditionalIsbns([]); // Réinitialiser les ISBN additionnels
+          setNewIsbn(''); // Réinitialiser le champ d'ajout
         }} 
         title="Détails du livre" 
         centered 
@@ -1268,7 +1917,7 @@ export default function Resception() {
             </div>
             
             <TextInput 
-              label="ISBN" 
+              label="ISBN principal" 
               value={selectedBook.isbn} 
               readOnly 
               mb="sm"
@@ -1297,10 +1946,105 @@ export default function Resception() {
             
             <TextInput 
               label="Quantité en stock" 
-              value={selectedBook.quantite} 
-              readOnly 
+              value={isEditingQuantity ? tempQuantity : selectedBook.quantite} 
+              readOnly={!isEditingQuantity}
+              onChange={(e) => isEditingQuantity && setTempQuantity(parseInt(e.target.value) || 0)}
               mb="md"
+              rightSection={
+                isEditingQuantity ? (
+                  <div style={{ display: 'flex', gap: '4px' }}>
+                    <Button 
+                      size="xs" 
+                      variant="filled" 
+                      color="green"
+                      onClick={ModifyQuantity}
+                    >
+                      ✓
+                    </Button>
+                    <Button 
+                      size="xs" 
+                      variant="filled" 
+                      color="red"
+                      onClick={handleCancelEdit}
+                    >
+                      ✕
+                    </Button>
+                  </div>
+                ) : (
+                  <Button 
+                    size="xs" 
+                    variant="light" 
+                    onClick={handleEditQuantity}
+                    leftSection={<IconEdit size={14} />}
+                  >
+                    Modifier
+                  </Button>
+                )
+              }
             />
+            
+            {/* Section pour l'ajout d'ISBN */}
+            <div style={{ 
+              border: '1px solid #e9ecef', 
+              borderRadius: '8px', 
+              padding: '15px', 
+              marginBottom: '15px',
+              backgroundColor: '#f8f9fa'
+            }}>
+              <Text size="sm" fw={500} mb="sm" color="blue">
+                📚 Gestion des ISBN
+              </Text>
+              
+              {/* Affichage de tous les ISBN pour ce livre */}
+              {bookAdditionalIsbns.length > 0 && (
+                <div style={{ marginBottom: '10px' }}>
+                  <Text size="xs" color="dimmed" mb="xs">
+                    📚 Tous les ISBN de ce livre ({bookAdditionalIsbns.length}) :
+                  </Text>
+                  {bookAdditionalIsbns.map((isbn, index) => (
+                    <div key={index} style={{ 
+                      display: 'flex', 
+                      alignItems: 'center', 
+                      gap: '8px', 
+                      marginBottom: '5px',
+                      padding: '5px 8px',
+                      backgroundColor: 'white',
+                      borderRadius: '4px',
+                      border: '1px solid #dee2e6'
+                    }}>
+                      <Text size="sm" style={{ flex: 1 }}>{isbn}</Text>
+                      <Text size="xs" color="green">✓</Text>
+                    </div>
+                  ))}
+                </div>
+              )}
+              
+              {/* Formulaire d'ajout d'ISBN */}
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'end' }}>
+                <TextInput 
+                  label="Nouvel ISBN"
+                  placeholder="Saisir un nouvel ISBN"
+                  value={newIsbn}
+                  onChange={(e) => setNewIsbn(e.target.value)}
+                  onKeyPress={(e) => {
+                    if (e.key === 'Enter') {
+                      addIsbnToBook();
+                    }
+                  }}
+                  style={{ flex: 1 }}
+                  size="sm"
+                />
+                <Button
+                  color="green"
+                  size="sm"
+                  loading={isAddingIsbn}
+                  onClick={addIsbnToBook}
+                  disabled={!newIsbn.trim()}
+                >
+                  ➕
+                </Button>
+              </div>
+            </div>
             
             <Button
               color="blue"
@@ -1308,6 +2052,8 @@ export default function Resception() {
               onClick={() => {
                 setBookDetailsModalOpened(false);
                 setSelectedBook(null);
+                setBookAdditionalIsbns([]); // Réinitialiser les ISBN additionnels
+                setNewIsbn(''); // Réinitialiser le champ d'ajout
                 // Ouvrir la modale d'incrémentation avec ce livre
                 setIsbn(selectedBook.isbn.toString());
                 setQuantiteToAdd(1);

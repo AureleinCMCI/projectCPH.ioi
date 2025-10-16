@@ -1,0 +1,43 @@
+{
+  "conference": {
+    "titre": "VIENS ET VOIS",
+    "theme": "L'amour et le pardon de Dieu",
+    "date": "25 octobre 2025",
+    "format": "En ligne",
+    "lien_inscription": "https://conf-rence-connexcion-invitation-m8gb-m0v844uiy-cph.vercel.app",
+    "lien_zoom": "https://u-paris.zoom.us/j/85111311152?pwd=bnR3aFVsV3Vkc0RYSnJlRjZqSnUzQT09",
+    "contact": "+33 7 49 65 41 74"
+  },
+  "messages": {
+    "email_objet": "🙏 Invitation Conférence - 25 octobre 2025",
+    "email_corps": "Bonjour [Nom],\n\nJ'ai le plaisir de vous inviter à notre conférence :\n\n📖 Thème : \"L'amour et le pardon de Dieu\"\n📅 Date : 25 octobre 2025\n🌐 Format : En ligne\n\n🔗 Découvrez l'invitation complète : [LIEN]\n\nAu plaisir de vous voir !\n\nBénédictions,\n[Votre nom]",
+    "whatsapp": "🙏 VIENS ET VOIS 🙏\n\nConférence : \"L'amour et le pardon de Dieu\"\n📅 25 octobre 2025 - En ligne\n\n🔗 Inscription : [LIEN]\n\nRejoins-nous pour découvrir l'amour infini de Jésus ! ❤️",
+    "reseau_social": "🌟 INVITATION SPÉCIALE 🌟\n\nRejoignez-nous pour une conférence inspirante sur \"L'amour et le pardon de Dieu\" !\n\n📅 25 octobre 2025\n🌐 En ligne (gratuit)\n\nDécouvrez l'invitation interactive : [LIEN]\n\n#ConférenceSpirituelle #AmourDivin #Pardon #Jésus"
+  },
+  "plateformes": {
+    "github_pages": {
+      "nom": "GitHub Pages",
+      "url": "https://github.com",
+      "gratuit": true,
+      "difficulte": "Moyen"
+    },
+    "netlify": {
+      "nom": "Netlify",
+      "url": "https://netlify.com",
+      "gratuit": true,
+      "difficulte": "Facile"
+    },
+    "vercel": {
+      "nom": "Vercel",
+      "url": "https://vercel.com",
+      "gratuit": true,
+      "difficulte": "Facile"
+    }
+  },
+  "conseils": {
+    "test_avant_envoi": "Toujours tester le lien sur votre propre appareil",
+    "personnalisation": "Remplacer [Nom] et [LIEN] par les vraies valeurs",
+    "suivi": "Noter les réponses et questions reçues",
+    "backup": "Garder une copie de sauvegarde du flyer"
+  }
+}

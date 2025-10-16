@@ -1,67 +1,510 @@
-.bgGradient {
+.StyleInventaireGenerale {
   min-height: 100vh;
-  padding: 32px 0;
+  background-image: url('/Copie-de-Logo-GO@L-Variants-DEF.jpg');
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  color: white;
+  padding: 0;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 23000px;
+  margin: 0;
+  overflow-x: hidden;
+  padding-top: 80px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
 }
 
-.cardTable {
-  max-width: 1200px;
-  margin: 0 auto;
-  background: #fff;
-  border-radius: 24px;
-  box-shadow: 0 8px 32px #0001;
+.inventaireTitle {
+  margin-top: 100px;
+  padding: 100px;
+  font-size: 2.5rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+  text-align: center;
+  color: white;
+  text-shadow: 2px 2px 4px rgba(0,0,0,0.3);
 }
 
-.headerRow {
+.TtileCommande {
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+  text-align: center;
+  color: white;
+  opacity: 0.9;
+}
+
+.revolutQuickActions {
+  display: flex;
+  gap: 2rem;
+  justify-content: center;
+  margin-top: 2rem;
+}
+
+.quickAction {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1rem;
+}
+
+.revolutdiv {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  padding: 2rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  min-width: 150px;
+  text-align: center;
+}
+
+.revolutdiv:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-5px);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+}
+
+.revolutdiv span {
+  font-size: 3rem;
+  display: block;
+  margin-bottom: 1rem;
+}
+
+.quickActionLabel {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+.mainIconContainer {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin: 3rem 0;
+}
+
+.mainIcon {
+  border-radius: 50%;
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+}
+
+.mainIcon:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: scale(1.05);
+  box-shadow: 0 15px 35px rgba(0, 0, 0, 0.3);
+}
+
+.mainIcon span {
+  font-size: 5rem;
+  color: white;
+}
+
+.paginationDots {
+  display: flex;
+  gap: 1rem;
+  margin-top: 2rem;
+}
+
+.dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.3);
+  border: 2px solid rgba(255, 255, 255, 0.5);
+}
+
+.dot:first-child {
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.sideAction {
+  position: absolute;
+  right: 2rem;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+.sideButton {
+  background: rgba(255, 255, 255, 0.1);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  border-radius: 20px;
+  padding: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  backdrop-filter: blur(10px);
+  min-width: 120px;
+  text-align: center;
+}
+
+.sideButton:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.5);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.3);
+}
+
+.sideButton span {
+  font-size: 2rem;
+  display: block;
+  margin-bottom: 0.5rem;
+}
+
+.sideButtonLabel {
+  font-size: 1rem;
+  font-weight: 600;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Styles pour la carte produit blanche - exactement comme l'image */
+.productCard {
+  margin-bottom: 150px !important;
+  background: white;
+  border-radius: 50px 50px 0 0;
+  padding: 0px 20px;
+  margin: 0 0px;
+  margin-top: 20px;
+  box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.1);
+  min-height: 400px;
+  display: flex;
+  flex-direction: column;
+}
+
+.productHeader {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin-bottom: 24px;
+  margin-bottom: 20px;
 }
 
-.title {
-  font-weight: 700;
+.productTitle {
+  text-align: center;
+  margin-top: 20px;
   font-size: 2rem;
+  font-weight: bold;
+  color: #333;
 }
 
-.actions {
+.productHeart {
+  font-size: 1.5rem;
+  color: #ff6b35;
+}
+
+.productDescription {
+  color: #666;
+  font-size: 1rem;
+  line-height: 1.5;
+  margin-bottom: 30px;
+  text-align: left;
+}
+
+.featureIcons {
   display: flex;
-  gap: 12px;
+  gap: 15px;
+  margin-bottom: 40px;
 }
 
+.featureIcon {
+  background: #f5f5f5;
+  width: 60px;
+  height: 60px;
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  cursor: pointer;
+  transition: all 0.3s ease;
+}
 
-.tableModern {
-  border-radius: 16px;
-  overflow: hidden;
-  background: #f9fafb;
+.featureIcon:hover {
+  background: #e0e0e0;
+  transform: scale(1.05);
+}
+
+.featureIconLabel {
+  font-size: 0.7rem;
+  color: #666;
+  margin-top: 5px;
+  font-weight: 500;
+  text-align: center;
+}
+
+.addToCartButton {
+  background: #ff6b35;
+  color: white;
+  padding: 18px;
+  border-radius: 15px;
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: bold;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  margin-top: auto;
+}
+
+.addToCartButton:hover {
+  background: #e55a2b;
+  transform: translateY(-2px);
+  box-shadow: 0 5px 15px rgba(255, 107, 53, 0.3);
+}
+
+/* Styles pour le bouton avec icône de livre */
+.bookIconButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  padding: 10px;
+}
+
+.bookIconButton:hover {
+  transform: scale(1.1);
+}
+
+.bookIconLabel {
+  font-size: 0.8rem;
+  color: #666;
+  margin-top: 5px;
+  font-weight: 500;
+}
+
+/* Styles pour la liste des transactions/livres */
+.transactionsList {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding: 1rem 0;
+}
+
+/* Styles pour empêcher le zoom sur mobile */
+.transactionsList input,
+.transactionsList textarea {
+  font-size: 16px !important;
+  transform: scale(1) !important;
+  touch-action: manipulation !important;
+  -webkit-text-size-adjust: 100% !important;
+  -ms-text-size-adjust: 100% !important;
+}
+
+.transaction {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1rem;
+  background: white;
+  border: 1px solid #e0e0e0;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.transaction:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+  border-color: #ff6b35;
+}
+
+.transactionIcon {
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8f9fa;
+  border-radius: 8px;
+  font-size: 1.2rem;
+}
+
+.transactionInfo {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.transactionTitle {
+  font-weight: 600;
+  color: #333;
   font-size: 1rem;
 }
-  /* Responsive */
-  @media (max-width: 800px) {
-    .cardTable {
-      padding: 8px;
-      border-radius: 0;
-    }
-  
-    .headerRow {
-      flex-direction: column;
-      align-items: flex-start;
-      gap: 12px;
-    }
-  
-    .tableModern {
-      font-size: 0.9rem;
-    }
-  }
-  
-  @media (max-width: 500px) {
-    .cardTable {
-      padding: 4px;
-    }
-  
-    .tableModern {
-      font-size: 0.85rem;
-    }
-  }
 
+.transactionTime {
+  color: #666;
+  font-size: 0.85rem;
+}
+
+.transactionAmount {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.25rem;
+}
+
+.iconContainer {
+  margin-bottom: 2rem;
+}
+
+.graduationIcon {
+  font-size: 4rem;
+  color: white;
+  filter: drop-shadow(2px 2px 4px rgba(0,0,0,0.3));
+}
+
+.subtitle {
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+  opacity: 0.9;
+}
+
+.description {
+  font-size: 1rem;
+  max-width: 600px;
+  margin: 0 auto 2rem;
+  opacity: 0.8;
+  line-height: 1.6;
+}
+
+.ctaButton {
+  background: linear-gradient(45deg, #ff6b35, #f7931e);
+  border: none;
+  margin: 10px !important;
+  border-radius: 25px;
+  color: white;
+  font-size: 10px!important;
+  font-weight: bold;
+  text-decoration: none !important;
+  text-transform: uppercase;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);
+  transition: all 0.3s ease;
+}
+
+.ctaButton:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(255, 107, 53, 0.6);
+}
+
+/* Responsive mobile */
+@media (max-width: 768px) {
+  .CommandeTitle {
+    font-size: 2.5rem;
+  }
   
+  .TtileCommande {
+    font-size: 1.2rem;
+  }
   
+  .revolutQuickActions {
+    flex-direction: column;
+    gap: 1rem;
+  }
+  
+  .revolutdiv {
+    padding: 1.5rem;
+    min-width: 120px;
+  }
+}
+.mainTitle {
+  font-size: 3.5rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+  text-align: center;
+  color: white;
+}
+
+.iconContainer {
+  margin-bottom: 2rem;
+  text-align: center;
+}
+
+.graduationIcon {
+  font-size: 4rem;
+  color: white;
+}
+
+.subtitle {
+  font-size: 1.5rem;
+  text-transform: uppercase;
+  margin-bottom: 2rem;
+  text-align: center;
+  color: white;
+}
+
+.description {
+  font-size: 1rem;
+  max-width: 600px;
+  margin: 0 auto 2rem;
+  text-align: left;
+  color: white;
+  line-height: 1.6;
+}
+
+.ctaButton {
+  background: #ff6b35;
+  border: none;
+  padding: 15px 40px;
+  border-radius: 25px;
+  color: white;
+  font-size: 1.1rem;
+  font-weight: bold;
+  text-transform: uppercase;
+  cursor: pointer;
+  display: block;
+  margin: 0 auto 2rem;
+  box-shadow: 0 4px 15px rgba(255, 107, 53, 0.4);
+}
+
+.secondaryText {
+  font-size: 0.9rem;
+  text-align: left;
+  color: white;
+  opacity: 0.8;
+}
+
+/* Responsive mobile */
+@media (max-width: 768px) {
+  .mainTitle {
+      font-size: 2.5rem;
+  }
+  
+  .graduationIcon {
+      font-size: 3rem;
+  }
+  
+  .subtitle {
+      font-size: 1.2rem;
+  }
+  
+  .description, .secondaryText {
+      padding: 0 20px;
+  }
+}

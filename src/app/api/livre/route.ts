@@ -7,6 +7,7 @@ type livre = {
   description?: string;
   price?: number;
   image?: string;
+  date_de_production?: string;
 };
 
 export async function GET(request: NextRequest) {
@@ -27,6 +28,16 @@ export async function POST(request: NextRequest) {
   try {
     const supabase = createClient();
     const livreData = await request.json() as livre;
+
+    // Validation de la date de production (format YYYY-MM)
+    if (livreData.date_de_production) {
+      // Vérifier que c'est bien au format YYYY-MM
+      if (!livreData.date_de_production.match(/^\d{4}-\d{2}$/)) {
+        return new Response(JSON.stringify({ error: "Format de date invalide. Utilisez YYYY-MM" }), { status: 400 });
+      }
+    }
+
+    console.log("Données livre reçues:", livreData);
 
     // Insertion d'une nouvelle commande
     const { data, error } = await supabase.from('livre').insert([livreData]).select().maybeSingle();

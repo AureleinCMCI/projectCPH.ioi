@@ -1,10 +1,10 @@
 'use client';
 import { Button, Modal, Table } from '@mantine/core';
 import { jwtDecode } from 'jwt-decode';
-import Image from 'next/image';
-import { useEffect, useRef, useState } from 'react';
-import Webcam from 'react-webcam';
+import { useEffect, useState } from 'react';
+
 import styles from './style/hom.module.css';
+
 import stylesCompte from './style/monCompte.module.css';
 
 // Fonction utilitaire pour formater la date à la française (heure de Paris)
@@ -21,8 +21,6 @@ type JwtPayload = {
   id: string;
   name: string;
   admin: boolean;
-  avatar?: string;
-  photo?: string;
   [key: string]: unknown;
 };
 
@@ -36,17 +34,13 @@ type Commande = {
 };
 
 export default function UpdateProfile() {
-  // const [name, setName] = useState<string>(''); // supprimé car non utilisé
   const [userId, setUserId] = useState<string | null>(null);
   const [user, setUser] = useState<JwtPayload | null>(null);
   const [commandes, setCommandes] = useState<Commande[]>([]);
   const [commandeOpened, setCommandeOpened] = useState(false);
-  const [avatarOpened, setAvatarOpened] = useState(false);
   const [infoOpened, setInfoOpened] = useState(false);
-  const [avatarPreview, setAvatarPreview] = useState<string | null>(null);
-  const webcamRef = useRef<Webcam>(null);
-  const [showWebcam, setShowWebcam] = useState(false);
-    const [livresVendus, setLivresVendus] = useState<Commande[]>([]);
+  const [livresVendus, setLivresVendus] = useState<Commande[]>([]);
+
 
    
   type Profile = {
@@ -54,7 +48,6 @@ export default function UpdateProfile() {
     name: string;
     password: string;
     updated_at?: string;
-    photo?: string;
     admin?: boolean;
   };
   const [userDetails, setUserDetails] = useState<Profile | null>(null);
@@ -68,7 +61,6 @@ export default function UpdateProfile() {
         const decoded = jwtDecode<JwtPayload>(token);
         setUserId(decoded.id);
         setUser(decoded);
-        // setName(decoded.name); // supprimé car non utilisé
       } catch {
         setUserId(null);
         setUser(null);
@@ -97,77 +89,11 @@ export default function UpdateProfile() {
     localStorage.removeItem('jwt');
     window.location.reload();
   };
-  /* Récupère la photo de l'utilisateur connecté */
-  const fetchAvatar = async () => {
-    if (!userId) return;
-    try {
-      const response = await fetch(`/api/acount?id=${userId}`, { method: 'GET' });
-      const result = await response.json();
-      if (result.data && result.data.photo && !avatarPreview) {
-        setAvatarPreview(result.data.photo);
-      }
-    } catch {
-      console.error('Erreur lors de la récupération de la photo', userId);
-      // Optionnel : gestion d'erreur
-    }
-  };
-/*change de photo de profil */
-const handleCameraCapture = async (imageSrc: string) => {
-  if (!userId) return;
-  
-  // Convertir l'image base64 en Blob
-  const response = await fetch(imageSrc);
-  const blob = await response.blob();
-  const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
-  
-  const formData = new FormData();
-  formData.append('file', file);
-  formData.append('id', userId);
-  
-  try {
-    const response = await fetch('/api/acount', {
-      method: 'PUT',
-      body: formData
-    });
-    
-    if (response.ok) {
-      // Forcer le rafraîchissement de l'avatar
-      setAvatarPreview(null); // Vider l'ancienne
-      setTimeout(() => {
-        setAvatarPreview(imageSrc); // Mettre la nouvelle
-      }, 100);
-      
-      setShowWebcam(false);
-      await fetchAvatar(); // Rafraîchir depuis la base
-      alert('Photo mise à jour avec succès !');
-    } else {
-      alert('Erreur lors de la mise à jour');
-    }
-  } catch (error) {
-    console.error('Erreur:', error);
-    alert('Erreur lors de la mise à jour');
-  }
-};
-
-// Puis remplacez l'appel par :
-
-
-
-// Fonction pour prendre une photo avec la caméra
-
-
-/* fin change de photo de profil */
-  useEffect(() => {
-    if (userId) {
-      fetchAvatar();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId]);
 
   const infoCompte = async () => {
     if (!userId) return;
     try {
-      const response = await fetch(`/api/acount?id=${userId}`, { method: 'GET' });
+      const response = await fetch(`/api/account?id=${userId}`, { method: 'GET' });
       const result = await response.json();
       if (result.data) {
         setUserDetails(result.data);
@@ -195,156 +121,39 @@ const listeCommandesUtilisateur = async () => {
 }
 
   return (
-    <div className={stylesCompte.revolutStyle}>
+    <div className={stylesCompte.monCompteStyle}>
       {/* Header avec photo de profil et recherche */}
 
 
       {/* Section montant principal */}
       <div className={stylesCompte.revolutAmount}>
-        <div className={stylesCompte.revolutLabel}>{user?.name}</div>
-        <div className={stylesCompte.revolutValue}>
-          <Image
-            src={avatarPreview || user?.photo || '/img/avatar.png'}
-            alt="avatar"
-            width={80}
-            height={80}
-            style={{ 
-              borderRadius: '50%',
-              border: '3px solid #a259ff'
-            }}
-          />
+        <div style={{ textAlign: 'center'  , color: 'white' , fontSize: '25px' , opacity: '0.7' , marginTop: '10px' }} className={stylesCompte.nameAccout}>{user?.name}</div>
+        
+        {/* Section des actions avec icônes orange */}
+        <div className={stylesCompte.actionsSection}>
+          <div className={stylesCompte.actionItem}>
+            <div  onClick={() => setInfoOpened(true)} className={stylesCompte.actionIcon}>👤</div>
+            <div  className={stylesCompte.actionText}>Mon Profil</div>
+          </div>
+          <div className={stylesCompte.actionItem}>
+          </div>
+          <div className={stylesCompte.actionItem}>
+            <div onClick={listeCommandesUtilisateur} className={stylesCompte.actionIcon}>🏆</div>
+            <div className={stylesCompte.actionText}>Mes Commandes</div>
+          </div>
+          <div className={stylesCompte.actionItem}>
+          </div>
         </div>
-        <div className={stylesCompte.revolutQuickActions}>
-        <div   onClick={listeCommandesUtilisateur}  className={stylesCompte.quickAction}>
-          <span>➕</span>
-          <div className={stylesCompte.quickActionLabel}>Ajouter</div>
-        </div>
-
-         <div className={stylesCompte.quickAction}>
-           <div onClick={() => setInfoOpened(true)} className={stylesCompte.revolutdiv} >
-           <span>ℹ️</span>
-           <div className={stylesCompte.quickActionLabel}>Info</div>
-           </div>
-         </div>
-      </div>
       </div>
       {/* Actions rapides */}
 
 
       {/* Liste des dernières commandes */}
-      <div className={stylesCompte.transactionsList}>
-        {commandes.map((commande) => (
-          <div key={commande.id} className={stylesCompte.transaction}>
-            <div className={stylesCompte.transactionIcon}>📚</div>
-            <div className={stylesCompte.transactionInfo}>
-              <div className={stylesCompte.transactionTitle}>{commande.title}</div>
-              <div className={stylesCompte.transactionTime}>
-                {commande.date_achat ? formatDateTimeParis(commande.date_achat).split('_')[1] : ''}
-              </div>
-            </div>
-            <div className={stylesCompte.transactionAmount}>
-              {commande.quantite}x
-            </div>
-          </div>
-        ))}
-      </div>
-
+      
       {/* Navbar en bas */}
       {/* Navbar en haut */}
      
 
-      {/* Modal pour changer l'avatar */}
-      <Modal opened={avatarOpened} onClose={() => setAvatarOpened(false)} title="Changer l'avatar" centered>
-        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
-          {showWebcam ? (
-            <>
-              <Webcam
-                audio={false}
-                ref={webcamRef}
-                screenshotFormat="image/jpeg"
-                videoConstraints={{ facingMode: 'user' }}
-                style={{ width: 250, borderRadius: 8 }}
-              />
-              <Button mt="md" onClick={() => {
-                if (webcamRef && webcamRef.current) {
-                  const imageSrc = webcamRef.current.getScreenshot();
-                  if (imageSrc) {
-                    handleCameraCapture(imageSrc);
-                  }
-                }
-              }} color="blue">
-                📸 Prendre la photo
-              </Button>
-              <Button mt="md" variant="outline" color="gray" onClick={() => setShowWebcam(false)}>
-                🔄 Retour
-              </Button>
-            </>
-          ) : (
-            <>
-              <div style={{ textAlign: 'center', marginBottom: '20px' }}>
-                <h4 style={{ margin: '0 0 15px 0', color: '#333' }}>Choisissez une option :</h4>
-              </div>
-              
-              <Button 
-                onClick={() => setShowWebcam(true)} 
-                color="blue" 
-                size="lg"
-                style={{ width: '200px' }}
-                leftSection="📱"
-              >
-                Prendre une photo
-              </Button>
-              
-              <div style={{ margin: '20px 0', color: '#666' }}>ou</div>
-              
-              <input
-                type="file"
-                accept="image/*"
-                capture="user"
-                onChange={(e) => {
-                  const file = e.target.files && e.target.files[0];
-                  if (file) {
-                    const reader = new FileReader();
-                    reader.onloadend = () => {
-                      if (reader.result) {
-                        handleCameraCapture(reader.result as string);
-                      }
-                    };
-                    reader.readAsDataURL(file);
-                  }
-                }}
-                style={{ display: 'none' }}
-                id="file-input"
-              />
-              <label htmlFor="file-input">
-                <Button 
-                  variant="outline" 
-                  color="gray" 
-                  size="lg"
-                  style={{ width: '200px', cursor: 'pointer' }}
-                  leftSection="📁"
-                  component="span"
-                >
-                  Choisir un fichier
-                </Button>
-              </label>
-            </>
-          )}
-          
-          {avatarPreview && (
-            <div style={{ marginTop: '20px', textAlign: 'center' }}>
-              <h5 style={{ margin: '0 0 10px 0', color: '#333' }}>Aperçu :</h5>
-              <Image
-                src={avatarPreview}
-                alt="Aperçu avatar"
-                width={130}
-                height={130}
-                className={stylesCompte.avatarCompte}
-              />
-            </div>
-          )}
-        </div>
-      </Modal>
 
              {/* Modal des commandes */}
        <Modal opened={commandeOpened} onClose={() => setCommandeOpened(false)} title="Mes Commandes" centered size="xl">
@@ -380,13 +189,6 @@ const listeCommandesUtilisateur = async () => {
        <Modal style={{ backgroundColor: 'transparent' }} opened={infoOpened} onClose={() => setInfoOpened(false)} title="Informations du Compte" centered>
          <div style={{ padding: '20px' }}>
            <div style={{ display: 'flex', alignItems: 'center', gap: '20px', marginBottom: '20px' }}>
-             <Image
-               src={avatarPreview || user?.photo || '/img/avatar.png'}
-               alt="avatar"
-               width={80}
-               height={80}
-               style={{ borderRadius: '50%' }}
-             />
              <div>
                <h3 style={{ margin: '0 0 10px 0', color: '#333' }}>{user?.name}</h3>
                <p style={{ margin: '0', color: '#666' }}>ID: {user?.id}</p>
@@ -429,16 +231,11 @@ const listeCommandesUtilisateur = async () => {
              >
                Déconnexion
              </Button>
-             <Button 
-               onClick={() => setAvatarOpened(true)} 
-               variant="outline"
-               className={stylesCompte.moncomptedetailbutton}
-             >
-               Changer Photo
-             </Button>
            </div>
          </div>
-       </Modal>
-    </div>
-  );
-}
+               </Modal>
+
+        
+     </div>
+   );
+ }

@@ -13,7 +13,7 @@ export async function POST(request: NextRequest) {
     // Récupérer la quantité actuelle
     const { data: produit, error: fetchError } = await supabase
       .from('inventaire')
-      .select('quantite')
+      .select('quantite,date_de_production')
       .eq('id', id)
       .maybeSingle();
 
@@ -54,15 +54,25 @@ export async function DELETE(request: NextRequest) {
     const supabase = createClient();
     const {id, supprimer } = await request.json();
 
-    // Récupérer la quantité actuelle
+    // Récupérer les informations du produit
     const { data: produit, error: fetchError } = await supabase
       .from('inventaire')
-      .select('quantite')
+      .select('quantite, title')
       .eq('id', id)
       .maybeSingle();
 
     if (fetchError || !produit) {
       return new Response(JSON.stringify({ error: "Produit non trouvé" }), { status: 404 });
+    }
+
+    // Vérifier qu'il y a assez de stock (simple vérification)
+    if (supprimer > produit.quantite) {
+      return new Response(
+        JSON.stringify({ 
+          error: `❌ Stock insuffisant ! Stock disponible: ${produit.quantite}, demandé: ${supprimer}` 
+        }), 
+        { status: 400 }
+      );
     }
 
     // Calculer la nouvelle quantité
@@ -93,6 +103,106 @@ export async function DELETE(request: NextRequest) {
   }
 }
 
+// Méthode pour réserver des livres (décrémenter + ajouter à blocages_inventaire)
+export async function PUT(request: NextRequest) {
+  try {
+    const supabase = createClient();
+    const { id, quantite_a_bloquer, date_expiration, name, telephone } = await request.json();
+
+    if (!id || !quantite_a_bloquer || !date_expiration) {
+      return new Response(JSON.stringify({ error: "id, quantite_a_bloquer et date_expiration requis" }), { status: 400 });
+    }
+
+    // Récupérer les informations du produit
+    const { data: produit, error: fetchError } = await supabase
+      .from('inventaire')
+      .select('quantite, title')
+      .eq('id', id)
+      .maybeSingle();
+
+    if (fetchError || !produit) {
+      return new Response(JSON.stringify({ error: "Produit non trouvé" }), { status: 404 });
+    }
+
+    // Vérifier qu'il y a assez de stock
+    if (quantite_a_bloquer > produit.quantite) {
+      return new Response(
+        JSON.stringify({ 
+          error: `❌ Stock insuffisant ! Stock disponible: ${produit.quantite}, demandé: ${quantite_a_bloquer}` 
+        }), 
+        { status: 400 }
+      );
+    }
+
+    // 1. Décrémenter la quantité dans inventaire (comme une vente)
+    const nouvelleQuantite = produit.quantite - quantite_a_bloquer;
+    
+    const { error: updateError } = await supabase
+      .from('inventaire')
+      .update({ quantite: nouvelleQuantite })
+      .eq('id', id);
+
+    if (updateError) {
+      return new Response(JSON.stringify({ error: updateError.message }), { status: 400 });
+    }
+
+    // 2. Ajouter les livres réservés dans reservations
+    const user_id = request.headers.get('user_id');
+    
+    const reservationData: {
+      inventaire_id: number;
+      quantite_bloquee: number;
+      date_expiration: string;
+      date_creation: string;
+      name: string | null;
+      telephone: string | null;
+      user_id?: number;
+    } = {
+      inventaire_id: id,
+      quantite_bloquee: quantite_a_bloquer,
+      date_expiration: date_expiration,
+      date_creation: new Date().toISOString(),
+      name: name || null,
+      telephone: telephone || null
+    };
+
+    // Ajouter user_id seulement s'il existe
+    if (user_id) {
+      reservationData.user_id = parseInt(user_id);
+    }
+
+    const { data: blocage, error: insertError } = await supabase
+      .from('reservations')
+      .insert([reservationData])
+      .select()
+      .single();
+
+    if (insertError) {
+      // Si l'insertion échoue, remettre la quantité originale
+      await supabase
+        .from('inventaire')
+        .update({ quantite: produit.quantite })
+        .eq('id', id);
+        
+      return new Response(JSON.stringify({ error: insertError.message }), { status: 400 });
+    }
+
+    return new Response(
+      JSON.stringify({ 
+        message: `✅ ${quantite_a_bloquer} exemplaires de "${produit.title}" réservés jusqu'au ${new Date(date_expiration).toLocaleDateString('fr-FR')}. Stock restant: ${nouvelleQuantite}`, 
+        blocage: blocage, 
+        success: true 
+      }),
+      { status: 200 }
+    );
+  } catch (err) {
+    console.error('Erreur:', err);
+    return new Response(
+      JSON.stringify({ error: "Erreur serveur", details: err }),
+      { status: 500 }
+    );
+  }
+}
 
 export async function PATCH(request: NextRequest) {
   try {
