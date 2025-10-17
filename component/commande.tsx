@@ -1506,7 +1506,7 @@ const detailvre = async (isbn: string) => {
             <Image loading="lazy" src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
           </div>
           <div className={styles.floatingBook} style={{ top: '40%', right: '35%', animationDelay: '3.5s' }}>
-            <Image loading="lazy"src="/28635380.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            <Image loading="lazy" src="/28635380.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
           </div>
 
           {/* Dollars flottants */}
@@ -2277,52 +2277,6 @@ const detailvre = async (isbn: string) => {
       </Modal>
 
       {/* Modale de liste des livres pour vente */}
-      <Modal opened={listeCommandeOpened} onClose={() => setListeCommandeOpened(false)} title="📚 Liste des livres disponibles à la vente" centered size="xl">
-        {/*bar de recherche */}
-        <div style={{ marginBottom: '20px' }}>
-          <TextInput placeholder="🔍 Rechercher un livre par titre, auteur ou ISBN..." value={search} onChange={(e) => { setSearch(e.currentTarget.value); setPage(1); }}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === 'Escape') {
-                e.currentTarget.blur(); // Désactive le clavier
-                (document.activeElement as HTMLElement)?.blur(); // Force la désactivation du focus
-              }
-            }} style={{ marginBottom: '15px' }} styles={{ input: { borderRadius: '10px', border: '2px solid #e0e0e0', fontSize: '16px', transform: 'scale(1)', touchAction: 'manipulation' } }} inputMode="search" autoComplete="off"
-          />
-        </div>
-        <div style={{ maxHeight: '500px', overflowY: 'auto' }}>
-          {inventaire.length === 0 ? (<Text c="dimmed" ta="center" py="xl"> Aucun livre en stock </Text>) :
-            (<div className={stylesCommande.transactionsList}>  {inventaire.filter(item => item.title.toLowerCase().includes(search.toLowerCase()) ||item.author.toLowerCase().includes(search.toLowerCase()) ||  item.isbn.toString().includes(search)
-              ).map((item) => (<div key={item.id} onClick={() => {detailvre(item.isbn.toString()); setListeCommandeOpened(false);}} 
-                className={stylesCommande.transaction}>
-                  <div className={stylesCommande.transactionIcon}>
-                    {item.livre?.image ?
-                      <Image loading="lazy" src={item.livre.image} alt="Livre" style={{ width: '30px', height: '30px' }} />
-                      : '📚'
-                    }
-                  </div>
-                  <div className={stylesCommande.transactionInfo}>
-                    <div className={stylesCommande.transactionTitle}>{item.title}</div>
-                    <div className={stylesCommande.transactionTime}>
-                      👤 {item.author} | 📖 ISBN: {item.isbn}
-                    </div>
-                  </div>
-                  <div className={stylesCommande.transactionAmount}>
-                    <div style={{ fontSize: '14px', fontWeight: 'bold' }}>
-                      {item.quantite}x
-                    </div>
-                    <div style={{ fontSize: '12px', color: '#666' }}>
-                      {item.price}€
-                    </div>
-                  </div>
-                </div>
-              ))}
-              </div>
-            )}
-        </div>
-        <div style={{ marginTop: '20px', padding: '15px', backgroundColor: '#f8f9fa', borderRadius: '8px' }}>
-          <Text size="sm" c="dimmed">💡 Cliquez sur un livre pour voir ses détails et le vendre </Text>
-        </div>
-      </Modal>
       {/* Modale de vente - Liste des livres pour vente */}
       <Modal opened={venteOpened} onClose={() => setVenteOpened(false)} title="📚 Liste des livres disponibles à la vente" centered size="xl">
         {/*bar de recherche */}
