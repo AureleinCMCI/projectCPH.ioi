@@ -11,14 +11,14 @@ sequenceDiagram
   participant SupabaseAuth as Supabase Auth
 
   User->>Front: Soumet form (email/password)
-  Front->>API: POST /api/login {email, password}
-  API->>SupabaseAuth: verify credentials (service role)
+  Front->>API: POST(insert) /api/login {email, password}
+  API->>SupabaseAuth: vérifier l’authenticité de ces données(service role)
   SupabaseAuth-->>API: user record + jwt (ou erreur)
   alt auth OK
     API-->>Front: 200 { token, user }
-    Front->>Front: stocke token, setUser
+    Front->>Front: stocke le token , setUser
     Front->>API: GET /api/account (auth)
-    API->>SupabaseAuth: validate token / fetch user
+    API->>SupabaseAuth: validité du token / fetch user
     SupabaseAuth-->>API: user data
     API-->>Front: user data
   else auth KO
@@ -27,13 +27,45 @@ sequenceDiagram
   end
 ```
 
-## 2) Checkout (panier → commande, transaction atomique)
+// ...existing code...
+## 2) Checkout (panier → commande, avec scan / modal de vente avant ajout au panier)
 ```mermaid
 sequenceDiagram
   participant User as Utilisateur
   participant Front as Frontend (Panier)
   participant API as /api/commande (Next.js)
+  participant API_INV as /api/inventaire (Next.js)
   participant DB as Supabase (Postgres RPC / transaction)
+  participant Scanner as ScannerResception
+  participant Modal as "Liste des ventes (Modal)"
+
+  %% Avant d'ajouter au panier : scan ou ouvrir la modal
+  alt Scan ISBN avant ajout
+    User->>Front: Scan livre (ISBN)
+   
+    Front->>API_INV: regarde si ISBN existe GET /api/inventaire?isbn=978...
+    API_INV->>DB: requêt query livre + inventaire
+    DB-->>API_INV: retour des infos de la bdd livre + inventaire
+    API_INV-->>Front: renvoie au fronted livre & inventaire
+    Front->>Front: ouvre la modal des vente (prérempli)
+  else Ouvre modal "Liste des ventes"
+    User->>Front: Clique "Liste des ventes"
+    Front->>API_INV: GET /api/inventaire?page=1&search=
+    API_INV->>DB: query paginée + search
+    DB-->>API_INV: page results
+    API_INV-->>Front: liste paginée
+    Front->>Modal: affiche résultats (select item)
+    User->>Modal: sélectionne un livre
+    Modal-->>Front: livre sélectionné -> ouvre ItemDetailModal
+  end
+
+  %% Ajout au panier puis checkout
+  User->>Front: Dans ItemDetailModal clique "Ajouter au panier"
+  Front->>API: POST /api/panier/item { livre_id, inventaire_id, quantite, prix_snapshot }
+  API->>DB: upsert panier_item
+  DB-->>API: item upserted
+  API-->>Front: 200 { item }
+  Front->>User: confirmation "ajouté au panier"
 
   User->>Front: Clique "Valider panier"
   Front->>API: POST /api/commande { transaction_id, user_id, lignes[] }
@@ -48,8 +80,9 @@ sequenceDiagram
     Front->>User: affiche erreur (rafraîchir inventaire)
   end
 
-  note right of DB: La RPC doit vérifier disponibilité,\nUPDATE inventaire atomique, INSERT commande + lignes, rollback si échec.
+  note right of DB: RPC vérifie disponibilités, effectue UPDATE inventaire atomique,\nINSERT commande + lignes, rollback si échec.
 ```
+// ...existing code...
 
 ## 3) Réception via scanner (scan ISBN → lookup → create reception)
 ```mermaid

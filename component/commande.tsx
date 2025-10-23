@@ -207,7 +207,7 @@ export default function Commande() {
     }
   };
 
-  /* Fonction supprimer un livre du panier de la base de donnés delete*/
+  /* Fonction supprimer un livre du panier*/
   const supprimerDuPanier = (itemId: number) => {
     try {
       fetch(`/api/panier?item_id=${itemId}`, { method: 'DELETE' })
@@ -676,7 +676,8 @@ export default function Commande() {
   };
   // fin fonction
   // Nouvelle fonction pour calculer la réduction sur le TOTAL du panier
-  const calculerReductionPanier = () => {
+  const calculerReductionPanier = () => 
+  {
     if (!panierApiItems.length) {
       return {
         totalOriginal: 0,
@@ -744,7 +745,8 @@ export default function Commande() {
   };
 
   /* reserver un livre */
-  const reserverLivre = (livre: InventaireItem) => {
+  const reserverLivre = (livre: InventaireItem) =>
+  {
     setLivreEnVente(livre);
     setQuantiteVente(500); // Quantité par défaut pour réservation
     setValeurReduction(0);
@@ -841,6 +843,7 @@ export default function Commande() {
       return false;
     }
   };
+
   async function getBackCameraDeviceId(): Promise<string | null> {
     // 1) iOS: forcer l’affichage des labels après permission
     try {
@@ -860,6 +863,7 @@ export default function Commande() {
     // 4) Fallback: si rien trouvé, prendre la dernière (souvent arrière)
     return back?.deviceId ?? videos[videos.length - 1]?.deviceId ?? null;
   }
+
   /* parametre du scanner */
   useEffect(() => {
     if (scannerOpened && scannerReady && scannerRef.current) {
@@ -1136,6 +1140,7 @@ export default function Commande() {
       }
     }
   }, [scannerOpened, scannerReady, scannerType]);
+
   /* fin scan */
   // Nettoyage quand le scanner se ferme
   useEffect(() => {
@@ -1442,6 +1447,7 @@ const detailvre = async (isbn: string) => {
       alert('Erreur lors de l\'incrémentation');
     }
   };
+
   const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
     try {
       // Vérifie que nous avons les données nécessaires
@@ -1476,9 +1482,6 @@ const detailvre = async (isbn: string) => {
 
   return (
     <div className={stylesCommande.StyleCommandeGenerale}>
-      {/* Header avec icône livre */}
-
-
       {/* Section montant principal */}
       <div className={stylesCommande.revolutAmount}>
         {/* Icônes de livres et dollars flottantes décoratives */}
@@ -1538,7 +1541,7 @@ const detailvre = async (isbn: string) => {
         </div>
 
         <div className={stylesCommande.productDescription}>
-          Ici , passeé la vente de vos livres  en toute sécurité , soiyez-benis , que les livres atteignes les nations
+          Ici , passez la vente de vos livres  en toute sécurité , soiyez-benis , que les livres atteignes les nations
         </div>
         <Center>
           <div className={stylesCommande.featureIcons}>
