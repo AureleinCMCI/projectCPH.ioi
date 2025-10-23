@@ -1235,9 +1235,9 @@ export default function Resception() {
       <div className={styles.revolutAmount}>
         <div className={styles.revolutQuickActions}>
           <div className={styles.quickAction}>
-          <div className={styles.mainIcon} onClick={() => setScannerOpened(true)}>
-            <IconCamera size={80} color="white" />
-          </div>
+            <div className={styles.mainIcon} onClick={() => setScannerOpened(true)}>
+              <IconCamera size={80} color="white" />
+            </div>
           </div>
           <Center> 
             <div className={styles.productCard} style={{ position: 'fixed', bottom: '0', left: '0', right: '0', top: '370px' }}>

@@ -94,7 +94,22 @@ export default function Commande() {
   const [panierOpened, setPanierOpened] = useState(false);
   const [panier, setPanier] = useState<InventaireItem[]>([]);
   const [reservationsOpened, setReservationsOpened] = useState(false);
-  const [reservations, setReservations] = useState<{ id: number; inventaire_id: number; quantite_bloquee: number; date_expiration: string; date_creation: string; name?: string; telephone?: string; user_id?: number; inventaire?: { title: string; author: string; price: number; isbn?: number; } }[]>([]);
+  const [reservations, setReservations] = useState<{
+    id: number;
+    inventaire_id: number;
+    quantite_bloquee?: number;
+    date_expiration?: string;
+    date_creation?: string;
+    name?: string;
+    telephone?: string;
+    inventaire?: {
+      title?: string;
+      author?: string;
+      isbn?: number;
+      quantite?: number;
+      price?: number;
+    };
+  }[]>([]);
   const [totalPanier, setTotalPanier] = useState<number>(0);
   const lastScanTime = useRef<number>(0);
   const lastScannedCode = useRef<string>('');
@@ -135,7 +150,7 @@ export default function Commande() {
 
 
   /* Fonction pour la pagnination de l'inventaire 'modale de vente' */
-    useEffect(() => {
+  useEffect(() => {
     if (!venteOpened) return;
     const abort = new AbortController();
 
@@ -207,7 +222,7 @@ export default function Commande() {
     }
   };
 
-  /* Fonction supprimer un livre du panier*/
+  /* Fonction supprimer un livre du panier de la base de donnés delete*/
   const supprimerDuPanier = (itemId: number) => {
     try {
       fetch(`/api/panier?item_id=${itemId}`, { method: 'DELETE' })
@@ -471,11 +486,12 @@ export default function Commande() {
   /* fin fonction */
 
   /* annuler une réservation */
-  const annulerReservation = async (reservationId: number) => {
-    if (!user) return;
+  // ...existing code...
+  const annulerReservation = async (reservationId: number): Promise<boolean> => {
+    if (!user) return false;
 
     if (!confirm('❓ Êtes-vous sûr de vouloir annuler cette réservation ?')) {
-      return;
+      return false;
     }
 
     try {
@@ -489,58 +505,129 @@ export default function Commande() {
       });
 
       if (res.ok) {
-        alert('✅ Réservation annulée avec succès !');
-        fetchReservations(); // Rafraîchir la liste
-        // Rafraîchir l'inventaire aussi
+        // Rafraîchir réservations et inventaire et attendre la fin
+        await fetchReservations();
         const response = await fetch('/api/inventaire', { method: 'GET' });
-        const result = await response.json();
-        setInventaire(result.data || []);
+        if (response.ok) {
+          const result = await response.json();
+          setInventaire(result.data || []);
+        } else {
+          console.warn('Impossible de rafraîchir l\'inventaire après annulation');
+        }
+        alert('✅ Réservation annulée avec succès !');
+        return true;
       } else {
-        const error = await res.json();
+        const error = await res.json().catch(() => ({ error: 'Erreur serveur' }));
         alert(`❌ Erreur: ${error.error || error.message}`);
+        return false;
       }
     } catch (error) {
       console.error('Erreur:', error);
       alert('❌ Erreur de connexion');
+      return false;
     }
   };
   /* fin fonction */
+  // ...existing code...
+  /* fin fonction */
 
   /* vendre une réservation */
-  const vendreReservation = async (reservationId: number) => {
+  // ...existing code...
+  /* vendre une réservation */
+
+  const [pendingReservationId, setPendingReservationId] = useState<number | null>(null);
+  async function vendreReservation(reservationId: number | null) {
+    if (!reservationId) return;
     if (!user) return;
-    if (!confirm('💰 Confirmer la vente ? La réservation sera supprimée sans remettre le stock.')) {
+
+    const reservation = (window as any).__commande_reservations__?.find?.((r: any) => r.id === reservationId) ?? null;
+    const resLocal = typeof reservations !== 'undefined' ? reservations.find(r => r.id === reservationId) : reservation;
+    const resObj = resLocal || reservation;
+    if (!resObj) {
+      alert('❌ Réservation introuvable');
       return;
     }
+    /*choix de la réduction */
+
     try {
-      // Suppression directe de la réservation SANS remettre le stock
-      const res = await fetch('/api/reservations', {
-        method: 'POST', // On va créer une route spécifique pour la vente
+      await fetch('/api/reservations', {
+        method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          action: 'vente',
-          id: reservationId,
-          user_id: user.id
-        }),
+        body: JSON.stringify({ id: reservationId, user_id: user.id })
       });
 
-      if (res.ok) {
-        alert('✅ Vente effectuée ! Réservation supprimée.');
-        fetchReservations(); // Rafraîchir la liste
-      } else {
-        const error = await res.json();
-        alert(`❌ Erreur: ${error.error || error.message}`);
-      }
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('❌ Erreur de connexion');
-    }
-  };
+      // préparer le livre à utiliser (local si présent, sinon objet minimal depuis la réservation)
+      // @ts-ignore
+      const livreLocal = inventaire.find((i: any) => i.id === resObj.inventaire_id);
+      const livre = livreLocal || (resObj.inventaire ? {
+        id: resObj.inventaire_id,
+        livre_id: resObj.inventaire_id,
+        title: resObj.inventaire.title || 'Titre inconnu',
+        author: resObj.inventaire.author || '',
+        quantite: resObj.inventaire.quantite || 0,
+        price: resObj.inventaire.price || 0,
+        isbn: resObj.inventaire.isbn || 0,
+      } as InventaireItem : null);
 
-  const setScannerNode = useCallback((node: HTMLDivElement | null) => {
-    scannerRef.current = node;
-    setScannerReady(!!node);
-  }, []);
+      const qty = resObj.quantite_bloquee || 1;
+      if (!livre) {
+        // rafraîchir et sortir
+        await fetchReservations();
+        const respInv = await fetch('/api/inventaire');
+        const j = await respInv.json();
+        setInventaire(j.data || []);
+        alert('✅ Réservation supprimée, mais livre introuvable localement.');
+        setReservationsOpened(false);
+        return;
+      }
+
+      // Décrémenter l'inventaire et enregistrer la commande (utilise vos helpers existants)
+      await decrementInventaire(livre as InventaireItem, qty);
+
+      const prixFinal = (livre as InventaireItem).price * qty;
+
+      // Construire le payload agrégé attendu par l'API /api/commande
+      const transactionId = `TXN_${Date.now()}_${user.id}`;
+      const lignesPayload = [{
+        livre_id: livre.livre_id,
+        title: livre.title,
+        quantite: qty,
+        prix_unitaire_final: Number(((livre.price || 0)).toFixed(2)),
+        prix_ligne_final: Number((prixFinal).toFixed(2)),
+        reduction_appliquee: 0
+      }];
+
+      const payload = {
+        transaction_id: transactionId,
+        user_id: user.id,
+        vendeur: user.name,
+        total_transaction_original: prixFinal,
+        total_transaction_final: prixFinal,
+        montant_reduction: 0,
+        type_reduction: 'euros',
+        valeur_reduction: 0,
+        lignes: lignesPayload
+      };
+
+      // Appel unique à l'API agrégée (envoie transaction_id, user_id et lignes)
+      await envoyerCommandeAgregee(payload);
+
+      // rafraîchir réservations & inventaire
+      await fetchReservations();
+      const resp = await fetch('/api/inventaire');
+      const json = await resp.json();
+      setInventaire(json.data || []);
+
+      alert(`✅ Vente effectuée (${qty}x ${(livre as InventaireItem).title})`);
+      setReservationsOpened(false);
+    } catch (err) {
+      console.error('Erreur vente réservation confirmée:', err);
+      alert('❌ Erreur lors de la vente de la réservation');
+    } finally {
+      setPendingReservationId(null);
+    }
+  }
+  // ...existing code...
   /* fin fonction   */
 
 
@@ -676,8 +763,7 @@ export default function Commande() {
   };
   // fin fonction
   // Nouvelle fonction pour calculer la réduction sur le TOTAL du panier
-  const calculerReductionPanier = () => 
-  {
+  const calculerReductionPanier = () => {
     if (!panierApiItems.length) {
       return {
         totalOriginal: 0,
@@ -745,8 +831,7 @@ export default function Commande() {
   };
 
   /* reserver un livre */
-  const reserverLivre = (livre: InventaireItem) =>
-  {
+  const reserverLivre = (livre: InventaireItem) => {
     setLivreEnVente(livre);
     setQuantiteVente(500); // Quantité par défaut pour réservation
     setValeurReduction(0);
@@ -843,7 +928,6 @@ export default function Commande() {
       return false;
     }
   };
-
   async function getBackCameraDeviceId(): Promise<string | null> {
     // 1) iOS: forcer l’affichage des labels après permission
     try {
@@ -863,7 +947,6 @@ export default function Commande() {
     // 4) Fallback: si rien trouvé, prendre la dernière (souvent arrière)
     return back?.deviceId ?? videos[videos.length - 1]?.deviceId ?? null;
   }
-
   /* parametre du scanner */
   useEffect(() => {
     if (scannerOpened && scannerReady && scannerRef.current) {
@@ -968,9 +1051,7 @@ export default function Commande() {
             setScanner(html5QrcodeScanner);
           }
         };
-
         initAndroidScanner();
-
       } else {
         // APPROCHE NORMALE POUR AUTRES PLATEFORMES
         const initNormalScanner = async () => {
@@ -1140,7 +1221,6 @@ export default function Commande() {
       }
     }
   }, [scannerOpened, scannerReady, scannerType]);
-
   /* fin scan */
   // Nettoyage quand le scanner se ferme
   useEffect(() => {
@@ -1192,36 +1272,36 @@ export default function Commande() {
   // filteredInventaire supprimé car il n'est pas utilisé
 
   // Fonction pour afficher les détails du livre
-const detailvre = async (isbn: string) => {
-  // Cherche d'abord dans inventaire local
-  let livre = inventaire.find(item => String(item.isbn || '') === isbn.trim());
-  // Si pas trouvé, cherche dans la page courante 'livres'
-  if (!livre) {
-    livre = livres.find(item => String(item.isbn || '') === isbn.trim());
-  }
-  // Si toujours pas trouvé, demande au serveur par livre_id/isbn
-  if (!livre) {
-    try {
-      const res = await fetch(`/api/inventaire?isbn=${encodeURIComponent(isbn.trim())}`);
-      if (res.ok) {
-        const json = await res.json();
-        const serveurLivre = Array.isArray(json.data) ? json.data[0] : json.data;
-        if (serveurLivre) {
-          livre = serveurLivre as InventaireItem;
-          setInventaire(prev => (serveurLivre ? [serveurLivre as InventaireItem, ...prev] : prev));
-        }
-      }
-    } catch (err) {
-      console.error('Erreur lookup detailvre:', err);
+  const detailvre = async (isbn: string) => {
+    // Cherche d'abord dans inventaire local
+    let livre = inventaire.find(item => String(item.isbn || '') === isbn.trim());
+    // Si pas trouvé, cherche dans la page courante 'livres'
+    if (!livre) {
+      livre = livres.find(item => String(item.isbn || '') === isbn.trim());
     }
-  }
-  if (livre) {
-    setSelectedLivre(livre);
-    setDetailOpened(true);
-  } else {
-    console.warn('Livre introuvable pour ISBN', isbn);
-  }
-};
+    // Si toujours pas trouvé, demande au serveur par livre_id/isbn
+    if (!livre) {
+      try {
+        const res = await fetch(`/api/inventaire?isbn=${encodeURIComponent(isbn.trim())}`);
+        if (res.ok) {
+          const json = await res.json();
+          const serveurLivre = Array.isArray(json.data) ? json.data[0] : json.data;
+          if (serveurLivre) {
+            livre = serveurLivre as InventaireItem;
+            setInventaire(prev => (serveurLivre ? [serveurLivre as InventaireItem, ...prev] : prev));
+          }
+        }
+      } catch (err) {
+        console.error('Erreur lookup detailvre:', err);
+      }
+    }
+    if (livre) {
+      setSelectedLivre(livre);
+      setDetailOpened(true);
+    } else {
+      console.warn('Livre introuvable pour ISBN', isbn);
+    }
+  };
 
   // Suppression de la fonction inutilisée listeCommande
 
@@ -1447,7 +1527,6 @@ const detailvre = async (isbn: string) => {
       alert('Erreur lors de l\'incrémentation');
     }
   };
-
   const isbnDiférentAjoutLigne = async (livre: InventaireItem) => {
     try {
       // Vérifie que nous avons les données nécessaires
@@ -1482,19 +1561,22 @@ const detailvre = async (isbn: string) => {
 
   return (
     <div className={stylesCommande.StyleCommandeGenerale}>
+      {/* Header avec icône livre */}
+
+
       {/* Section montant principal */}
       <div className={stylesCommande.revolutAmount}>
         {/* Icônes de livres et dollars flottantes décoratives */}
         <div className={stylesCommande.floatingBooks}>
           {/* Livres flottants */}
           <div className={styles.floatingBook} style={{ top: '10%', left: '15%', animationDelay: '0s' }}>
-            <Image loading="lazy"src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
+            <Image loading="lazy" src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
           </div>
           <div className={styles.floatingBook} style={{ top: '20%', right: '20%', animationDelay: '1s' }}>
             <Image loading="lazy" src="/41--eGipgSL.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
           </div>
           <div className={styles.floatingBook} style={{ top: '35%', left: '10%', animationDelay: '2s' }}>
-            <Image  loading="lazy" src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            <Image loading="lazy" src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
           </div>
           <div className={styles.floatingBook} style={{ top: '45%', right: '15%', animationDelay: '3s' }}>
             <Image loading="lazy" src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
@@ -1503,7 +1585,7 @@ const detailvre = async (isbn: string) => {
             <Image loading="lazy" src="/41--eGipgSL.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
           </div>
           <div className={styles.floatingBook} style={{ top: '30%', right: '45%', animationDelay: '2.5s' }}>
-            <Image  loading="lazy" src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            <Image loading="lazy" src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
           </div>
           <div className={styles.floatingBook} style={{ top: '50%', left: '25%', animationDelay: '0.5s' }}>
             <Image loading="lazy" src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
@@ -1541,7 +1623,7 @@ const detailvre = async (isbn: string) => {
         </div>
 
         <div className={stylesCommande.productDescription}>
-          Ici , passez la vente de vos livres  en toute sécurité , soiyez-benis , que les livres atteignes les nations
+          Ici , passeé la vente de vos livres  en toute sécurité , soiyez-benis , que les livres atteignes les nations
         </div>
         <Center>
           <div className={stylesCommande.featureIcons}>
@@ -1667,7 +1749,7 @@ const detailvre = async (isbn: string) => {
           </div>
 
           {/* Container caméra avec liste transparente en overlay */}
-          <div ref={setScannerNode} className={styles.cameraContainer}>
+          <div ref={scannerRef} className={styles.cameraContainer}>
             <div id="reader" className={styles.reader}></div>
 
             {/* Indicateur de scan pour aider l'utilisateur */}
@@ -1938,33 +2020,33 @@ const detailvre = async (isbn: string) => {
                 />
 
                 <Center>
-                {selectedLivre && selectedLivre.quantite > 0 && (
-                  <Button
-                    onClick={() => {
-                      ajouterAuPanier(livre, supprimer);
-                      setFormOpened(false);
-                      setPanierOpened(true);
-                    }}
-                  >
-                    A.panier
-                  </Button>
-                )}
-                {livre && livre.quantite > 0 && (
-                  <Button
-                    onClick={() => {
-                      ajouterAuPanier(livre, supprimer);
-                      setFormOpened(false);
-                      setPanierOpened(true);
-                    }}
-                  >
-                    A.panier
-                  </Button>
-                )}
-                {livre && livre.quantite > 0 && (
-                  <Button style={{ marginLeft: '8px' }} onClick={() => reserverLivre(livre)}>
-                    Réserver
-                  </Button>
-                )}
+                  {selectedLivre && selectedLivre.quantite > 0 && (
+                    <Button
+                      onClick={() => {
+                        ajouterAuPanier(livre, supprimer);
+                        setFormOpened(false);
+                        setPanierOpened(true);
+                      }}
+                    >
+                      A.panier
+                    </Button>
+                  )}
+                  {livre && livre.quantite > 0 && (
+                    <Button
+                      onClick={() => {
+                        ajouterAuPanier(livre, supprimer);
+                        setFormOpened(false);
+                        setPanierOpened(true);
+                      }}
+                    >
+                      A.panier
+                    </Button>
+                  )}
+                  {livre && livre.quantite > 0 && (
+                    <Button style={{ marginLeft: '8px' }} onClick={() => reserverLivre(livre)}>
+                      Réserver
+                    </Button>
+                  )}
                 </Center>
               </div>
             );
@@ -2058,25 +2140,25 @@ const detailvre = async (isbn: string) => {
               <div>
 
                 <Center>
-                    {selectedLivre.quantite > 0 && (
-                        <Button
-                          size="m"
-                          color="blue"
-                          onClick={() => {
-                            setDetailOpened(false);
-                            setPanierOpened(true);
-                            ajouterAuPanier(selectedLivre, quantitePanier);
-                          }}
-                          title="Ajouter au panier"
-                        >
-                          panier
-                        </Button>
-                      )}
-                      {selectedLivre.quantite > 0 && (
-                        <Button onClick={() => {
-                          reserverLivre(selectedLivre);
-                        }}>Reserver</Button>
-                      )}
+                  {selectedLivre.quantite > 0 && (
+                    <Button
+                      size="m"
+                      color="blue"
+                      onClick={() => {
+                        setDetailOpened(false);
+                        setPanierOpened(true);
+                        ajouterAuPanier(selectedLivre, quantitePanier);
+                      }}
+                      title="Ajouter au panier"
+                    >
+                      panier
+                    </Button>
+                  )}
+                  {selectedLivre.quantite > 0 && (
+                    <Button onClick={() => {
+                      reserverLivre(selectedLivre);
+                    }}>Reserver</Button>
+                  )}
                 </Center>
               </div>
             </div>
@@ -2327,7 +2409,7 @@ const detailvre = async (isbn: string) => {
                 }} className={stylesCommande.transaction}>
                   <div className={stylesCommande.transactionIcon}>
                     {item.livre?.image ?
-                      <Image  loading="lazy" src={item.livre.image} alt="Livre" style={{ width: '30px', height: '30px' }} />
+                      <Image loading="lazy" src={item.livre.image} alt="Livre" style={{ width: '30px', height: '30px' }} />
                       : '📚'
                     }
                   </div>
@@ -2760,8 +2842,8 @@ const detailvre = async (isbn: string) => {
               </Table.Thead>
               <Table.Tbody>
                 {reservations.map((reservation) => {
-                  const isExpired = new Date(reservation.date_expiration) < new Date();
-                  const daysLeft = Math.ceil((new Date(reservation.date_expiration).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24));
+                  const isExpired = reservation.date_expiration ? (new Date(reservation.date_expiration) < new Date()) : false;
+                  const daysLeft = reservation.date_expiration ? Math.ceil((new Date(reservation.date_expiration).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
 
                   return (
                     <Table.Tr key={reservation.id}>
@@ -2796,7 +2878,7 @@ const detailvre = async (isbn: string) => {
                       <Table.Td>
                         <div>
                           <Text size="sm" c={isExpired ? "red" : daysLeft <= 2 ? "orange" : "green"}>
-                            {new Date(reservation.date_expiration).toLocaleDateString('fr-FR')}
+                            {reservation.date_expiration ? new Date(reservation.date_expiration).toLocaleDateString('fr-FR') : 'N/A'}
                           </Text>
                           {!isExpired && (
                             <Text size="xs" c={daysLeft <= 2 ? "orange" : "dimmed"}>
@@ -2812,13 +2894,15 @@ const detailvre = async (isbn: string) => {
                       </Table.Td>
                       <Table.Td>
                         <Text size="xs" c="dimmed">
-                          {new Date(reservation.date_creation).toLocaleDateString('fr-FR', {
-                            day: '2-digit',
-                            month: '2-digit',
-                            year: 'numeric',
-                            hour: '2-digit',
-                            minute: '2-digit'
-                          })}
+                          {reservation.date_creation
+                            ? new Date(reservation.date_creation).toLocaleDateString('fr-FR', {
+                              day: '2-digit',
+                              month: '2-digit',
+                              year: 'numeric',
+                              hour: '2-digit',
+                              minute: '2-digit'
+                            })
+                            : ''}
                         </Text>
                       </Table.Td>
                       <Table.Td>
@@ -2837,29 +2921,75 @@ const detailvre = async (isbn: string) => {
                           color="green"
                           variant="outline"
                           onClick={() => vendreReservation(reservation.id)}
-                          disabled={(() => {
-                            // Trouver le livre correspondant dans l'inventaire
-                            const livre = inventaire.find(item => item.id === reservation.inventaire_id);
-                            if (!livre) return true; // Désactiver si livre non trouvé
-
-                            // Vérifier si la quantité réservée dépasse le stock
-                            if (reservation.quantite_bloquee > livre.quantite) return true;
-
-                            // Vérifier si le livre est en stock
-                            if (livre.quantite <= 0) return true;
-
-                            return false; // Activer le bouton sinon
-                          })()}
-                          title={(() => {
-                            const livre = inventaire.find(item => item.id === reservation.inventaire_id);
-                            if (!livre) return "Livre non trouvé dans l'inventaire";
-                            if (livre.quantite <= 0) return "Livre épuisé";
-                            if (reservation.quantite_bloquee > livre.quantite)
-                              return `Stock insuffisant (${livre.quantite} disponibles)`;
-                            return "Vendre cette réservation";
-                          })()}
                         >
                           📦 vendre
+                        </Button>
+
+                        <Button
+                          size="xs"
+                          color="yellow"
+                          variant="outline"
+                          onClick={async () => {
+                            // 1) annuler la réservation côté serveur (attend la fin)
+                            const ok = await annulerReservation(reservation.id);
+                            if (!ok) return;
+
+                            try {
+                              // 2) récupérer la version la plus récente de l'inventaire (utiliser directement le JSON)
+                              const respInv = await fetch('/api/inventaire', { method: 'GET' });
+                              const invJson = respInv.ok ? await respInv.json() : null;
+                              const latestInventaire: InventaireItem[] = Array.isArray(invJson?.data) ? invJson.data : [];
+                              // Mettre à jour le state (UI) mais utiliser aussi latestInventaire localement IMMÉDIATEMENT
+                              setInventaire(latestInventaire);
+
+                              // 3) chercher le livre dans latestInventaire (ne pas se fier uniquement à l'état inventaire précédent)
+                              let serveurLivre = latestInventaire.find(i => i.id === reservation.inventaire_id)
+                                || latestInventaire.find(i => i.livre_id === reservation.inventaire_id)
+                                || null;
+
+                              // 4) fallback : appel spécifique si introuvable
+                              if (!serveurLivre) {
+                                const res = await fetch(`/api/inventaire?inventaire_id=${reservation.inventaire_id}`, { method: 'GET' });
+                                if (res.ok) {
+                                  const j = await res.json();
+                                  serveurLivre = Array.isArray(j.data) ? j.data[0] : j.data;
+                                }
+                              }
+
+                              // 5) dernier fallback : données embarquées dans la réservation
+                              const livreLocal = serveurLivre || (reservation.inventaire ? {
+                                id: reservation.inventaire_id,
+                                transaction_id: '',
+                                livre_id: reservation.inventaire_id,
+                                title: reservation.inventaire.title || 'Titre inconnu',
+                                author: reservation.inventaire.author || '',
+                                quantite: reservation.inventaire.quantite || 0,
+                                price: reservation.inventaire.price || 0,
+                                isbn: reservation.inventaire.isbn || 0,
+                              } as InventaireItem : null);
+
+                              if (!livreLocal) {
+                                alert('✅ Réservation annulée mais livre introuvable après actualisation.');
+                                return;
+                              }
+
+                              // 6) ouvrir la modal en s'appuyant sur la version fraîche (serveurLivre/livreLocal)
+                              setPendingReservationId(reservation.id);
+                              setModeModal('vente');
+                              setLivreEnVente(serveurLivre || livreLocal as InventaireItem);
+                              setQuantiteVente(reservation.quantite_bloquee || 1);
+                              setValeurReduction(0);
+                              setTypeReduction('euros');
+                              setReductionOpened(true);
+                              setReservationsOpened(false);
+                            } catch (err) {
+                              console.error('Erreur fetch inventaire:', err);
+                              alert('Erreur lors de la récupération du livre après annulation');
+                            }
+                          }}
+                           title="Appliquer une réduction à cette réservation"
+                        >
+                          🎯 Réductions
                         </Button>
                       </Table.Td>
                     </Table.Tr>
