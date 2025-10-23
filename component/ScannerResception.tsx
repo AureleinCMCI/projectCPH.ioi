@@ -1306,7 +1306,7 @@ export default function Resception() {
                 >
                   <div className={styles.transactionIcon}>
                     {item.livre?.image ? 
-                      <img src={item.livre.image} alt="image" style={{width: '50px', height: '50px'}} /> 
+                      <img loading="lazy" src={item.livre.image} alt="image" style={{width: '50px', height: '50px'}} /> 
                       : '📚'
                     }
                   </div>
