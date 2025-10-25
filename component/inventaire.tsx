@@ -124,7 +124,6 @@ export default function Inventaire() {
                   </div>
                 </Link>
               </div>
-
             <div className={styles.featureIcon} onClick={() => setOpened(true)}>
               <span>📋</span>
               <div className={styles.featureIconLabel}>Historique</div>
@@ -133,7 +132,6 @@ export default function Inventaire() {
         </Center>
         {/* Liste des livres */}        
       </div>
-
       {/* Modal Historique */}
       <Modal opened={opened} onClose={() => setOpened(false)} title="Historique des réceptions" centered size="xxl">
         <Button onClick={downloadCSV} mb="md">Télécharger en CSV</Button>

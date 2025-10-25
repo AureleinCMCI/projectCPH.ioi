@@ -30,9 +30,6 @@ type InventaireItem = {
 };
 
 
-/*constante des scanner */
-
-
 
 /*Récupération des informations de l'utilisateur , verifié qui est connecté via jeto*/
 let user: { id: string; name: string; avatar?: string } | null = null;
@@ -119,6 +116,16 @@ export default function Commande() {
   const [selectedLivreForStock, setSelectedLivreForStock] = useState<InventaireItem | null>(null);
   const [stockAdded, setStockAdded] = useState(false);
   const [showQuantitySelection, setShowQuantitySelection] = useState(false);
+  
+  useEffect(() => {
+    if (scannerOpened) {
+      // mark ready once the scanner overlay is mounted — triggers scanner init effect
+      setScannerReady(true);
+    } else {
+      // when closed, reset ready flag so cleanup useEffect runs correctly
+      setScannerReady(false);
+    }
+  }, [scannerOpened]);
 
 
   useEffect(() => {
@@ -503,27 +510,99 @@ export default function Commande() {
           user_id: user.id
         }),
       });
-
       if (res.ok) {
-        // Rafraîchir réservations et inventaire et attendre la fin
         await fetchReservations();
-        const response = await fetch('/api/inventaire', { method: 'GET' });
-        if (response.ok) {
-          const result = await response.json();
-          setInventaire(result.data || []);
-        } else {
-          console.warn('Impossible de rafraîchir l\'inventaire après annulation');
-        }
-        alert('✅ Réservation annulée avec succès !');
         return true;
       } else {
-        const error = await res.json().catch(() => ({ error: 'Erreur serveur' }));
-        alert(`❌ Erreur: ${error.error || error.message}`);
+        const err = await res.json().catch(() => ({ error: 'Erreur serveur' }));
+        console.error('Erreur annulation réservation:', err);
         return false;
       }
-    } catch (error) {
+    } catch (error) { 
       console.error('Erreur:', error);
-      alert('❌ Erreur de connexion');
+      return false;
+    }
+  };
+
+ const venteReservation = async (reservationId: number): Promise<boolean> => {
+    if (!user) return false;
+
+    // Récupérer la réservation côté client (fallback si serveur ne la retourne pas)
+    const reservation = reservations.find(r => r.id === reservationId) ?? null;
+
+    try {
+      const res = await fetch('/api/reservations', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: reservationId,
+          user_id: user.id
+        }),
+      });
+
+      // Même si la suppression côté serveur a réussi ou non, on prépare la vente en s'appuyant
+      // sur les données locales (reservation) ou en effectuant des recherches côté inventaire.
+      try {
+        // 2) récupérer la version la plus récente de l'inventaire (utiliser directement le JSON)
+        const respInv = await fetch('/api/inventaire', { method: 'GET' });
+        const invJson = respInv.ok ? await respInv.json() : null;
+        const latestInventaire: InventaireItem[] = Array.isArray(invJson?.data) ? invJson.data : [];
+        // Mettre à jour le state (UI) mais utiliser aussi latestInventaire localement IMMÉDIATEMENT
+        setInventaire(latestInventaire);
+
+        // Si on n'a pas les détails de la réservation côté client, on informe et on retourne true
+        if (!reservation) {
+          alert('✅ Réservation annulée, mais les détails locaux n\'étaient pas disponibles pour préparer la vente.');
+          return true;
+        }
+
+        // 3) chercher le livre dans latestInventaire (ne pas se fier uniquement à l'état inventaire précédent)
+        let serveurLivre = latestInventaire.find(i => i.id === reservation.inventaire_id)
+          || latestInventaire.find(i => i.livre_id === reservation.inventaire_id)
+          || null;
+
+        // 4) fallback : appel spécifique si introuvable
+        if (!serveurLivre) {
+          const lookupRes = await fetch(`/api/inventaire?inventaire_id=${reservation.inventaire_id}`, { method: 'GET' });
+          if (lookupRes.ok) {
+            const j = await lookupRes.json();
+            serveurLivre = Array.isArray(j.data) ? j.data[0] : j.data;
+          }
+        }
+
+        // 5) dernier fallback : données embarquées dans la réservation
+        const livreLocal = serveurLivre || (reservation.inventaire ? {
+          id: reservation.inventaire_id,
+          transaction_id: '',
+          livre_id: reservation.inventaire_id,
+          title: reservation.inventaire.title || 'Titre inconnu',
+          author: reservation.inventaire.author || '',
+          quantite: reservation.inventaire.quantite || 0,
+          price: reservation.inventaire.price || 0,
+          isbn: reservation.inventaire.isbn || 0,
+        } as InventaireItem : null);
+
+        if (!livreLocal) {
+          alert('✅ Réservation annulée mais livre introuvable après actualisation.');
+          return true;
+        }
+
+        // 6) ouvrir la modal en s'appuyant sur la version fraîche (serveurLivre/livreLocal)
+        setPendingReservationId(reservation.id);
+        setModeModal('vente');
+        setLivreEnVente(serveurLivre || livreLocal as InventaireItem);
+        setQuantiteVente(reservation.quantite_bloquee || 1);
+        setValeurReduction(0);
+        setTypeReduction('euros');
+        setReductionOpened(true);
+        setReservationsOpened(false);
+      } catch (error) {
+        console.error('Erreur lors de la préparation de la vente après annulation de la réservation:', error);
+        alert('❌ Erreur lors de la préparation de la vente après annulation de la réservation');
+      }
+      return true;
+    } catch (error) { 
+      console.error('Erreur:', error);
       return false;
     }
   };
@@ -761,7 +840,6 @@ export default function Commande() {
       return Math.max(0, prixTotal - reduction);
     }
   };
-  // fin fonction
   // Nouvelle fonction pour calculer la réduction sur le TOTAL du panier
   const calculerReductionPanier = () => {
     if (!panierApiItems.length) {
@@ -852,7 +930,6 @@ export default function Commande() {
       alert("Utilisateur non connecté !");
       return;
     }
-
     // Récupérer les informations du client
     const clientName = (document.getElementById('clientName') as HTMLInputElement)?.value || '';
     const clientPhone = (document.getElementById('clientPhone') as HTMLInputElement)?.value || '';
@@ -951,14 +1028,11 @@ export default function Commande() {
   useEffect(() => {
     if (scannerOpened && scannerReady && scannerRef.current) {
       console.log(`Scanner ${scannerType} prêt à être utilisé`);
-
       // Détecter Android pour utiliser une approche différente
       const isAndroid = /android/i.test(navigator.userAgent);
-
       if (isAndroid && scannerType === 'html5') {
         // APPROCHE SPÉCIALE POUR ANDROID - Contourner le bouton de permission
         console.log('🤖 Android détecté - Utilisation de l\'approche directe');
-
         // Créer un scanner personnalisé pour Android
         const initAndroidScanner = async () => {
           try {
@@ -970,8 +1044,6 @@ export default function Commande() {
                 height: { ideal: 720, max: 1080 }
               }
             });
-
-            // Créer un élément vidéo
             const video = document.createElement('video');
             video.srcObject = stream;
             video.style.width = '100%';
@@ -979,14 +1051,12 @@ export default function Commande() {
             video.style.objectFit = 'cover';
             video.autoplay = true;
             video.playsInline = true;
-
-            // Ajouter au container
             const reader = document.getElementById('reader');
-            if (reader) {
+            if (reader)
+            {
               reader.innerHTML = '';
               reader.appendChild(video);
             }
-
             // Utiliser l'API native de détection de codes-barres si disponible
             if ('BarcodeDetector' in window) {
               const BarcodeDetector = (window as unknown as { BarcodeDetector: BarcodeDetectorInterface }).BarcodeDetector;
@@ -1027,7 +1097,6 @@ export default function Commande() {
 
             // Stocker la fonction de nettoyage
             setAndroidCleanup(() => cleanup);
-
           } catch (error) {
             console.error('Erreur scanner Android direct:', error);
             // Fallback vers html5-qrcode normal
@@ -1091,24 +1160,18 @@ export default function Commande() {
               }
             );
             setScanner(html5QrcodeScanner);
-
             return () => {
               if (html5QrcodeScanner) {
                 html5QrcodeScanner.clear();
               }
             };
-          } else {
-            // IOS : QuaggaJS optimisé pour détection avec caméra arrière
+          } else
+          {
             console.log('🚀 Initialisation QuaggaJS pour iOS...');
-
             try {
               // Étape 1: si les labels sont vides, demander un flux générique pour débloquer les permissions iOS
-              // Utiliser la fonction utilitaire pour récupérer la back cam si souhaitée
               const deviceId = preferBack ? (await getBackCameraDeviceId()) : null;
               console.log('📷 Caméra sélectionnée (deviceId):', deviceId || 'fallback');
-
-
-
               const supported = navigator.mediaDevices.getSupportedConstraints?.() || {};
               console.log('supported constraints:', supported);
 
@@ -1305,22 +1368,25 @@ export default function Commande() {
 
   // Suppression de la fonction inutilisée listeCommande
 
-  const decrementInventaire = async (livre: InventaireItem, quantite: number) => {
-    if (!quantite || quantite <= 0) {
+  const decrementInventaire = async (livre: InventaireItem, quantite: number) => 
+  {
+    if (!quantite || quantite <= 0)
+    {
       alert("Veuillez saisir une quantité à supprimer supérieure à 0.");
       return;
     }
-
     // Calculer la quantité disponible (stock - réservations)
     const quantiteReservee = livre.quantite_reservee || 0;
     const quantiteDisponible = livre.quantite - quantiteReservee;
 
-    if (livre.quantite <= 0) {
+    if (livre.quantite <= 0)
+    {
       alert("Ce livre n'est pas en stock !");
       return;
     }
 
-    if (quantiteDisponible <= 0) {
+    if (quantiteDisponible <= 0)
+    {
       alert(`❌ Impossible de vendre "${livre.title}" ! Tous les exemplaires (${quantiteReservee}) sont réservés.`);
       return;
     }
@@ -1330,28 +1396,29 @@ export default function Commande() {
       return;
     }
 
-    try {
-      const res = await fetch('/api/ScannerResception', {
+    try 
+    {
+      const res = await fetch('/api/ScannerResception', 
+      {
         method: 'DELETE',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ id: livre.id, supprimer: quantite, isbn: livre.isbn }),
       });
-
       if (!res.ok) throw new Error('Erreur lors de la décrémentation');
-
       const response = await fetch('/api/inventaire', { method: 'GET' });
       const result = await response.json();
       setInventaire(result.data || []);
       setFormOpened(false);
       setSupprimer(1);
-    } catch (error: unknown) {
+    } catch (error: unknown)
+    {
       const message = error instanceof Error ? error.message : String(error);
       console.error('Erreur:', message);
       alert('Erreur lors de la décrémentation');
     }
   };
-
-  const ajouterCommande = async (livre: InventaireItem, quantite: number, prixFinal?: number, transactionInfo?: {
+  const ajouterCommande = async (livre: InventaireItem, quantite: number, prixFinal?: number, transactionInfo?: 
+  {
     transaction_id: string;
     prix_original_unitaire: number;
     reduction_appliquee: number;
@@ -1365,32 +1432,43 @@ export default function Commande() {
       return;
     }
 
-    try {
-      const res = await fetch('/api/commande', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          livre_id: livre.livre_id,
-          quantite,
-          user_id: user.id,
-          vendeur: user.name,
-          title: livre.title,
-          prix_final: prixFinal || (livre.price * quantite),
-          transactionInfo: transactionInfo || undefined // <-- tout l'objet groupé ici
-        }),
-      });
+         // Construire un payload agrégé attendu par /api/commande (transaction_id, user_id, lignes)
+      const transactionId = transactionInfo?.transaction_id || `TXN_${Date.now()}_${user.id}`;
+      const prixUnitaireFinal = Number((transactionInfo?.prix_original_unitaire ?? livre.price).toFixed(2));
+      const totalFromInfo = transactionInfo?.total_transaction_final;
+      const fallbackFromUnit = prixUnitaireFinal * quantite;
+      const baseTotal = totalFromInfo ?? (Number.isFinite(fallbackFromUnit) ? fallbackFromUnit : (livre.price * quantite));
+      const prixLigneFinal = Number((baseTotal).toFixed(2));
 
-      if (!res.ok) throw new Error("Erreur lors de l'ajout de la commande");
+      const lignesPayload = [{
+        livre_id: livre.livre_id,
+        title: livre.title,
+        quantite,
+        prix_unitaire_final: prixUnitaireFinal,
+        prix_ligne_final: prixLigneFinal,
+        reduction_appliquee: Number(transactionInfo?.reduction_appliquee ?? 0)
+      }];
 
+      const payload = {
+        transaction_id: transactionId,
+        user_id: user.id,
+        vendeur: user.name,
+        total_transaction_original: Number((transactionInfo?.total_transaction_original ?? (livre.price * quantite)).toFixed(2)),
+        total_transaction_final: prixLigneFinal,
+        montant_reduction: Number(transactionInfo?.reduction_appliquee ?? 0),
+        type_reduction: transactionInfo?.type_reduction ?? 'euros',
+        valeur_reduction: Number(transactionInfo?.valeur_reduction ?? 0),
+        lignes: lignesPayload
+      };
+
+      // Envoi via la fonction agrégée (avec validation côté client)
+      await envoyerCommandeAgregee(payload);
+
+      // Rafraîchir inventaire et fermer le formulaire
       const response = await fetch('/api/inventaire', { method: 'GET' });
       const result = await response.json();
       setInventaire(result.data || []);
       setFormOpened(false);
-    } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : String(e);
-      console.error('Erreur:', message);
-      alert("Erreur lors de l'ajout de la commande");
-    }
   };
 
   const validateAllScannedCodes = async () => {
@@ -2931,64 +3009,9 @@ export default function Commande() {
                           variant="outline"
                           onClick={async () => {
                             // 1) annuler la réservation côté serveur (attend la fin)
-                            const ok = await annulerReservation(reservation.id);
-                            if (!ok) return;
-
-                            try {
-                              // 2) récupérer la version la plus récente de l'inventaire (utiliser directement le JSON)
-                              const respInv = await fetch('/api/inventaire', { method: 'GET' });
-                              const invJson = respInv.ok ? await respInv.json() : null;
-                              const latestInventaire: InventaireItem[] = Array.isArray(invJson?.data) ? invJson.data : [];
-                              // Mettre à jour le state (UI) mais utiliser aussi latestInventaire localement IMMÉDIATEMENT
-                              setInventaire(latestInventaire);
-
-                              // 3) chercher le livre dans latestInventaire (ne pas se fier uniquement à l'état inventaire précédent)
-                              let serveurLivre = latestInventaire.find(i => i.id === reservation.inventaire_id)
-                                || latestInventaire.find(i => i.livre_id === reservation.inventaire_id)
-                                || null;
-
-                              // 4) fallback : appel spécifique si introuvable
-                              if (!serveurLivre) {
-                                const res = await fetch(`/api/inventaire?inventaire_id=${reservation.inventaire_id}`, { method: 'GET' });
-                                if (res.ok) {
-                                  const j = await res.json();
-                                  serveurLivre = Array.isArray(j.data) ? j.data[0] : j.data;
-                                }
-                              }
-
-                              // 5) dernier fallback : données embarquées dans la réservation
-                              const livreLocal = serveurLivre || (reservation.inventaire ? {
-                                id: reservation.inventaire_id,
-                                transaction_id: '',
-                                livre_id: reservation.inventaire_id,
-                                title: reservation.inventaire.title || 'Titre inconnu',
-                                author: reservation.inventaire.author || '',
-                                quantite: reservation.inventaire.quantite || 0,
-                                price: reservation.inventaire.price || 0,
-                                isbn: reservation.inventaire.isbn || 0,
-                              } as InventaireItem : null);
-
-                              if (!livreLocal) {
-                                alert('✅ Réservation annulée mais livre introuvable après actualisation.');
-                                return;
-                              }
-
-                              // 6) ouvrir la modal en s'appuyant sur la version fraîche (serveurLivre/livreLocal)
-                              setPendingReservationId(reservation.id);
-                              setModeModal('vente');
-                              setLivreEnVente(serveurLivre || livreLocal as InventaireItem);
-                              setQuantiteVente(reservation.quantite_bloquee || 1);
-                              setValeurReduction(0);
-                              setTypeReduction('euros');
-                              setReductionOpened(true);
-                              setReservationsOpened(false);
-                            } catch (err) {
-                              console.error('Erreur fetch inventaire:', err);
-                              alert('Erreur lors de la récupération du livre après annulation');
-                            }
+                            const ok = await venteReservation(reservation.id);
                           }}
-                           title="Appliquer une réduction à cette réservation"
-                        >
+                          title="Appliquer une réduction à cette réservation">
                           🎯 Réductions
                         </Button>
                       </Table.Td>
@@ -3159,6 +3182,10 @@ export default function Commande() {
 }
 
 async function envoyerCommandeAgregee(payload: any) {
+   if (!payload || !payload.transaction_id || !payload.user_id || !Array.isArray(payload.lignes) || payload.lignes.length === 0) {
+   console.error('payload invalide pour /api/commande', payload);
+   throw new Error('Payload invalide : transaction_id, user_id et lignes requis');
+ }
   const res = await fetch('/api/commande', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

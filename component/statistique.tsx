@@ -1211,6 +1211,7 @@ const getPrixLivre = (title: string, commande?: Commande): number => {
                 <Table.Tr>
                   <Table.Th>Date</Table.Th>
                   <Table.Th>Utilisateur</Table.Th>
+                  <Table.Th>Titre du livre</Table.Th>
                   <Table.Th style={{ textAlign: 'center' }}>Quantité</Table.Th>
                 </Table.Tr>
               </Table.Thead>
@@ -1250,11 +1251,17 @@ const getPrixLivre = (title: string, commande?: Commande): number => {
                               {reception.name_user || 'Utilisateur inconnu'}
                             </Text>
                           </Table.Td>
+                          <Table.Td>
+                            <Text size="s">
+                              {reception.livre_title || 0}
+                            </Text>
+                          </Table.Td>
                           <Table.Td style={{ textAlign: 'center' }}>
                             <Badge color="green" size="lg">
                               {reception.quantite || 0}
                             </Badge>
                           </Table.Td>
+                  
                         </Table.Tr>
                       );
                     })
