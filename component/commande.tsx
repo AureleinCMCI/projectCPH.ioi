@@ -30,6 +30,9 @@ type InventaireItem = {
 };
 
 
+/*constante des scanner */
+
+
 
 /*Récupération des informations de l'utilisateur , verifié qui est connecté via jeto*/
 let user: { id: string; name: string; avatar?: string } | null = null;
@@ -116,16 +119,6 @@ export default function Commande() {
   const [selectedLivreForStock, setSelectedLivreForStock] = useState<InventaireItem | null>(null);
   const [stockAdded, setStockAdded] = useState(false);
   const [showQuantitySelection, setShowQuantitySelection] = useState(false);
-  
-  useEffect(() => {
-    if (scannerOpened) {
-      // mark ready once the scanner overlay is mounted — triggers scanner init effect
-      setScannerReady(true);
-    } else {
-      // when closed, reset ready flag so cleanup useEffect runs correctly
-      setScannerReady(false);
-    }
-  }, [scannerOpened]);
 
 
   useEffect(() => {
@@ -200,16 +193,68 @@ export default function Commande() {
   }, [page, venteOpened, search]); // <-- add search to depen
 
 
-  const getItemPrice = (item: { inventaire?: { price?: number }, livre?: { id?: number } }) => {
-    const apiPrice = item.inventaire?.price;
-    if (typeof apiPrice === 'number' && !isNaN(apiPrice)) {
-      return apiPrice;
+// ...existing code...
+  // helper: récupérer inventaire par livre_id depuis le serveur et mettre à jour le state
+  const fetchInventaireByLivreId = async (livreId: number) => {
+    try {
+      const res = await fetch(`/api/inventaire?livre_id=${encodeURIComponent(String(livreId))}`);
+      if (!res.ok) return null;
+      const json = await res.json();
+      const serverItem = Array.isArray(json.data) ? json.data[0] : json.data;
+      if (serverItem) {
+        setInventaire(prev => {
+          try {
+            // éviter les doublons
+            if (prev.some(p => p.livre_id === serverItem.livre_id || p.id === serverItem.id)) return prev;
+            return [serverItem as InventaireItem, ...prev];
+          } catch {
+            return prev;
+          }
+        });
+        // rendre disponible pour debug
+        try { (window as any).__lastFetchedInventaireItem__ = serverItem; } catch {}
+        return serverItem;
+      }
+    } catch (err) {
+      console.error('Erreur fetchInventaireByLivreId:', err);
     }
-    const livreLocal = inventaire.find(inv => inv.livre_id === item.livre?.id);
-    if (livreLocal && typeof livreLocal.price === 'number')
-      return livreLocal.price; return 0;
+    return null;
   };
-
+  const getItemPrice = (item: any) => 
+    {
+    // convertisseur sûr (gère string avec , ou . et numbers)
+    const toNumberOrNull = (v: any) => 
+    {
+      if (v === null || v === undefined) return null;
+      const n = typeof v === 'number' ? v : Number(String(v).replace(',', '.'));
+      return Number.isFinite(n) ? n : null;
+    };
+    // 1) priorité : prix fourni par la ligne panier (inventaire.price, price)
+    const directCandidates = [item?.inventaire?.price, item?.price, item?.prix];
+    for (const c of directCandidates) {
+      const p = toNumberOrNull(c);
+      if (p !== null) return p;
+    }
+    // 2) rechercher dans l'inventaire local via livre_id / id
+    const livreId = item?.livre?.id ?? item?.livre_id ?? item?.id ?? item?.inventaire?.livre_id;
+    if (livreId != null) {
+      const found = inventaire.find(inv => inv.livre_id === livreId || inv.id === livreId);
+      const p = toNumberOrNull(found?.price);
+      if (p !== null) return p;
+      // si non trouvé localement, déclencher une récupération asynchrone en arrière-plan
+      // (ne pas await pour rester synchrone — la prochaine ouverture utilisera la donnée)
+      fetchInventaireByLivreId(Number(livreId)).catch(() => { /* ignore */ });
+    }
+    // 3) fallback par ISBN si présent
+    const isbn = item?.livre?.isbn ?? item?.isbn ?? item?.inventaire?.isbn;
+    if (isbn != null) {
+      const foundByIsbn = inventaire.find(inv => String(inv.isbn) === String(isbn));
+      const p2 = toNumberOrNull(foundByIsbn?.price);
+      if (p2 !== null) return p2;
+    }
+    return 0;
+  };
+  // ...existing code...
   /* Fonction pour ajouter un livre au panier de la base de donnés post*/
   const ajouterAuPanier = async (livre: InventaireItem, quantite: number = 1) => {
     try {
@@ -840,6 +885,7 @@ export default function Commande() {
       return Math.max(0, prixTotal - reduction);
     }
   };
+  // fin fonction
   // Nouvelle fonction pour calculer la réduction sur le TOTAL du panier
   const calculerReductionPanier = () => {
     if (!panierApiItems.length) {
@@ -930,6 +976,7 @@ export default function Commande() {
       alert("Utilisateur non connecté !");
       return;
     }
+
     // Récupérer les informations du client
     const clientName = (document.getElementById('clientName') as HTMLInputElement)?.value || '';
     const clientPhone = (document.getElementById('clientPhone') as HTMLInputElement)?.value || '';
@@ -1028,11 +1075,14 @@ export default function Commande() {
   useEffect(() => {
     if (scannerOpened && scannerReady && scannerRef.current) {
       console.log(`Scanner ${scannerType} prêt à être utilisé`);
+
       // Détecter Android pour utiliser une approche différente
       const isAndroid = /android/i.test(navigator.userAgent);
+
       if (isAndroid && scannerType === 'html5') {
         // APPROCHE SPÉCIALE POUR ANDROID - Contourner le bouton de permission
         console.log('🤖 Android détecté - Utilisation de l\'approche directe');
+
         // Créer un scanner personnalisé pour Android
         const initAndroidScanner = async () => {
           try {
@@ -1044,6 +1094,8 @@ export default function Commande() {
                 height: { ideal: 720, max: 1080 }
               }
             });
+
+            // Créer un élément vidéo
             const video = document.createElement('video');
             video.srcObject = stream;
             video.style.width = '100%';
@@ -1051,12 +1103,14 @@ export default function Commande() {
             video.style.objectFit = 'cover';
             video.autoplay = true;
             video.playsInline = true;
+
+            // Ajouter au container
             const reader = document.getElementById('reader');
-            if (reader)
-            {
+            if (reader) {
               reader.innerHTML = '';
               reader.appendChild(video);
             }
+
             // Utiliser l'API native de détection de codes-barres si disponible
             if ('BarcodeDetector' in window) {
               const BarcodeDetector = (window as unknown as { BarcodeDetector: BarcodeDetectorInterface }).BarcodeDetector;
@@ -1097,6 +1151,7 @@ export default function Commande() {
 
             // Stocker la fonction de nettoyage
             setAndroidCleanup(() => cleanup);
+
           } catch (error) {
             console.error('Erreur scanner Android direct:', error);
             // Fallback vers html5-qrcode normal
@@ -1160,18 +1215,24 @@ export default function Commande() {
               }
             );
             setScanner(html5QrcodeScanner);
+
             return () => {
               if (html5QrcodeScanner) {
                 html5QrcodeScanner.clear();
               }
             };
-          } else
-          {
+          } else {
+            // IOS : QuaggaJS optimisé pour détection avec caméra arrière
             console.log('🚀 Initialisation QuaggaJS pour iOS...');
+
             try {
               // Étape 1: si les labels sont vides, demander un flux générique pour débloquer les permissions iOS
+              // Utiliser la fonction utilitaire pour récupérer la back cam si souhaitée
               const deviceId = preferBack ? (await getBackCameraDeviceId()) : null;
               console.log('📷 Caméra sélectionnée (deviceId):', deviceId || 'fallback');
+
+
+
               const supported = navigator.mediaDevices.getSupportedConstraints?.() || {};
               console.log('supported constraints:', supported);
 
