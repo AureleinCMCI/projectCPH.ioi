@@ -3111,7 +3111,7 @@ export default function Commande() {
             <Text size="sm" c="dimmed" mb="lg">
               Stock actuel: {selectedLivreForStock.quantite} exemplaire{selectedLivreForStock.quantite > 1 ? 's' : ''}
             </Text>
-
+d
             {!stockAdded ? (
               <>
                 <Text size="md" fw={500} mb="sm">
