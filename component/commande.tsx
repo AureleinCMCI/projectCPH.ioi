@@ -158,7 +158,7 @@ export default function Commande() {
       try {
         setLivresLoading(true);
         // include search in the query so server returns results across all pages matching the term
-        const q = `/api/inventaire?page=${page}&search=${encodeURIComponent(search || '')}`;
+        const q = `/api/commandePagination?page=${page}&search=${encodeURIComponent(search || '')}`;
         const res = await fetch(q, { signal: abort.signal });
         if (!res.ok) {
           console.error('Erreur fetch inventaire page', res.status);
@@ -2565,6 +2565,7 @@ export default function Commande() {
                     <div style={{ fontSize: '12px', color: '#666' }}>
                       {item.price}€
                     </div>
+                    
                   </div>
                 </div>
               ))}
@@ -3197,24 +3198,9 @@ export default function Commande() {
                   Stock disponible: {selectedLivreForStock.quantite} exemplaire{selectedLivreForStock.quantite > 1 ? 's' : ''}
                 </Text>
 
-                <NumberInput
-                  placeholder="Quantité pour le panier"
-                  min={1}
-                  max={selectedLivreForStock.quantite}
-                  value={quantiteAjouter}
-                  onChange={(value) => setQuantiteAjouter(Number(value) || 1)}
-                  style={{ marginBottom: '20px' }}
-                  size="md"
-                />
-
+                <NumberInput  placeholder="Quantité pour le panier"    min={1}  max={selectedLivreForStock.quantite}  value={quantiteAjouter}     onChange={(value) => setQuantiteAjouter(Number(value) || 1)} style={{ marginBottom: '20px' }}   size="md"/>
                 <div style={{ display: 'flex', gap: '10px', justifyContent: 'center' }}>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setShowQuantitySelection(false);
-                    }}
-                    style={{ flex: 1 }}
-                  >
+                  <Button variant="outline" onClick={() => {setShowQuantitySelection(false);}} style={{ flex: 1 }}>
                     Retour
                   </Button>
                   <Button
@@ -3228,8 +3214,7 @@ export default function Commande() {
                       setPanierOpened(true);
                     }}
                     style={{ flex: 1 }}
-                    leftSection="🛒"
-                  >
+                    leftSection="🛒">
                     Ajouter {quantiteAjouter} au panier
                   </Button>
                 </div>
@@ -3242,17 +3227,15 @@ export default function Commande() {
   );
 }
 
-async function envoyerCommandeAgregee(payload: any) {
+async function envoyerCommandeAgregee(payload: any)
+  {
    if (!payload || !payload.transaction_id || !payload.user_id || !Array.isArray(payload.lignes) || payload.lignes.length === 0) {
    console.error('payload invalide pour /api/commande', payload);
    throw new Error('Payload invalide : transaction_id, user_id et lignes requis');
- }
-  const res = await fetch('/api/commande', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(payload)
-  });
-  if (!res.ok) {
+  }
+  const res = await fetch('/api/commande',{ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)});
+  if(!res.ok)
+  { 
     const err = await res.json().catch(() => null);
     console.error('Erreur API commande:', res.status, err);
     throw new Error(err?.error || 'Erreur lors de l\'envoi commande');

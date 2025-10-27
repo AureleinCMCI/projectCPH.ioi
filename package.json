@@ -9,7 +9,10 @@
     "dev-https-mobile": "next dev --experimental-https --hostname 0.0.0.0",
     "build": "next build",
     "start": "next start",
-    "lint": "next lint"
+    "lint": "next lint",
+    "test:e2e": "playwright test",
+    "test:e2e:ui": "playwright test --ui",
+    "test:e2e:report": "playwright show-report"
   },
   "overrides": {
     "react-qr-scanner": {
@@ -57,17 +60,24 @@
   "devDependencies": {
     "@eslint/eslintrc": "^3",
     "@mermaid-js/mermaid-cli": "^11.12.0",
+    "@playwright/test": "^1.56.1",
+    "@testing-library/jest-dom": "^6.9.1",
+    "@testing-library/react": "^16.3.0",
     "@types/bcrypt": "^6.0.0",
     "@types/jsonwebtoken": "^9.0.10",
     "@types/node": "20.19.4",
     "@types/react": "19.1.8",
     "@types/react-dom": "^19",
+    "@vitejs/plugin-react": "^5.1.0",
+    "@vitest/ui": "^4.0.3",
     "eslint": "^9",
     "eslint-config-next": "15.3.3",
+    "happy-dom": "^20.0.8",
     "postcss": "^8.5.6",
     "postcss-preset-mantine": "^1.17.0",
     "postcss-simple-vars": "^7.0.1",
     "puppeteer": "^24.25.0",
-    "typescript": "5.8.3"
+    "typescript": "5.8.3",
+    "vitest": "^4.0.3"
   }
 }
