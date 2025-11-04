@@ -94,10 +94,7 @@ export default function Commande() {
   const [panierOpened, setPanierOpened] = useState(false);
   const [panier, setPanier] = useState<InventaireItem[]>([]);
   const [reservationsOpened, setReservationsOpened] = useState(false);
-  const [reservations, setReservations] = useState<{
-    id: number;
-    inventaire_id: number;
-    quantite_bloquee?: number;
+  const [reservations, setReservations] = useState<{ id: number; inventaire_id: number; quantite_bloquee?: number;
     date_expiration?: string;
     date_creation?: string;
     name?: string;
@@ -119,6 +116,24 @@ export default function Commande() {
   const [selectedLivreForStock, setSelectedLivreForStock] = useState<InventaireItem | null>(null);
   const [stockAdded, setStockAdded] = useState(false);
   const [showQuantitySelection, setShowQuantitySelection] = useState(false);
+  
+
+  
+  useEffect(() => {
+  let t: number | undefined;
+  if (scannerOpened) {
+    // délai court pour laisser le DOM (reader div) se monter avant d'initialiser
+    t = window.setTimeout(() => {
+      setScannerReady(true);
+    }, 50);
+  } else {
+    // fermer -> empêcher toute initialisation en cours
+    setScannerReady(false);
+  }
+  return () => {
+    if (t !== undefined) clearTimeout(t);
+  };
+}, [scannerOpened]);
 
 
   useEffect(() => {
@@ -193,7 +208,6 @@ export default function Commande() {
   }, [page, venteOpened, search]); // <-- add search to depen
 
 
-// ...existing code...
   // helper: récupérer inventaire par livre_id depuis le serveur et mettre à jour le state
   const fetchInventaireByLivreId = async (livreId: number) => {
     try {
@@ -254,7 +268,6 @@ export default function Commande() {
     }
     return 0;
   };
-  // ...existing code...
   /* Fonction pour ajouter un livre au panier de la base de donnés post*/
   const ajouterAuPanier = async (livre: InventaireItem, quantite: number = 1) => {
     try {
@@ -431,9 +444,7 @@ export default function Commande() {
       const userAgent = navigator.userAgent.toLowerCase();
       const isAndroid = /android/.test(userAgent);
       const isIOS = /iphone|ipad|ipod/.test(userAgent);
-
       setIsMobile(isAndroid || isIOS);
-
       // Choix du scanner selon l'OS
       if (isIOS) {
         setScannerType('quagga'); // QuaggaJS pour iOS
@@ -652,9 +663,6 @@ export default function Commande() {
     }
   };
   /* fin fonction */
-  // ...existing code...
-  /* fin fonction */
-
   /* vendre une réservation */
   // ...existing code...
   /* vendre une réservation */
@@ -831,12 +839,10 @@ export default function Commande() {
     if (!isValid) {
       console.log('❌ Code rejeté (format non valide)');
       return;
-    }
-    // Nettoyer le code
+    } // Nettoyer le code
     const cleanCode = decodedText.replace(/[\s-]/g, '');
     console.log('✅ Code valide scanné:', cleanCode);
     setIsbn(cleanCode);
-    // Ajouter le code à la liste
     setScannedCodes(prev => { if (!prev.includes(cleanCode)) { const newCodes = [...prev, cleanCode]; console.log('📋 Codes scannés:', newCodes); setShowCodesList(true); return newCodes; } return prev; });
     const searchStart = performance.now();
     let isbnTrouve = isbnList.find(item => item.isbn.toString() === cleanCode);
@@ -1071,22 +1077,17 @@ export default function Commande() {
     // 4) Fallback: si rien trouvé, prendre la dernière (souvent arrière)
     return back?.deviceId ?? videos[videos.length - 1]?.deviceId ?? null;
   }
-  /* parametre du scanner */
+  
   useEffect(() => {
     if (scannerOpened && scannerReady && scannerRef.current) {
       console.log(`Scanner ${scannerType} prêt à être utilisé`);
-
-      // Détecter Android pour utiliser une approche différente
       const isAndroid = /android/i.test(navigator.userAgent);
-
       if (isAndroid && scannerType === 'html5') {
-        // APPROCHE SPÉCIALE POUR ANDROID - Contourner le bouton de permission
         console.log('🤖 Android détecté - Utilisation de l\'approche directe');
 
         // Créer un scanner personnalisé pour Android
         const initAndroidScanner = async () => {
           try {
-            // Accéder directement à la caméra
             const stream = await navigator.mediaDevices.getUserMedia({
               video: {
                 facingMode: 'environment',
@@ -1094,8 +1095,6 @@ export default function Commande() {
                 height: { ideal: 720, max: 1080 }
               }
             });
-
-            // Créer un élément vidéo
             const video = document.createElement('video');
             video.srcObject = stream;
             video.style.width = '100%';
@@ -1103,21 +1102,17 @@ export default function Commande() {
             video.style.objectFit = 'cover';
             video.autoplay = true;
             video.playsInline = true;
-
             // Ajouter au container
             const reader = document.getElementById('reader');
             if (reader) {
               reader.innerHTML = '';
               reader.appendChild(video);
             }
-
-            // Utiliser l'API native de détection de codes-barres si disponible
             if ('BarcodeDetector' in window) {
               const BarcodeDetector = (window as unknown as { BarcodeDetector: BarcodeDetectorInterface }).BarcodeDetector;
               const barcodeDetector = new BarcodeDetector({
                 formats: ['ean_13', 'ean_8', 'code_128']
               });
-
               const detectBarcodes = async () => {
                 try {
                   const barcodes = await barcodeDetector.detect(video);
@@ -1131,14 +1126,11 @@ export default function Commande() {
                 }
                 requestAnimationFrame(detectBarcodes);
               };
-
               video.addEventListener('loadedmetadata', () => {
                 detectBarcodes();
               });
             }
-
             setScanner(true);
-
             // Fonction de nettoyage pour Android
             const cleanup = () => {
               stream.getTracks().forEach(track => track.stop());
@@ -1148,10 +1140,8 @@ export default function Commande() {
               setScanner(null);
               setAndroidCleanup(null);
             };
-
             // Stocker la fonction de nettoyage
             setAndroidCleanup(() => cleanup);
-
           } catch (error) {
             console.error('Erreur scanner Android direct:', error);
             // Fallback vers html5-qrcode normal
@@ -1177,13 +1167,9 @@ export default function Commande() {
         };
         initAndroidScanner();
       } else {
-        // APPROCHE NORMALE POUR AUTRES PLATEFORMES
         const initNormalScanner = async () => {
-          // Essayer d'abord l'accès forcé à la caméra sur Android
           await forceCameraAccessAndroid();
-
           if (scannerType === 'html5') {
-            // ANDROID/DESKTOP : html5-qrcode optimisé pour détection
             const html5QrcodeScanner = new Html5QrcodeScanner(
               "reader",
               {
@@ -1206,7 +1192,6 @@ export default function Commande() {
               },
               true
             );
-
             html5QrcodeScanner.render(
               handleScan,
               (error) => {
@@ -1215,7 +1200,6 @@ export default function Commande() {
               }
             );
             setScanner(html5QrcodeScanner);
-
             return () => {
               if (html5QrcodeScanner) {
                 html5QrcodeScanner.clear();
@@ -1224,7 +1208,6 @@ export default function Commande() {
           } else {
             // IOS : QuaggaJS optimisé pour détection avec caméra arrière
             console.log('🚀 Initialisation QuaggaJS pour iOS...');
-
             try {
               // Étape 1: si les labels sont vides, demander un flux générique pour débloquer les permissions iOS
               // Utiliser la fonction utilitaire pour récupérer la back cam si souhaitée
@@ -2196,38 +2179,32 @@ export default function Commande() {
       </Modal>
 
       <Modal opened={detailOpened} onClose={() => setDetailOpened(false)} title="Détails du livre" centered size="xs">
-        {selectedLivre && (
-          <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-            {/* Image du livre */}
-            <div style={{ marginBottom: '15px' }}>
-              {selectedLivre.livre?.image ? (
-                <Image
-                  src={selectedLivre.livre.image}
-                  alt={selectedLivre.title}
-                  loading="lazy"
-                  style={{
-                    width: '100px',
-                    height: '150px',
-                    objectFit: 'cover',
-                    borderRadius: '8px',
-                    boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
-                  }}
-                />
-              ) : (
-                <div style={{
-                  width: '120px',
-                  height: '150px',
-                  backgroundColor: '#f0f0f0',
-                  borderRadius: '8px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  fontSize: '32px'
-                }}>
-                  📚
-                </div>
-              )}
-            </div>
+  {selectedLivre && (
+    <div style={{ textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+      {/* DEBUG : Voir la structure des données */}
+      {(() => {
+        console.log('📊 selectedLivre:', selectedLivre);
+        console.log('📊 selectedLivre.livre:', selectedLivre.livre);
+        return null;
+      })()}      
+      <div style={{ marginBottom: '15px' }}>
+        {selectedLivre.livre?.image ? (
+          <Image
+            src={selectedLivre.livre.image}
+            alt={selectedLivre.title}
+            loading="lazy"
+            style={{
+              width: '100px',
+              height: '150px',
+              objectFit: 'cover',
+              borderRadius: '8px',
+              boxShadow: '0 2px 4px rgba(0,0,0,0.2)'
+            }}
+          />
+        ) : (
+          <div>❌ Pas d'image (livre.thumb manquant)</div>
+        )}
+      </div>
 
             {/* Informations du livre */}
             <div style={{
@@ -2500,7 +2477,6 @@ export default function Commande() {
         </div>
       </Modal>
 
-      {/* Modale de liste des livres pour vente */}
       {/* Modale de vente - Liste des livres pour vente */}
       <Modal opened={venteOpened} onClose={() => setVenteOpened(false)} title="📚 Liste des livres disponibles à la vente" centered size="xl">
         {/*bar de recherche */}

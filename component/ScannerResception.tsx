@@ -6,14 +6,16 @@ import { IconCamera, IconEdit } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
-
-import { default as scannerStyles, default as styles } from './style/ScannerResception.module.css';
-
+import { uploadImageAndThumb } from '@/lib/supabaseUpload';
+import { dataUrlToFile, compressImageFile } from '@/lib/imageCompression'; // si tu utilises ces helpers// si tu utilises ces helpers
+import styles from './style/ScannerResception.module.css';
+const scannerStyles = styles;
 type InventaireItem = { id: number; livre_id: number; title: string; author: string; quantite: number; price: number; isbn: number; livre?: { image?: string };};
 
 // Interface pour BarcodeDetector (API native du navigateur)
 interface BarcodeDetectorInterface {
   new (options: { formats: string[] }): {
+    handleTakePhoto: () => void;
     detect(video: HTMLVideoElement): Promise<Array<{ rawValue: string }>>;
   };
 }
@@ -37,7 +39,8 @@ export default function Resception() {
   const [scannerReady, setScannerReady] = useState(false);
   const scannerRef = useRef<HTMLDivElement | null>(null);
   const [search, setSearch] = useState('');
-  
+  const [capturedFile, setCapturedFile] = useState<File | null>(null); // le File à uploader (compress)
+  const [capturedImagePreview, setCapturedImagePreview] = useState<string>(''); // dataURL pour l'aperçu dans l'UI
   // États pour la détection des plateformes
   const [isMobile, setIsMobile] = useState(false);
   const [page, setPage] = useState(1);
@@ -56,14 +59,11 @@ export default function Resception() {
   });
   const [inventaire, setInventaire] = useState<InventaireItem[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
-
   const [detailsOpened, setDetailsOpened] = useState(false);
   const [ajouts, setAjouts] = useState<{ [id: number]: number }>({});
   const [editedBooks, setEditedBooks] = useState<InventaireItem[]>([]);
-
   const [isbn, setIsbn] = useState('');
   const [showPopover, setShowPopover] = useState(false);
-  
   // États pour la popup d'incrémentation (comme dans commande.tsx)
   const [incrementModalOpened, setIncrementModalOpened] = useState(false);
   const [quantiteToAdd, setQuantiteToAdd] = useState<number>(1);
@@ -77,11 +77,24 @@ export default function Resception() {
   const [newIsbn, setNewIsbn] = useState('');
   const [bookAdditionalIsbns, setBookAdditionalIsbns] = useState<string[]>([]);
   const [isAddingIsbn, setIsAddingIsbn] = useState(false);
-  
   // État pour le mode édition de la quantité
   const [isEditingQuantity, setIsEditingQuantity] = useState(false);
   const [tempQuantity, setTempQuantity] = useState<number>(0);
-
+  // État pour stocker les informations de l'utilisateur
+  const [user, setUser] = useState<{ id: string; name: string; admin?: boolean } | null>(null);
+  // Récupérer les informations de l'utilisateur depuis le JWT
+  useEffect(() => {
+    const token = localStorage.getItem('jwt');
+    if (token) {
+      try {
+        const userData = jwtDecode<{ id: string; name: string; admin?: boolean }>(token);
+        setUser(userData);
+      } catch (error) {
+        console.error('Erreur lors du décodage du token:', error);
+        setUser(null);
+      }
+    }
+  }, []);
   // Fonctions pour gérer l'édition de la quantité
   const handleEditQuantity = () => {
     if (selectedBook) {
@@ -924,130 +937,177 @@ export default function Resception() {
   };
 
   const handleFormSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
 
-    if (!formData.title.trim()) {
-      alert("Le titre du livre est obligatoire !");
+  e.preventDefault();
+  
+  let imageUrlToSend = '';
+  let thumbUrlToSend: string | undefined = undefined;
+
+  // validations
+  if (capturedFile) {
+  try {
+    // 1. Compresser l'image AVANT l'upload (côté client)
+    const { compressImageFile } = await import('../lib/imageCompression');
+    
+    const compressedMain = await compressImageFile(capturedFile, { 
+      maxWidth: 1200, 
+      maxHeight: 1800, 
+      quality: 0.8, 
+      mimeType: 'image/webp' 
+    });
+    
+    const compressedThumb = await compressImageFile(capturedFile, { 
+      maxWidth: 150, 
+      maxHeight: 150, 
+      quality: 0.65, 
+      mimeType: 'image/webp' 
+    });
+
+    // 2. Créer un FormData avec les fichiers compressés
+    const uploadFormData = new FormData();
+    uploadFormData.append('mainImage', compressedMain);
+    uploadFormData.append('thumbImage', compressedThumb);
+    uploadFormData.append('basename', `livre-${formData.isbn || Date.now()}`);
+    
+    // 3. Envoyer au serveur
+    const response = await fetch('/api/uploadImageAndThumb', {
+      method: 'POST',
+      body: uploadFormData,
+    });
+    
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({ error: 'Erreur inconnue' }));
+      throw new Error(errorData.error || `Erreur HTTP ${response.status}`);
+    }
+    
+    const result = await response.json();
+    imageUrlToSend = result.imageUrl ?? '';
+    thumbUrlToSend = result.thumbUrl;
+    
+  } catch (err) {
+    console.error('Erreur upload image:', err);
+    alert("Erreur lors de l'upload de l'image. Veuillez réessayer.");
+    return;
+  }
+}
+
+  try {
+    // 1. Créer le livre (avec image URL si disponible)
+    const livreRes = await fetch('/api/livre', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        title: String(formData.title),
+        author: String(formData.author),
+        description: formData.description,
+        isbn: String(formData.isbn),
+        image: imageUrlToSend,
+        thumb: thumbUrlToSend,
+        date_de_production: formData.date_de_production,
+      }),
+    });
+
+    if (!livreRes.ok) {
+      const err = await livreRes.text();
+      console.error('Erreur création livre:', err);
+      alert('Erreur lors de la création du livre');
       return;
     }
-    if (!formData.author.trim()) {
-      alert("L'auteur est obligatoire !");
+
+    const livreData = await livreRes.json();
+    const livreId = livreData?.user?.id;
+    if (!livreId) {
+      alert("Erreur lors de la création du livre");
       return;
     }
-    if (!formData.isbn.trim()) {
-      alert("L'ISBN est obligatoire !");
-      return;
-    }
-    try {
-      // 1. Créer le livre (avec image)
-      const livreRes = await fetch('/api/livre', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          title: String(formData.title),
-          author: String(formData.author),
-          description: formData.description,
-          isbn: String(formData.isbn),
-          image: capturedImage,
-          date_de_production: formData.date_de_production
-        }),
-      });
-      const livreData = await livreRes.json();
-      const livreId = livreData?.user?.id;
-      if (!livreId) {
-        alert("Erreur lors de la création du livre");
-        return;
-      }
 
-      // 2. Créer l'inventaire lié à ce livre
-      const inventaireRes = await fetch('/api/inventaire', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          livre_id: livreId,
-          title: String(formData.title),
-          author: String(formData.author),
-          quantite: Number(formData.quantite),
-          price: Number(formData.price),
-          isbn: String(formData.isbn),
-          date_de_production: formData.date_de_production
-        }),
-      });
+    // 2. Créer l'inventaire lié à ce livre
+    const inventaireRes = await fetch('/api/inventaire', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        livre_id: livreId,
+        title: String(formData.title),
+        author: String(formData.author),
+        quantite: Number(formData.quantite),
+        price: Number(formData.price),
+        isbn: String(formData.isbn),
+        date_de_production: formData.date_de_production,
+      }),
+    });
 
-      // 2.5. Ajouter les ISBNs additionnels s'il y en a
-      if (formData.additionalIsbns && formData.additionalIsbns.length > 0) {
-        console.log('📚 Ajout des ISBNs additionnels:', formData.additionalIsbns);
-        
-        for (const additionalIsbn of formData.additionalIsbns) {
-          try {
-            await fetch('/api/isbn', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ 
-                isbn: additionalIsbn.trim(),
-                livre_id: livreId
-              }),
-            });
-            console.log(`✅ ISBN additionnel ajouté: ${additionalIsbn}`);
-          } catch (error) {
-            console.error(`❌ Erreur lors de l'ajout de l'ISBN ${additionalIsbn}:`, error);
-          }
+    // 2.5. Ajouter les ISBNs additionnels s'il y en a
+    if (formData.additionalIsbns && formData.additionalIsbns.length > 0) {
+      for (const additionalIsbn of formData.additionalIsbns) {
+        try {
+          await fetch('/api/isbn', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              isbn: additionalIsbn.trim(),
+              livre_id: livreId,
+            }),
+          });
+        } catch (error) {
+          console.error(`Erreur ajout ISBN ${additionalIsbn}:`, error);
         }
       }
-
-      if (!inventaireRes.ok) {
-        const errorData = await inventaireRes.json();
-        alert(`Erreur lors de l'ajout au stock: ${errorData.error || 'Erreur inconnue'}`);
-        return;
-      }
-
-      // 3. Ajouter une ligne dans la table reception (historique)
-      if (!user) {
-        alert("Utilisateur non connecté !");
-        return;
-      }
-      await fetch('/api/historiqueResception', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: user.id,
-          quantite: Number(formData.quantite),
-          name_user: user.name,
-          livre_id: livreId,
-          info: 0,
-          livre_title: formData.title,
-          date_de_production: formData.date_de_production
-        }),
-      });
-
-             alert("Livre, inventaire et réception ajoutés avec succès !");
-       setFormOpened(false);
-       setFormData({  
-         title: '', author: '', price: '', quantite: '', isbn: '', 
-         description: '', image: '', livre_id: '', livre_title: '', 
-         name_user: '', info: '', user_id: '', date_reception: '',
-         date_de_production: '', additionalIsbns: [] 
-       });
-       setResult('');
-       setCapturedImage('');
-
-       // Rafraîchir l'inventaire après ajout
-       setLoading(true);
-       const response = await fetch('/api/inventaire', { method: 'GET' });
-       const result = await response.json();
-       setInventaire(result.data || []);
-       setLoading(false);
-
-       // Rediriger vers la page commande après ajout réussi
-       setTimeout(() => {
-         window.location.href = '/commande';
-       }, 1000); // Délai de 1 seconde pour laisser le temps de voir le message de succès
-
-    } catch (error) {
-      console.error('Erreur:', error);
-      alert('Erreur de connexion. Veuillez réessayer.');
     }
-  };
+
+    if (!inventaireRes.ok) {
+      const errorData = await inventaireRes.json().catch(() => ({}));
+      alert(`Erreur lors de l'ajout au stock: ${errorData.error || 'Erreur inconnue'}`);
+      return;
+    }
+
+    // 3. Ajouter une ligne dans la table reception (historique)
+    if (!user) {
+      alert("Utilisateur non connecté !");
+      return;
+    }
+    await fetch('/api/historiqueResception', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        user_id: user.id,
+        quantite: Number(formData.quantite),
+        name_user: user.name,
+        livre_id: livreId,
+        info: 0,
+        livre_title: formData.title,
+        date_de_production: formData.date_de_production,
+      }),
+    });
+
+    // Succès — nettoyage UI
+    alert("Livre, inventaire et réception ajoutés avec succès !");
+    setFormOpened(false);
+    setFormData({
+      title: '', author: '', price: '', quantite: '', isbn: '',
+      description: '', image: '', livre_id: '', livre_title: '',
+      name_user: '', info: '', user_id: '', date_reception: '',
+      date_de_production: '', additionalIsbns: []
+    });
+    setResult('');
+    setCapturedImagePreview('');
+    setCapturedFile(null);
+
+    // Rafraîchir inventaire
+    setLoading(true);
+    const response = await fetch('/api/inventaire', { method: 'GET' });
+    const result = await response.json().catch(() => ({}));
+    setInventaire(result.data || []);
+    setLoading(false);
+
+    // Redirection facultative
+    setTimeout(() => {
+      window.location.href = '/commande';
+    }, 1000);
+  } catch (error) {
+    console.error('Erreur:', error);
+    alert('Erreur de connexion. Veuillez réessayer.');
+  }
+};
 
 
 
@@ -1153,41 +1213,29 @@ export default function Resception() {
 
 
 
-  const [capturedImage, setCapturedImage] = useState('');
 
   const handleTakePhoto = () => {
-    // Créer un input file caché pour accéder à l'appareil photo
-    const input = document.createElement('input');
-    input.type = 'file';
-    input.accept = 'image/*';
-    input.capture = 'environment'; // Force la caméra arrière sur mobile
-    
-    input.onchange = (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0];
-      if (file) {
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          const dataUrl = event.target?.result as string;
-          setCapturedImage(dataUrl);
-          setFormData(prev => ({ ...prev, image: dataUrl }));
-        };
-        reader.readAsDataURL(file);
-      }
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.accept = 'image/*';
+  input.capture = 'environment';
+  input.onchange = async (e) => {
+    const file = (e.target as HTMLInputElement).files?.[0];
+    if (!file) return;
+    // create preview
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const dataUrl = event.target?.result as string;
+      setCapturedImagePreview(dataUrl); // pour l'aperçu
     };
-    
-    // Déclencher le clic sur l'input
-    input.click();
+    reader.readAsDataURL(file);
+    // garde le File original pour compression + upload
+    setCapturedFile(file);
+    // conserve la référence dans formData si utile (mais pas la base64)
+    setFormData(prev => ({ ...prev, image: '' })); // on utilisera l'URL après upload
   };
-
-  let user: { id: string; name: string; avatar?: string } | null = null;
-  if (typeof window !== 'undefined') {
-    const token = localStorage.getItem('jwt');
-    if (token) {
-      try {
-        user = jwtDecode<{ id: string; name: string; avatar?: string }>(token);
-      } catch {}
-    }
-  }
+  input.click();
+};
 
 
 
@@ -1692,12 +1740,12 @@ export default function Resception() {
              Ajouter le livre
             </Button>
             </center>
-          {capturedImage && (
-            <div style={{ marginTop: 10 }}>
-              <Text size="sm" color="dimmed" mb="xs">Aperçu de la photo :</Text>
-              <img src={capturedImage} alt="Aperçu" style={{ width: 150, borderRadius: 8 }} />
-            </div>
-          )}
+            {capturedImagePreview && (
+              <div style={{ marginTop: 10 }}>
+                <Text size="sm" color="dimmed" mb="xs">Aperçu de la photo :</Text>
+                <img src={capturedImagePreview} alt="Aperçu" style={{ width: 150, borderRadius: 8 }} />
+              </div>
+            )}
           <Center h={100}>
           </Center>
         </form>
@@ -1840,7 +1888,96 @@ export default function Resception() {
                   placeholder="Nombre d'exemplaires à ajouter"
                   mb="md"
                 />
-                
+             <Button
+          color="blue"
+          fullWidth
+          onClick={async () => {
+              // ouvrir le sélecteur/capture
+              const input = document.createElement('input');
+              input.type = 'file';
+              input.accept = 'image/*';
+              input.capture = 'environment';
+              input.onchange = async (e) => {
+                const file = (e.target as HTMLInputElement).files?.[0];
+                if (!file) return;
+
+                try {
+                  alert('📤 Upload en cours...');
+
+                  // Reprendre la logique de compression existante
+                  const { compressImageFile } = await import('../lib/imageCompression');
+
+                  const compressedMain = await compressImageFile(file, {
+                    maxWidth: 1200,
+                    maxHeight: 1800,
+                    quality: 0.8,
+                    mimeType: 'image/webp'
+                  });
+
+                  const compressedThumb = await compressImageFile(file, {
+                    maxWidth: 150,
+                    maxHeight: 150,
+                    quality: 0.65,
+                    mimeType: 'image/webp'
+                  });
+
+                  // Préparer FormData
+                  const fd = new FormData();
+                  fd.append('mainImage', compressedMain);
+                  fd.append('thumbImage', compressedThumb);
+                  fd.append('basename', `livre-${livre.livre_id}-${Date.now()}`);
+
+                  // Upload vers votre route serveur qui utilise la service-role
+                  const upRes = await fetch('/api/uploadImageAndThumb', { method: 'POST', body: fd });
+                  if (!upRes.ok) {
+                    const err = await upRes.json().catch(() => ({}));
+                    throw new Error(err?.error || `Upload failed (${upRes.status})`);
+                  }
+                  const upJson = await upRes.json();
+                  
+                  // ✅ CORRECTION : La route retourne imageUrl et thumbUrl (pas image/thumb)
+                  const imageUrl = upJson.imageUrl;
+                  const thumbUrl = upJson.thumbUrl;
+
+                  if (!imageUrl || !thumbUrl) {
+                    console.error('Response from API:', upJson);
+                    throw new Error('imageUrl ou thumbUrl manquant dans la réponse');
+                  }
+
+                  console.log('✅ Images compressées et uploadées:', { imageUrl, thumbUrl });
+
+                  // Mettre à jour la table livre via PATCH /api/livre
+                  const patchBody: any = { id: livre.livre_id };
+                  patchBody.image = imageUrl;
+                  patchBody.thumb = thumbUrl;
+
+                  const patchRes = await fetch('/api/livre', {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(patchBody)
+                  });
+                  
+                  if (!patchRes.ok) {
+                    const perr = await patchRes.json().catch(() => ({}));
+                    console.error('Patch response:', perr);
+                    throw new Error(perr?.error || `Mise à jour livre échouée (${patchRes.status})`);
+                  }
+
+                  alert('✅ Photo enregistrée et livre mis à jour');
+                  
+                  // Rafraîchir l'inventaire affiché pour voir l'image immédiatement
+                  const invRes = await fetch('/api/inventaire', { method: 'GET' });
+                  const invJson = await invRes.json().catch(() => ({}));
+                  setInventaire(invJson.data || []);
+                } catch (err) {
+                  console.error('Erreur upload photo livre:', err);
+                  alert('❌ Erreur lors de l\'upload de la photo (voir console)');
+                }
+              };
+              input.click();
+            }}>
+            📸 Prendre photo et envoyer
+          </Button>
                 <Button
                   color="green"
                   fullWidth

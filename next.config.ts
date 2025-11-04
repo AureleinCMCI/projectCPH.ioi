@@ -7,6 +7,7 @@ const nextConfig: NextConfig = {
   experimental: {
     serverActions: {
       allowedOrigins: ['*'], // Permet l'accès depuis d'autres appareils
+      bodySizeLimit: '10mb', // ← AUGMENTER LA LIMITE À 10 MB
     }
   },
   

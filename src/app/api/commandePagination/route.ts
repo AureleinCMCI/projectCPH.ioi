@@ -41,16 +41,18 @@ export async function GET(req: Request) {
         const livreId = Number(lookupLivreId);
         const { data, error } = await supabase
           .from('inventaire')
-          .select('id, livre_id, author, title , quantite, price, isbn ,livre (image)')
+          .select('id, livre_id, author, title , quantite, price, isbn, livre(id, image')
           .eq('livre_id', livreId)
           .maybeSingle();
+
+
         if (error) return Response.json({ error: error.message }, { status: 400 });
         return Response.json({ data, found: !!data });
       }
       if (lookupIsbn) {
         const { data, error } = await supabase
           .from('inventaire')
-          .select('id, livre_id, author, title , quantite, price, isbn ,livre (image)')
+          .select('id, livre_id, author, title , quantite, price, isbn, livre(id, image, thumb)')
           .eq('isbn', lookupIsbn)
           .maybeSingle();
         if (error) return Response.json({ error: error.message }, { status: 400 });
@@ -62,7 +64,7 @@ export async function GET(req: Request) {
     }
   }
   const page = Number(url.searchParams.get("page") ?? 1);
-  const pageSize = 50;
+  const pageSize = 20;
   const from = (page - 1) * pageSize;
   const to = from + pageSize - 1;
 
@@ -72,7 +74,7 @@ export async function GET(req: Request) {
   // - one lightweight HEAD/count-only request on the base table to get an exact total
   const dataPromise = supabase
     .from('inventaire')
-    .select('id, livre_id, author, title, quantite, price, isbn ,livre (image)')
+    .select('id, livre_id, author, title, quantite, price, isbn, livre(id, image)')
     .order('id', { ascending: true })
     .range(from, to);
 
@@ -90,7 +92,15 @@ export async function GET(req: Request) {
       console.error('Supabase data error:', dataRes.value.error);
       return Response.json({ error: dataRes.value.error.message }, { status: 400 });
     }
-    data = (dataRes.value.data ?? []) as InventaireWithLivre[];
+    // Normalize 'livre' field: Supabase returns related rows as an array; convert to single object or null
+    data = ((dataRes.value.data ?? []) as any[]).map((row) => {
+      const livreRaw = (row as any).livre;
+      const livre = Array.isArray(livreRaw) ? (livreRaw[0] ?? null) : (livreRaw ?? null);
+      return {
+        ...row,
+        livre,
+      } as InventaireWithLivre;
+    });
   } else {
     console.error('Error fetching page data:', dataRes.reason);
     return Response.json({ error: String(dataRes.reason) }, { status: 500 });
