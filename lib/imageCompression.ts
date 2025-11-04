@@ -11,7 +11,8 @@ export async function compressImageFile(
 ): Promise<File> {
   // crée un bitmap (plus rapide et fiable que <img>)
   const imgBitmap = await createImageBitmap(file);
-  let { width, height } = imgBitmap;
+  // width et height ne sont jamais réassignés — utiliser const pour satisfaire eslint prefer-const
+  const { width, height } = imgBitmap;
   const ratio = Math.min(maxWidth / width, maxHeight / height, 1);
   const targetWidth = Math.round(width * ratio);
   const targetHeight = Math.round(height * ratio);
