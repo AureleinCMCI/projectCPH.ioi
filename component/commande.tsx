@@ -29,9 +29,6 @@ type InventaireItem = {
 };
 
 
-/*constante des scanner */
-
-
 
 /*Récupération des informations de l'utilisateur , verifié qui est connecté via jeto*/
 let user: { id: string; name: string; avatar?: string } | null = null;
@@ -1377,6 +1374,19 @@ export default function Commande() {
   }, []);
   // filteredInventaire supprimé car il n'est pas utilisé
 
+
+
+const [cameraVisible, setCameraVisible] = useState(false);
+/*constante des scanner */
+useEffect(() => {
+  // Déclenche l'animation de la caméra après un petit délai
+  const timer = setTimeout(() => {
+    setCameraVisible(true);
+  }, 100); // 500ms après le chargement du composant
+  
+  return () => clearTimeout(timer);
+}, []);
+
   // Fonction pour afficher les détails du livre
   const detailvre = async (isbn: string) => {
     // Cherche d'abord dans inventaire local
@@ -1691,25 +1701,25 @@ export default function Commande() {
         <div className={stylesCommande.floatingBooks}>
           {/* Livres flottants */}
           <div className={styles.floatingBook} style={{ top: '10%', left: '15%', animationDelay: '0s' }}>
-            <Image loading="lazy" src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
+            <Image loading="lazy" src="/ConnaitreDieu.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
           </div>
           <div className={styles.floatingBook} style={{ top: '20%', right: '20%', animationDelay: '1s' }}>
-            <Image loading="lazy" src="/41--eGipgSL.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
+            <Image loading="lazy" src="/game.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 8px rgba(0,0,0,0.3)' }} />
           </div>
           <div className={styles.floatingBook} style={{ top: '35%', left: '10%', animationDelay: '2s' }}>
             <Image loading="lazy" src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
           </div>
           <div className={styles.floatingBook} style={{ top: '45%', right: '15%', animationDelay: '3s' }}>
-            <Image loading="lazy" src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            <Image loading="lazy" src="/ConnaitreDieu.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
           </div>
           <div className={styles.floatingBook} style={{ top: '15%', left: '50%', animationDelay: '1.5s' }}>
-            <Image loading="lazy" src="/41--eGipgSL.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            <Image loading="lazy" src="/ztf.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
           </div>
           <div className={styles.floatingBook} style={{ top: '30%', right: '45%', animationDelay: '2.5s' }}>
             <Image loading="lazy" src="/images.jpeg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
           </div>
           <div className={styles.floatingBook} style={{ top: '50%', left: '25%', animationDelay: '0.5s' }}>
-            <Image loading="lazy" src="/2940179870227_p0_v1_s600x595.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
+            <Image loading="lazy" src="/game.webp" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
           </div>
           <div className={styles.floatingBook} style={{ top: '40%', right: '35%', animationDelay: '3.5s' }}>
             <Image loading="lazy" src="/28635380.jpg" alt="Livre du frère Zach" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} />
@@ -1726,7 +1736,7 @@ export default function Commande() {
         </div>
 
         {/* Grosse icône caméra au centre */}
-        <div className={stylesCommande.mainIconContainer}>
+        <div className={`${stylesCommande.mainIconContainer} ${cameraVisible ? stylesCommande.appear : ''}`}>
           <div className={stylesCommande.mainIcon} onClick={() => setScannerOpened(true)}>
             <IconCamera size={80} color="white" />
           </div>
@@ -1737,7 +1747,7 @@ export default function Commande() {
       </div>
 
       {/* Carte blanche avec contenu produit - exactement comme l'image */}
-      <div className={stylesCommande.productCard} style={{ position: 'fixed', bottom: '0', left: '0', right: '0', top: '350px' }}>
+      <div className={`${stylesCommande.productCard} ${stylesCommande.visible}`} style={{ position: 'fixed', bottom: '0', left: '0', right: '0', top: '350px' }}>
         <div className={stylesCommande.productHeader}>
           <div className={stylesCommande.productTitle}>Vos ventes</div>
           <div className={stylesCommande.productHeart}> </div>
@@ -1808,7 +1818,7 @@ export default function Commande() {
               style={{ cursor: 'pointer' }}
             >
               <span>📅</span>
-              <div className={stylesCommande.featureIconLabel}>Réservations</div>
+              <div className={stylesCommande.featureIconLabel}>Réservé</div>
             </div>
 
             <div

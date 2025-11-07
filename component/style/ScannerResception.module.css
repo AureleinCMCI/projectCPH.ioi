@@ -19,6 +19,21 @@
   align-items: center;
   justify-content: center;
   text-align: center;
+  overflow: hidden; /* Désactive scroll vertical et horizontal */
+  opacity: 0;
+  animation: backgroundFadeIn 0.8s ease-out forwards;
+}
+
+/* ADD THESE MISSING ANIMATIONS */
+@keyframes backgroundFadeIn {
+  0% {
+    opacity: 0;
+    transform: scale(1.05);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
 }
 
 .CommandeTitle {
@@ -44,7 +59,7 @@
   display: flex;
   gap: 2rem;
   justify-content: center;
-  margin-top: 2rem;
+  margin-bottom: 450px !important;
 }
 
 .quickAction {
@@ -87,13 +102,63 @@
   letter-spacing: 1px;
 }
 
-.mainIconContainer {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin: 3rem 0;
+
+
+@keyframes cameraZoomIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.03);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+  }
 }
 
+.quickAction.appear {
+  opacity: 1;
+  transform: scale(1);
+  pointer-events: auto;
+}
+.mainIconContainer {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  position: relative;
+  opacity: 0;
+  transform: scale(0.03);
+  transform-origin: center center;
+  transition: transform 0.7s cubic-bezier(.22,1.5,.48,1), opacity 0.7s ease;
+  will-change: transform, opacity;
+  -webkit-backface-visibility: hidden;
+          backface-visibility: hidden;
+  pointer-events: none;
+  /* Add the animation to make it appear automatically */
+  animation: cameraZoomIn 0.8s ease-out 1.2s forwards;
+}
+
+@keyframes cameraZoomIn {
+  0% {
+    opacity: 0;
+    transform: scale(0.03);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+    pointer-events: auto;
+  }
+}
+
+/* REMOVE the duplicate .appear rules and keep only ONE */
+.mainIconContainer.appear {
+  opacity: 1;
+  transform: scale(1);  /* Normal size, NOT scale(10) */
+  pointer-events: auto;
+}
+
+/* Make sure mainIcon is visible */
 .mainIcon {
   border-radius: 50%;
   border: 2px solid rgba(255, 255, 255, 0.5);
@@ -104,11 +169,16 @@
   justify-content: center;
   cursor: pointer;
   transition: all 0.3s ease;
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.5);
   backdrop-filter: blur(10px);
-  margin-bottom:370px;
-  z-index: 1000;
+  margin: 0;
+  position: relative;
+  z-index: 1001;
+  transform-origin: center center;
+  -webkit-backface-visibility: hidden;
+          backface-visibility: hidden;
 }
+
 
 .mainIcon:hover {
   background: rgba(255, 255, 255, 0.2);
@@ -183,17 +253,115 @@
 /* Styles pour la carte produit blanche - exactement comme l'image */
 .productCard {
   margin-bottom: 150px !important;
-  background: white;
-  border-radius: 50px 50px 0 0;
-  padding: 0px 20px;
+  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 25%, #3b82f6 50%, #60a5fa 75%, #93c5fd 100%);
+  border-radius: 5% 5% 0 0;
+  padding: 20px;
   margin: 0 0px;
   margin-top: 20px;
   box-shadow: 0 -5px 20px rgba(0, 0, 0, 0.1);
   min-height: 400px;
   display: flex;
   flex-direction: column;
+  position: relative;
+  z-index: 10;
+  border-radius: 10px;
+  opacity: 0;
+  transform: translateY(30px);
+  transition: opacity 0.8s ease-out 0.3s, transform 0.8s ease-out 0.3s;
+  animation: productCardSlideUp 0.8s ease-out 2.5s forwards;
+  box-shadow: 
+      0 0 20px rgba(255, 0, 255, 0.6),
+      0 0 40px rgba(0, 255, 255, 0.5),
+      0 0 60px rgba(255, 255, 0, 0.4),
+      0 0 80px rgba(255, 0, 128, 0.3),
+      0 8px 30px rgba(138, 43, 226, 0.5),
+      0 -120px 40px -20px rgba(255, 0, 255, 0.3),    /* Rayon haut */
+      120px 0 40px -20px rgba(0, 255, 255, 0.3),     /* Rayon droite */
+      0 120px 40px -20px rgba(255, 255, 0, 0.3),     /* Rayon bas */
+      -120px 0 40px -20px rgba(255, 0, 128, 0.3),    /* Rayon gauche */
+      85px -85px 40px -20px rgba(138, 43, 226, 0.3), /* Rayon diagonal haut-droite */
+      85px 85px 40px -20px rgba(255, 0, 255, 0.3),   /* Rayon diagonal bas-droite */
+      -85px 85px 40px -20px rgba(0, 255, 255, 0.3),  /* Rayon diagonal bas-gauche */
+      -85px -85px 40px -20px rgba(255, 255, 0, 0.3); /* Rayon diagonal haut-gauche */
+  animation: productCardSlideUp 0.8s ease-out 2.5s forwards, rainbowGlow 3s ease-in-out infinite;
 }
 
+@keyframes productCardSlideUp {
+  0% {
+    opacity: 0;
+    transform: translateY(50px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+/* Quand le splash est parti, le contenu apparaît */
+.productCard.visible {
+  opacity: 1;
+  transform: translateY(0);
+  /* L'animation CSS prendra le dessus sur cette classe si elle est présente */
+}
+/* Animation du reflet arc-en-ciel */
+@keyframes rainbowGlow {
+  0%, 100% {
+      box-shadow: 
+      0 0 20px rgba(255, 0, 255, 0.8),
+      0 0 40px rgba(0, 255, 255, 0.6),
+      0 0 60px rgba(255, 255, 0, 0.5),
+      0 0 80px rgba(255, 0, 128, 0.4),
+      0 8px 30px rgba(138, 43, 226, 0.6);
+  }
+  33% {
+    box-shadow:
+      0 0 25px rgba(0, 255, 255, 0.8),
+      0 0 45px rgba(255, 255, 0, 0.6),
+      0 0 65px rgba(255, 0, 128, 0.5),
+      0 0 85px rgba(138, 43, 226, 0.4),
+      0 8px 35px rgba(255, 0, 255, 0.6);
+  }
+  66% {
+     box-shadow:
+      0 0 30px rgba(255, 255, 0, 0.8),
+      0 0 50px rgba(255, 0, 128, 0.6),
+      0 0 70px rgba(138, 43, 226, 0.5),
+      0 0 90px rgba(0, 255, 255, 0.4),
+      0 8px 40px rgba(255, 0, 255, 0.6);
+  }
+}
+@keyframes rainbowGlow {
+  0%, 100% {
+    box-shadow: 
+      0 0 20px rgba(255, 0, 255, 0.8),
+      0 0 40px rgba(0, 255, 255, 0.6),
+      0 0 60px rgba(255, 255, 0, 0.5),
+      0 0 80px rgba(255, 0, 128, 0.4),
+      0 8px 30px rgba(138, 43, 226, 0.6);
+  }
+  33% {
+    box-shadow: 
+      0 0 25px rgba(0, 255, 255, 0.8),
+      0 0 45px rgba(255, 255, 0, 0.6),
+      0 0 65px rgba(255, 0, 128, 0.5),
+      0 0 85px rgba(138, 43, 226, 0.4),
+      0 8px 35px rgba(255, 0, 255, 0.6);
+  }
+  66% {
+    box-shadow: 
+      0 0 30px rgba(255, 255, 0, 0.8),
+      0 0 50px rgba(255, 0, 128, 0.6),
+      0 0 70px rgba(138, 43, 226, 0.5),
+      0 0 90px rgba(0, 255, 255, 0.4),
+      0 8px 40px rgba(255, 0, 255, 0.6);
+  }
+}
+
+/* Quand le splash est parti, le contenu apparaît */
+.productCard.visible {
+  opacity: 1;
+  transform: translateY(0);
+}
 .productHeader {
   display: flex;
   justify-content: space-between;
@@ -206,7 +374,7 @@
   margin-top: 20px;
   font-size: 2rem;
   font-weight: bold;
-  color: #333;
+  color: #ffffff; /* Change from #333 to white */
 }
 
 .productHeart {
@@ -215,7 +383,7 @@
 }
 
 .productDescription {
-  color: #666;
+  color: #ffffff; /* Change from #666 to white */
   font-size: 1rem;
   line-height: 1.5;
   margin-bottom: 30px;
@@ -820,4 +988,13 @@
 .mainIconContainer {
   position: relative;
   z-index: 2;
+}
+
+@media (max-width: 600px)  {
+  .productCard {
+   border-radius: 15% !important;
+  }
+  .StyleCommandeGenerale{
+    overflow: hidden;
+  }
 }
