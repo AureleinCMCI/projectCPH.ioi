@@ -1,7 +1,8 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import React, { ChangeEvent, FormEvent, useState } from 'react';
+import React, { ChangeEvent, FormEvent, useState, useEffect, useRef } from 'react';
+import {Image, } from '@mantine/core';
 
 import style from './style/login.module.css';
 
@@ -29,6 +30,37 @@ export const LoginForm: React.FC = () => {
   // Pour la navigation
   const router = useRouter();
 
+  // État pour l'écran de bienvenue
+  const [showWelcome, setShowWelcome] = useState(true);
+
+  // État pour gérer la navigation
+  const [isNavigating, setIsNavigating] = useState<boolean>(false);
+  const rootRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    // Après 3 secondes, masquer l'écran de bienvenue
+    const timer = setTimeout(() => {
+      setShowWelcome(false);
+    }, 3000);
+    
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Option A: navigation after timeout (simple)
+  // Option B (recommended): navigation after animationend event
+  useEffect(() => {
+    const el = rootRef.current;
+    if (!el) return;
+    const onAnimEnd = (e: AnimationEvent) => {
+      // ensure we only navigate when exit animation finished
+      if (isNavigating) {
+        router.push('/acceuil');
+      }
+    };
+    el.addEventListener('animationend', onAnimEnd as EventListener);
+    return () => el.removeEventListener('animationend', onAnimEnd as EventListener);
+  }, [isNavigating, router]);
+
   // Gestion du submit (connexion)
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -44,24 +76,28 @@ export const LoginForm: React.FC = () => {
 
       if (name === '' && password === '') {
         setMessage('Veuillez entrer un nom et un mot de passe');
+        return;
       }
       else if (res.ok && data.success) {
         if (data.token) {
           localStorage.setItem('jwt', data.token);
         }
-        router.push('/acceuil');
+
+        // Start exit animation, navigation will occur on animationend
+        setIsNavigating(true);
+
+        // Fallback: if animationend doesn't fire, navigate after timeout matching animation duration
+        setTimeout(() => {
+          // safety: only push if still flagged navigating (prevents double push)
+          if (isNavigating) router.push('/acceuil');
+        }, 900); // must be >= animation duration (700ms for flip)
       } else {
         setMessage(data.error || 'Erreur de connexion');
       }
     } catch (err: unknown) {
-      if (err instanceof Error) {
-        setMessage(err.message);
-      } else {  
-        setMessage('Erreur lors de la connexion');
-      }
-      setMessage('Erreur lors de la connexion');
+      if (err instanceof Error) setMessage(err.message);
+      else setMessage('Erreur lors de la connexion');
     }
-    /*si le nom et le mot de passe sont corrects, on redirige vers la page d'accueil*/
   };
 
 
@@ -151,11 +187,32 @@ export const LoginForm: React.FC = () => {
   };
   
   return (
-    <div className={style.formRoot}>
+    <div
+      ref={rootRef}
+      className={
+        `${style.formRoot} ${isNavigating ? style.pageFade /* or style.pageFlip */ : ''}`
+      }
+    >
+      {/* Écran de bienvenue */}
+      {showWelcome && (
+        <div className={style.welcomeScreen}>
+          <div className={style.welcomeContent}>
+            <h1 className={style.welcomeTitle}>BIENVENUE</h1>
+            <h2 className={style.welcomeSubtitle}>MEMBRE DU CPH </h2>
+            <div className={style.welcomeIcon}><Image loading="lazy" src="/zacharias-tanee-fomum.jpg" alt="Livre du frère Zach" style={{ width: '250px', height: '250px',  ojectFit: 'cover', boxShadow: '0 4px 50% rgba(0,0,0,0.3)' }} /></div>
+          </div>
+        </div>
+      )}
+      
+      {/* Petites étoiles filantes */}
+      <span className={style.shootingStar1}></span>
+      <span className={style.shootingStar2}></span>
+      <span className={style.shootingStar3}></span>
+      <span className={style.shootingStar4}></span>
+      <span className={style.shootingStar5}></span>
+      <span className={style.shootingStar6}></span>
+      <span className={style.diamondStar1}></span>
       <div className={`${style.container} ${rightPanelActive ? style.rightPanelActive : ''}`}>
-        <h2 className={style.formSubtitle} style={{ fontWeight: 'bold', marginBottom: 30 }}>
-          Weekly Coding Challenge #1: Sign in/up Form
-        </h2>
         {/* Sign Up */}
         <div className={style.formContainer + ' ' + style.signUpContainer}>
           <form className={style.form} onSubmit={handleSignUp}>
@@ -184,6 +241,7 @@ export const LoginForm: React.FC = () => {
 
         {/* Sign In */}
         <div className={style.formContainer + ' ' + style.signInContainer}>
+          {/* 📚 LIVRES QUI TOMBENT DU CIEL (synchronisés avec le volcan) */}
           <form className={style.form} onSubmit={handleSubmit}>
             <h1 className={style.formTitle}>Bienvenue</h1>
             <span className={style.formSpan}>connectez-vous pour continuer</span>
@@ -211,23 +269,25 @@ export const LoginForm: React.FC = () => {
             >
               Mot de passe oublié ?
             </a>
-            <button className={style.formButton} type="submit">Connexion</button>
-            {message && <p className={style.formText}>{message}</p>}
+            <button className={style.formButton} type="submit" disabled={isNavigating}>
+              Connexion
+            </button>
+            {message && <p className={style.formText} style={{ color: 'white' }}>{message}</p>}
           </form>
         </div>
 
         {/* Overlay */}
         <div className={style.overlayContainer}>
           <div className={style.overlay}>
+            {/* Panneaux overlay existants */}
             <div className={style.overlayPanel + ' ' + style.overlayLeft}>
+              {/* 🌋 LIVRES VOLCANIQUES - DÉPLACÉS ICI */}
+              {/* ... tous les autres volcanBook ... */}
+
+              {/* Contenu texte du panneau */}
               <h1 className={style.formTitle}>Bienvenue à vous</h1>
               <p className={style.formText}>Pour rester connecté avec nous, veuillez vous connecter avec vos informations personnelles</p>
-              <button
-                className={`${style.formButton} ${style.ghost}`}
-                id="signIn"
-                type="button"
-                onClick={() => setRightPanelActive(false)}
-              >
+              <button className={`${style.formButton} ${style.ghost}`} id="signIn" type="button" onClick={() => setRightPanelActive(false)}>
                 Sign In
               </button>
             </div>

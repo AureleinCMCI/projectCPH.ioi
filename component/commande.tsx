@@ -1,14 +1,13 @@
 'use client';
 
 import Quagga, { QuaggaJSResultCallbackFunction, QuaggaJSResultObject } from '@ericblade/quagga2';
-import { Button, Center, Image, Input, Modal, NumberInput, Pagination, Radio, Table, Text, TextInput } from '@mantine/core';
+import { Button, Center, Image, Input, Modal, NumberInput, Pagination, Radio,  Group ,Table, Text, TextInput } from '@mantine/core';
 import { IconCamera } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import styles from './style/ScannerResception.module.css';
 import stylesCommande from './style/commande.module.css';
-
 // Interface pour BarcodeDetector
 interface BarcodeDetectorInterface {
   new(options: { formats: string[] }): {
@@ -2258,7 +2257,7 @@ export default function Commande() {
                 <Center>
                   {selectedLivre.quantite > 0 && (
                     <Button
-                      size="m"
+                      size="xs"
                       color="blue"
                       onClick={() => {
                         setDetailOpened(false);
@@ -2271,7 +2270,7 @@ export default function Commande() {
                     </Button>
                   )}
                   {selectedLivre.quantite > 0 && (
-                    <Button onClick={() => {
+                    <Button style={{ margin: '12.5px' }} size='xs'  onClick={() => {
                       reserverLivre(selectedLivre);
                     }}>Reserver</Button>
                   )}
@@ -2568,7 +2567,7 @@ export default function Commande() {
           </Text>
           <div style={{ display: 'flex', gap: '15px', justifyContent: 'center' }}>
             <Button
-              size="lg"
+              size="xs"
               color="green"
               variant="filled"
               onClick={() => {
@@ -2592,12 +2591,11 @@ export default function Commande() {
                   setVenteOpened(true);
                 }
               }}
-              style={{ flex: 1 }}
             >
-              ✅ Oui, avec réduction
+              ✅ Oui
             </Button>
             <Button
-              size="lg"
+              size="xs"
               color="blue"
               variant="outline"
               onClick={() => {
@@ -2610,8 +2608,8 @@ export default function Commande() {
                   setVenteOpened(true);
                 }
               }}
-              style={{ flex: 1 }}>
-              💰 Non, vendre directement
+              >
+              💰 Non
             </Button>
           </div>
           <Text size="sm" c="dimmed" mt="md" style={{ fontStyle: 'italic' }}>
@@ -2797,18 +2795,12 @@ export default function Commande() {
               </div>
             )}
             {/* Boutons d'action */}
-            <div style={{ display: 'flex', gap: '10px' }}>
-              <Button
-                variant="outline"
-                onClick={() => setReductionOpened(false)}
-                style={{ flex: 1 }}
-              >
-                Annuler
-              </Button>
-              <Button
-                color={modeModal === 'reservation' ? 'orange' : (livreEnVente && livreEnVente.quantite <= 0) ? 'blue' : 'green'}
-                disabled={modeModal === 'vente' ? (() => {
-                  if (modeModal === 'vente' && panierApiItems.length > 0) {
+              <Center>
+                <Button size='xs' variant="outline" onClick={() => setReductionOpened(false)}>
+                  Annuler
+                </Button>
+                <Button style={{margin : "15px"}} size='xs' color={modeModal === 'reservation' ? 'orange' : (livreEnVente && livreEnVente.quantite <= 0) ? 'blue' : 'green'} disabled={modeModal === 'vente' ? (() => {
+                    if (modeModal === 'vente' && panierApiItems.length > 0) {
                     // Vérifier que tous les livres du panier sont disponibles
                     for (const item of panierApiItems) {
                       const livre = inventaire.find(inv => inv.livre_id === item.livre?.id);
@@ -2822,6 +2814,7 @@ export default function Commande() {
                     }
                     return false; // Permettre la vente si tous les livres sont OK ou à 0 stock
                   }
+                  
                   // Pour vente individuelle
                   if (!livreEnVente) return true;
                   if (livreEnVente.quantite <= 0) return false; // Permettre (redirection vers ajout de stock)
@@ -2905,14 +2898,12 @@ export default function Commande() {
                     if (quantiteVente > quantiteDisponible)
                       return `❌ Stock insuffisant !\n📦 Disponible: ${quantiteDisponible}\n🛒 Demandé: ${quantiteVente}`;
                     return "✅Confirmer";
-                  })() : undefined}
-                style={{ flex: 1 }}
-              >
+                  })() : undefined}>
                 {modeModal === 'reservation' ? '📅 Confirmer la réservation' :
-                  modeModal === 'vente' && panierApiItems.length > 0 ? '🛒 Vendre le panier' :
+                  modeModal === 'vente' && panierApiItems.length > 0 ? '🛒 Vendre' :
                     (livreEnVente && livreEnVente.quantite <= 0) ? '📦 Ajouter au stock' : '✅ Confirmer la vente'}
               </Button>
-            </div>
+            </Center>
           </div>
         )}
       </Modal>
@@ -2923,8 +2914,8 @@ export default function Commande() {
         onClose={() => setReservationsOpened(false)}
         title="📅 Mes réservations"
         centered
-        size="xl"
-      >
+        size="xl">
+
         <div style={{ marginBottom: '20px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <Text size="lg" fw={600}>
             📋 Mes réservations actives ({reservations.length})
@@ -2932,7 +2923,7 @@ export default function Commande() {
           <Button
             onClick={fetchReservations}
             color="blue"
-            size="sm"
+            size="xs"
             leftSection="🔄"
           >
             Actualiser
@@ -2962,7 +2953,7 @@ export default function Commande() {
                   const daysLeft = reservation.date_expiration ? Math.ceil((new Date(reservation.date_expiration).getTime() - Date.now()) / (1000 * 60 * 60 * 24)) : 0;
 
                   return (
-                    <Table.Tr key={reservation.id}>
+                    <Table.Tr  key={reservation.id}>
                       <Table.Td>
                         <div>
                           <Text size="sm" fw={600}>
@@ -3022,36 +3013,20 @@ export default function Commande() {
                         </Text>
                       </Table.Td>
                       <Table.Td>
-                        <Button
-                          size="xs"
-                          color="red"
-                          variant="outline"
-                          onClick={() => annulerReservation(reservation.id)}
-                        >
-                          🗑️ Annuler
-                        </Button>
-                      </Table.Td>
-                      <Table.Td>
-                        <Button
-                          size="xs"
-                          color="green"
-                          variant="outline"
-                          onClick={() => vendreReservation(reservation.id)}
-                        >
-                          📦 vendre
-                        </Button>
+                        {/* Alignement horizontal des 3 boutons */}
+                        <div style={{ display: 'flex', gap: 8, justifyContent: 'center', alignItems: 'center' }}>
+                          <Button size="compact-sm" style={{fontSize:"8.9px"}} color="red" variant="outline" onClick={() => annulerReservation(reservation.id)}>
+                            🗑️ Annuler
+                          </Button>
 
-                        <Button
-                          size="xs"
-                          color="yellow"
-                          variant="outline"
-                          onClick={async () => {
-                            // 1) annuler la réservation côté serveur (attend la fin)
-                            const ok = await venteReservation(reservation.id);
-                          }}
-                          title="Appliquer une réduction à cette réservation">
-                          🎯 Réductions
-                        </Button>
+                          <Button size="compact-sm"  style={{fontSize:"8.9px"}} color="green" variant="outline" onClick={() => vendreReservation(reservation.id)}>
+                            📦 vendre
+                          </Button>
+
+                          <Button size="compact-sm" style={{fontSize:"8.9px"}}  color="yellow" variant="outline" onClick={async () => { const ok = await venteReservation(reservation.id); }} title="Appliquer une réduction à cette réservation">
+                            🎯 Réductions
+                          </Button>
+                        </div>
                       </Table.Td>
                     </Table.Tr>
                   );

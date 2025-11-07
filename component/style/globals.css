@@ -3,10 +3,10 @@
 body {
   margin: 0;
   padding: 0;
-  min-height: 100vh;
   background: linear-gradient(135deg, #f5f7fa 0%, #c3cfe2 100%);
   font-family: 'Inter', 'Segoe UI', Arial, sans-serif;
   color: #222;
+  overflow-x: hidden;
 }
 
 html {

@@ -23,7 +23,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
         <MantineProvider>
           <div style={{ display: 'flex', minHeight: '100vh' }}>
             {!hideNavbar && <BottomNavBar />}
-            <main style={{ flex: 1, padding: '24px' }}>
+            <main style={{ flex: 1}}>
               {children}
             </main>
           </div>

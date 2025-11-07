@@ -174,19 +174,16 @@ export async function uploadImageAndThumb(
       timestamp: new Date().toISOString(),
     });
     return { imageUrl: mainUrl, thumbUrl, mainPath, thumbPath };
-  } catch (err: unknown) {
-    // catch any unexpected exception and forward (no 'any' usage)
-    const message = err instanceof Error ? err.message : String(err);
-    const stack = err instanceof Error ? err.stack : undefined;
-    console.error('[uploadImageAndThumb] unexpected error', message);
+  } catch (err: any) {
+    // catch any unexpected exception and forward
+    console.error('[uploadImageAndThumb] unexpected error', err);
     void forwardLogToServer({
       location: 'uploadImageAndThumb',
       step: 'unexpected-error',
-      error: { message, stack },
+      error: { message: err?.message, stack: err?.stack },
       file: { name: file.name, size: file.size, type: file.type },
       timestamp: new Date().toISOString(),
     });
-    // rethrow original error (good for debugging)
     throw err;
   }
 }
