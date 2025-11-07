@@ -31,7 +31,7 @@ const SCANNER_CONFIG = {
   confidenceThreshold: 0.3, // Seuil de confiance plus bas
 };
 
-export default function Resception() {
+export default function ScannerResception() {
   // États pour le formulaire d'ajout
   const [formOpened, setFormOpened] = useState(false);
   const [result, setResult] = useState('');
@@ -2016,6 +2016,8 @@ export default function Resception() {
           );
         })()}
       </Modal>
+
+      {/* Modal de détails du livre (nouvelle fonctionnalité) */}
 
       {/* Modal de détails du livre (nouvelle fonctionnalité) */}
       <Modal 

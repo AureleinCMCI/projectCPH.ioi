@@ -1,6 +1,6 @@
-import Inventaire from '../../../component/inventaire';
+import Inventaire from '../../../component/Inventaire';
 
-export default function LoginFrom() {
+export default function inventaireReception() {
   return (
 
       <main>
