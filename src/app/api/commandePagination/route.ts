@@ -86,7 +86,7 @@ export async function GET(req: Request) {
       return Response.json({ error: dataRes.value.error.message }, { status: 400 });
     }
     // Normalize 'livre' field: Supabase returns related rows as an array; convert to single object or null
-    data = (dataRes.value.data ?? []).map((row: any) => {
+    data = (dataRes.value.data ?? []).map((row: InventaireWithLivre & { livre?: unknown }) => {
       const livreRaw = row.livre;
       const livre = Array.isArray(livreRaw) ? (livreRaw[0] ?? null) : (livreRaw ?? null);
       return {
