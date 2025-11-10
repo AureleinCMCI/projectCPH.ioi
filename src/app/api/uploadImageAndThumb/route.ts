@@ -97,8 +97,9 @@ export async function POST(req: Request) {
       thumbPath 
     });
 
-  } catch (err: any) {
+  } catch (err: unknown) {
     console.error('[uploadImageAndThumb] Unexpected error', err);
-    return NextResponse.json({ error: err?.message || String(err) }, { status: 500 });
+    const error = err instanceof Error ? err : new Error(String(err));
+    return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }
