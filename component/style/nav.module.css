@@ -1,5 +1,4 @@
 .navbar {
-  background-color: var(--mantine-color-body);
   height: 700px;
   width: 300px;
   padding: var(--mantine-spacing-md);
@@ -12,6 +11,8 @@
     transform 0.4s
     cubic-bezier(0.4, 0, 0.2, 1),  /* Courbe fluide */
     opacity 0.35s; 
+    
+    background-color: white; 
 }
 .open {
   display: block;    /* S'AFFICHE SI .open présent */

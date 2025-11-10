@@ -1,12 +1,7 @@
-import Inventaire from '../../../component/Inventaire';
+import Inventaire from '../../../component/inventaire';
 
-export default function inventaireReception() {
+export default function HomePage() {
   return (
-
-      <main>
-        <Inventaire/>
-      </main>
- 
-
+    <Inventaire />
   );
 }

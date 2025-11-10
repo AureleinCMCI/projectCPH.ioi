@@ -102,18 +102,18 @@ export function BottomNavBar() {
       )}
 
       {/* Menu Burger - Slide depuis la gauche */}
-      <div style={{
-        position: 'fixed',
-        top: 0,
-        left: isMenuOpen ? '0' : '-350px',
-        width: '320px',
-        height: '100vh',
-        background: 'linear-gradient(135deg,rgb(0, 1, 4) 0%,rgb(30, 86, 255) 100%)',
-        zIndex: 1800,
-        transition: 'left 0.3s ease',
-        padding: '80px 0 40px 0',
-        boxShadow: isMenuOpen ? '5px 0 20px rgba(0, 0, 0, 0.3)' : 'none'
-      }}>
+    <div style={{
+      position: 'fixed',
+      top: 0,
+      left: isMenuOpen ? '0' : '-350px',
+      width: '320px',
+      height: '100vh',
+      background: 'linear-gradient(135deg, #2c4a7c 0%, #4066af 25%, #523d82 50%, #4066af 75%, #2c4a7c 100% )',
+      zIndex: 1800,
+      transition: 'left 0.3s ease',
+      padding: '80px 0 40px 0',
+      boxShadow: isMenuOpen ? '5px 0 20px rgba(0, 0, 0, 0.3)' : 'none'
+    }}>
         {/* Header du menu avec photo utilisateur */}
         <div style={{
           padding: '0 30px 40px 30px',

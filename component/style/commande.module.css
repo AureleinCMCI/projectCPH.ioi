@@ -1,6 +1,6 @@
 .StyleCommandeGenerale {
   min-height: 100vh;
-  background: linear-gradient(135deg, #1e3a8a 0%, #1e40af 25%, #3b82f6 50%, #60a5fa 75%, #93c5fd 100%);
+  background: linear-gradient(135deg, #2c4a7c 0%, #4066af 25%, #523d82 50%, #4066af 75%, #2c4a7c 100%);
   background-size: cover;
   background-position: center;
   background-repeat: no-repeat;
@@ -188,23 +188,8 @@
   opacity: 0;
   transform: scale(0.03);
   transform-origin: center center;     /* grow from center only */
-transition: transform 0.7s cubic-bezier(.22,1.5,.48,1), opacity 0.7s ease;  will-change: transform, opacity;
-  -webkit-backface-visibility: hidden;
-          backface-visibility: hidden;
-  pointer-events: none;   
-    animation: cameraDelayedAppear 0.7s ease-out 1.2s forwards;             /* n'intercepte pas les clics quand invisible */
 }
-@keyframes cameraDelayedAppear {
-  0% {
-    opacity: 0;
-    transform: scale(0.03);
-  }
-  100% {
-    opacity: 1;
-    transform: scale(1);
-    pointer-events: auto;
-  }
-}
+
 
 .mainIconContainer.appear {
   opacity: 1;
@@ -235,8 +220,6 @@ transition: transform 0.7s cubic-bezier(.22,1.5,.48,1), opacity 0.7s ease;  will
   position: relative;       /* pour que z-index fonctionne correctement sur l'icône */
   z-index: 1001;
   transform-origin: center center;
-  -webkit-backface-visibility: hidden;
-          backface-visibility: hidden;
 }
 
 .paginationDots {
