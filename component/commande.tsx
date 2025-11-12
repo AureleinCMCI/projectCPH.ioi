@@ -783,12 +783,12 @@ export default function Commande() {
   /* fin fonction   */
   /* Configuration du scanner */
   const SCANNER_CONFIG = {
-    fps: 30,
-    frequency: 30,
-    debounceDelay: 200,
-    validationTimeout: 100,
-    workers: 4,
-    confidenceThreshold: 0.3,
+    fps: 30, // ← 30 images/seconde analysées
+    frequency: 30, // ← analyse toutes les 30ms
+    debounceDelay: 200, // ← délai anti-rebond de 200ms
+    validationTimeout: 100, // ← timeout de validation de 100ms
+    workers: 4, // ← nombre de workers pour le traitement
+    confidenceThreshold: 0.3, //
   };
 
   /* Cache pour optimiser les validations ISBN répétées */
@@ -1184,7 +1184,6 @@ export default function Commande() {
                 showZoomSliderIfSupported: true,
                 defaultZoomValueIfSupported: 2,
                 rememberLastUsedCamera: true,
-                useBarCodeDetectorIfSupported: true,
               },
               true
             );
@@ -1202,7 +1201,8 @@ export default function Commande() {
               }
             };
           } else {
-            // IOS : QuaggaJS optimisé pour détection avec caméra arrière
+            // IOS : 
+            //  optimisé pour détection avec caméra arrière
             console.log('🚀 Initialisation QuaggaJS pour iOS...');
             try {
               // Étape 1: si les labels sont vides, demander un flux générique pour débloquer les permissions iOS
@@ -1227,10 +1227,10 @@ export default function Commande() {
                   target: document.getElementById('reader') as HTMLElement,
                   constraints: constraints,
                   area: {
-                    top: "10%",
-                    right: "10%",
-                    left: "10%",
-                    bottom: "10%"
+                    top: "0%",
+                    right: "0%",
+                    left: "0%",
+                    bottom: "0%"
                   }
                 },
                 decoder: {
@@ -1609,7 +1609,7 @@ useEffect(() => {
       localStorage.setItem('autoOpenForm', 'true');
       localStorage.setItem('returnToCommande', 'true');
       localStorage.setItem('scannedIsbns', JSON.stringify(scannedCodes));
-      window.location.href = '/inventaire/ScannerResception';
+      window.location.href = '/inventaire';
     }
   };
 
@@ -2238,14 +2238,7 @@ useEffect(() => {
               <Text size="md" c="white" mb="sm">
                 📦 Quantité en stock: {selectedLivre.quantite} exemplaire{selectedLivre.quantite > 1 ? 's' : ''}
               </Text>
-              <Button
-                size="xs"
-                color="green"
-                variant="outline"
-                onClick={() => { setSelectedLivreForStock(selectedLivre); setStockAdded(false); setShowQuantitySelection(false); setAddStockModalOpened(true); setDetailOpened(false); }}
-                leftSection="➕"
-                style={{ marginBottom: '10px' }}
-              >
+              <Button size="xs" color="green" variant="outline" onClick={() => { setSelectedLivreForStock(selectedLivre); setStockAdded(false); setShowQuantitySelection(false); setAddStockModalOpened(true); setDetailOpened(false); }}  leftSection="➕" style={{ marginBottom: '10px' }} >
                 Rajouter au stock
               </Button>
             </div>
@@ -2861,7 +2854,7 @@ useEffect(() => {
                         localStorage.setItem('autoOpenForm', 'true');
                         localStorage.setItem('returnToCommande', 'true');
                         localStorage.setItem('scannedIsbns', JSON.stringify([livreEnVente.isbn.toString()]));
-                        window.location.href = '/inventaire/ScannerResception';
+                        window.location.href = '/inventaire';
                         return;
                       }
 
