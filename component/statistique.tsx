@@ -432,88 +432,110 @@ const getPrixLivre = (title: string, commande?: Commande): number => {
   ];
 
   // Fonction pour télécharger les données en CSV
-  const telechargerCSV = () => {
+  // Remplacez la fonction `telechargerCSV` par ce bloc.
+
+  const telechargerCSV = (option: 'flat' | 'summary' = 'flat') => {
     try {
       const ventesFiltrees = getVentesFiltrees();
 
-      // Debug
       console.log('Filtre actuel:', moisFiltre);
       console.log('Nombre de ventes filtrées:', ventesFiltrees.length);
-      console.log('Ventes filtrées:', ventesFiltrees);
-
       if (ventesFiltrees.length === 0) {
         alert('Aucune vente à exporter pour cette période.');
         return;
       }
 
-      // Nom du mois pour le message / nom de fichier
       const moisOption = optionsMois.find(m => m.value === moisFiltre);
       const nomMois = moisFiltre === 'tous' ? 'tous les mois' : moisOption?.label || 'mois inconnu';
-      const confirmation = `Téléchargement de ${ventesFiltrees.length} vente(s) pour ${nomMois}`;
-      console.log(confirmation);
+      console.log(`Téléchargement de ${ventesFiltrees.length} vente(s) pour ${nomMois}`);
 
-      // En-têtes CSV : Date, Livre(s) vendu(s), Quantité vendue, Prix de la vente (€)
-      const entetes = ['Date', 'Livre vendu', 'Quantité vendue', 'Prix de la vente (€)'];
+      // Construire une liste plate : 1 ligne CSV = 1 livre vendu
+      const lignesPlates: Array<[string, string, number, string]> = []; // [date, title, qty, prixTotalLigne]
 
-      // Données CSV groupées par transaction (même logique que le reste du composant)
-      const donneesCSV = grouperCommandesParTransaction(ventesFiltrees)
-        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
-        .map(groupe => {
-          const date = new Date(groupe.date);
-          const quantiteTotale = groupe.commandes.reduce((acc, cmd) => acc + cmd.quantite, 0);
-          const prixAvecReduction = groupe.commandes.reduce((acc, cmd) => acc + getPrixLivre(cmd.title, cmd), 0);
-          // Construire une chaîne pour "Livre vendu" : titre (Nx)
-          const livresListe = groupe.commandes
-            .map(cmd => `${cmd.title} (${cmd.quantite}x)`)
-            .join(' | ');
-          // Échapper les guillemets doubles pour CSV
-          const livresListeEchappe = livresListe.replace(/"/g, '""');
+      const groupes = grouperCommandesParTransaction(ventesFiltrees)
+        .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-          return [
-            date.toLocaleDateString('fr-FR'),
-            `"${livresListeEchappe}"`,
-            quantiteTotale,
-            prixAvecReduction.toFixed(2)
-          ];
+      groupes.forEach(groupe => {
+        const dateStr = new Date(groupe.date).toLocaleDateString('fr-FR');
+        groupe.commandes.forEach(cmd => {
+          const titre = (cmd.title || 'Titre inconnu').replace(/"/g, '""');
+          const quantite = cmd.quantite || 0;
+          const prixLigne = getPrixLivre(cmd.title, cmd); // total pour cette ligne (déjà prend en compte reductions)
+          lignesPlates.push([dateStr, titre, quantite, prixLigne.toFixed(2)]);
+        });
+      });
+
+      if (option === 'flat') {
+        // En-têtes : Date, Livre vendu, Quantité vendue, Prix de la vente (€)
+        const entetes = ['Date', 'Livre vendu', 'Quantité vendue', 'Prix de la vente (€)'];
+        const donneesCSV = lignesPlates.map(([date, titre, qty, prix]) => {
+          return [date, `"${titre}"`, qty, prix];
         });
 
-      // Construire le contenu CSV
-      const csvContent = [
-        entetes.join(','),
-        ...donneesCSV.map(ligne => ligne.join(','))
-      ].join('\n');
+        const csvContent = [entetes.join(','), ...donneesCSV.map(l => l.join(','))].join('\n');
+        const csvAvecBom = '\uFEFF' + csvContent;
 
-      // Ajouter BOM pour l'UTF-8
-      const bom = '\uFEFF';
-      const csvAvecBom = bom + csvContent;
+        console.log('=== PREVIEW CSV (flat) ===');
+        console.log(csvAvecBom);
+        console.log('=== END PREVIEW ===');
 
-      // DEBUG : afficher le contenu CSV (sans ouvrir le téléchargement)
-      console.log('=== CONTENU CSV (preview) ===');
-      console.log(csvAvecBom);
-      console.log('=== FIN PREVIEW ===');
+        const blob = new Blob([csvAvecBom], { type: 'text/csv;charset=utf-8;' });
+        const lien = document.createElement('a');
+        if (lien.download !== undefined) {
+          const url = URL.createObjectURL(blob);
+          lien.setAttribute('href', url);
+          const dateStrFile = new Date().toISOString().split('T')[0];
+          const filtreMois = moisFiltre === 'tous' ? 'tous-les-mois' : (moisOption?.label || 'inconnu').toLowerCase().replace(/é/g,'e').replace(/û/g,'u');
+          const nomFichier = `ventes-flat-${filtreMois}-${ventesFiltrees.length}-commandes-${dateStrFile}.csv`;
+          lien.setAttribute('download', nomFichier);
+          lien.style.visibility = 'hidden';
+          document.body.appendChild(lien);
+          lien.click();
+          document.body.removeChild(lien);
+          URL.revokeObjectURL(url);
+        }
+        return;
+      }
 
-      // Créer et télécharger le fichier
-      const blob = new Blob([csvAvecBom], { type: 'text/csv;charset=utf-8;' });
-      const lien = document.createElement('a');
+      // Variante "summary" : grouper par titre et produire une ligne par livre (total quantité + CA)
+      if (option === 'summary') {
+        const summaryMap = new Map<string, { qty: number; revenue: number }>();
+        lignesPlates.forEach(([_, titre, qty, prixStr]) => {
+          const prix = parseFloat(prixStr) || 0;
+          const existing = summaryMap.get(titre) || { qty: 0, revenue: 0 };
+          existing.qty += qty;
+          existing.revenue += prix;
+          summaryMap.set(titre, existing);
+        });
 
-      if (lien.download !== undefined) {
-        const url = URL.createObjectURL(blob);
-        lien.setAttribute('href', url);
+        const entetes = ['Livre', 'Quantité totale vendue', 'Chiffre d\'affaires total (€)'];
+        const donneesCSV = Array.from(summaryMap.entries())
+          .sort((a, b) => b[1].qty - a[1].qty)
+          .map(([titre, v]) => [`"${titre}"`, v.qty, v.revenue.toFixed(2)]);
 
-        // Nom du fichier avec date et filtre
-        const maintenant = new Date();
-        const dateStr = maintenant.toISOString().split('T')[0];
-        const filtreMois = moisFiltre === 'tous' ? 'tous-les-mois' : (moisOption?.label || 'inconnu').toLowerCase().replace(/é/g, 'e').replace(/û/g, 'u');
-        const nomFichier = `ventes-${filtreMois}-${ventesFiltrees.length}-commandes-${dateStr}.csv`;
+        const csvContent = [entetes.join(','), ...donneesCSV.map(l => l.join(','))].join('\n');
+        const csvAvecBom = '\uFEFF' + csvContent;
 
-        console.log('Nom du fichier CSV:', nomFichier);
+        console.log('=== PREVIEW CSV (summary) ===');
+        console.log(csvAvecBom);
+        console.log('=== END PREVIEW ===');
 
-        lien.setAttribute('download', nomFichier);
-        lien.style.visibility = 'hidden';
-        document.body.appendChild(lien);
-        lien.click();
-        document.body.removeChild(lien);
-        URL.revokeObjectURL(url);
+        const blob = new Blob([csvAvecBom], { type: 'text/csv;charset=utf-8;' });
+        const lien = document.createElement('a');
+        if (lien.download !== undefined) {
+          const url = URL.createObjectURL(blob);
+          lien.setAttribute('href', url);
+          const dateStrFile = new Date().toISOString().split('T')[0];
+          const filtreMois = moisFiltre === 'tous' ? 'tous-les-mois' : (moisOption?.label || 'inconnu').toLowerCase().replace(/é/g,'e').replace(/û/g,'u');
+          const nomFichier = `ventes-summary-${filtreMois}-${ventesFiltrees.length}-commandes-${dateStrFile}.csv`;
+          lien.setAttribute('download', nomFichier);
+          lien.style.visibility = 'hidden';
+          document.body.appendChild(lien);
+          lien.click();
+          document.body.removeChild(lien);
+          URL.revokeObjectURL(url);
+        }
+        return;
       }
     } catch (error) {
       console.error('Erreur lors du téléchargement CSV:', error);
@@ -743,6 +765,67 @@ const getPrixLivre = (title: string, commande?: Commande): number => {
       alert('Une erreur est survenue lors du téléchargement. Veuillez réessayer.');
     }
   };
+
+  // Fonction pour télécharger les données en XLSX
+const telechargerCSVxlsx = () => {
+  try {
+    const ventesFiltrees = getVentesFiltrees();
+    if (!ventesFiltrees || ventesFiltrees.length === 0) {
+      alert('Aucune vente à exporter pour cette période.');
+      return;
+    }
+
+    // Construire la liste plate (1 ligne par livre)
+    const rows: Array<{ Date: string; Titre: string; Quantite: number; Prix: number }> = [];
+    const groupes = grouperCommandesParTransaction(ventesFiltrees)
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+    groupes.forEach(groupe => {
+      const dateStr = new Date(groupe.date).toLocaleDateString('fr-FR');
+      groupe.commandes.forEach(cmd => {
+        const titre = cmd.title || 'Titre inconnu';
+        const quantite = cmd.quantite || 0;
+        const prixLigne = getPrixLivre(cmd.title, cmd); // total pour cette ligne
+        rows.push({ Date: dateStr, Titre: titre, Quantite: quantite, Prix: Number(prixLigne.toFixed(2)) });
+      });
+    });
+
+    // Création du workbook (SheetJS)
+    const XLSX = require('xlsx'); // import dynamique pour Next.js client
+    const ws = XLSX.utils.json_to_sheet(rows, { header: ['Date', 'Titre', 'Quantite', 'Prix'] });
+
+    // Ajuster les largeurs de colonnes (Titre large)
+    ws['!cols'] = [
+      { wch: 12 },    // Date
+      { wch: 50 },    // Titre (large pour ne pas couper)
+      { wch: 12 },    // Quantite
+      { wch: 14 }     // Prix
+    ];
+
+    // Construire le workbook et déclencher le téléchargement
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Ventes');
+
+    const wbout = XLSX.write(wb, { bookType: 'xlsx', type: 'array' });
+    const blob = new Blob([wbout], { type: 'application/octet-stream' });
+
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    const now = new Date().toISOString().split('T')[0];
+    const moisOption = optionsMois.find(m => m.value === moisFiltre);
+    const filtreMois = moisFiltre === 'tous' ? 'tous-les-mois' : (moisOption?.label || 'inconnu').toLowerCase().replace(/é/g,'e').replace(/û/g,'u');
+    a.href = url;
+    a.download = `ventes-xlsx-${filtreMois}-${ventesFiltrees.length}-commandes-${now}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  } catch (err) {
+    console.error('Erreur export XLSX:', err);
+    alert('Erreur lors de l\'export XLSX. Voir console.');
+  }
+};
+
   return (
     <div className={styles.StatistiqueStyle}>
       <Grid gutter="md" style={{ padding: '0 20px', marginBottom: '20px' }}>
@@ -936,15 +1019,9 @@ const getPrixLivre = (title: string, commande?: Commande): number => {
                 style={{ minWidth: 200 }}
               />
             </Group>
-            <Button
-              leftSection={<IconDownload size={16} />}
-              variant="gradient"
-              gradient={{ from: 'blue', to: 'cyan' }}
-              onClick={telechargerCSV}
-              disabled={getVentesFiltrees().length === 0}
-            >
-              Télécharger CSV
-            </Button>
+          <Button leftSection={<IconDownload size={16} />} variant="outline" onClick={() => telechargerCSVxlsx()}>
+            Télécharger XLSX
+          </Button>
           </Group>
 
           {/* Statistiques du filtre */}
@@ -1481,12 +1558,12 @@ const getPrixLivre = (title: string, commande?: Commande): number => {
                                               <Text size="xs" c="dimmed" td="line-through">
                                                 {formatNumber(prixOriginal)}€
                                               </Text>
-                                              <Text size="xs" fw={600} c="red" ml="xs">
+                                              <Text size="xs" fw={600} c="green" ml="xs">
                                                 {formatNumber(prixTotal)}€
                                               </Text>
                                             </div>
                                           ) : (
-                                            <Text size="xs" fw={600} c="red">
+                                            <Text size="xs" fw={600} c="green">
                                               {formatNumber(prixTotal)}€
                                             </Text>
                                           )}
@@ -1599,7 +1676,7 @@ const getPrixLivre = (title: string, commande?: Commande): number => {
                   </Table.Tr>
                 ) : (
                   inventaire
-                    .sort((a, b) => b.quantite - a.quantite) // Trier par stock décroissant
+                    .sort((a, b) => b.quantite - a.quantite) // Trier par quantité décroissante
                     .map((livre, index) => {
                       const valeurStock = livre.price * livre.quantite;
                       const enStock = livre.quantite > 0;
