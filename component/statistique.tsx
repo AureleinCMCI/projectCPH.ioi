@@ -435,47 +435,45 @@ const getPrixLivre = (title: string, commande?: Commande): number => {
   const telechargerCSV = () => {
     try {
       const ventesFiltrees = getVentesFiltrees();
-      
-      // Log pour debug
+
+      // Debug
       console.log('Filtre actuel:', moisFiltre);
       console.log('Nombre de ventes filtrées:', ventesFiltrees.length);
       console.log('Ventes filtrées:', ventesFiltrees);
-      
+
       if (ventesFiltrees.length === 0) {
         alert('Aucune vente à exporter pour cette période.');
         return;
       }
 
-      // Message de confirmation
+      // Nom du mois pour le message / nom de fichier
       const moisOption = optionsMois.find(m => m.value === moisFiltre);
       const nomMois = moisFiltre === 'tous' ? 'tous les mois' : moisOption?.label || 'mois inconnu';
       const confirmation = `Téléchargement de ${ventesFiltrees.length} vente(s) pour ${nomMois}`;
       console.log(confirmation);
 
-      // En-têtes CSV
-      const entetes = ['Date', 'Livres vendus', 'Quantité totale', 'Prix original (€)', 'Prix avec réduction (€)', 'Économie (€)'];
-      
-      // Données CSV groupées par transaction
+      // En-têtes CSV : Date, Livre(s) vendu(s), Quantité vendue, Prix de la vente (€)
+      const entetes = ['Date', 'Livre vendu', 'Quantité vendue', 'Prix de la vente (€)'];
+
+      // Données CSV groupées par transaction (même logique que le reste du composant)
       const donneesCSV = grouperCommandesParTransaction(ventesFiltrees)
         .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
         .map(groupe => {
           const date = new Date(groupe.date);
           const quantiteTotale = groupe.commandes.reduce((acc, cmd) => acc + cmd.quantite, 0);
           const prixAvecReduction = groupe.commandes.reduce((acc, cmd) => acc + getPrixLivre(cmd.title, cmd), 0);
-          const prixOriginal = groupe.commandes.reduce((acc, cmd) => acc + getPrixOriginal(cmd.title, cmd.quantite), 0);
-          const economie = prixOriginal - prixAvecReduction;
-          const livresListe = groupe.commandes.map(cmd => {
-            const prixUnitaire = cmd.quantite ? getPrixLivre(cmd.title, cmd) / cmd.quantite : 0;
-            return `${cmd.title} (${cmd.quantite}x à ${prixUnitaire.toFixed(2)}€)`;
-          }).join(' | ');
-          
+          // Construire une chaîne pour "Livre vendu" : titre (Nx)
+          const livresListe = groupe.commandes
+            .map(cmd => `${cmd.title} (${cmd.quantite}x)`)
+            .join(' | ');
+          // Échapper les guillemets doubles pour CSV
+          const livresListeEchappe = livresListe.replace(/"/g, '""');
+
           return [
             date.toLocaleDateString('fr-FR'),
-            `"${livresListe.replace(/"/g, '""')}"`, // Échapper les guillemets
+            `"${livresListeEchappe}"`,
             quantiteTotale,
-            prixOriginal,
-            prixAvecReduction,
-            economie
+            prixAvecReduction.toFixed(2)
           ];
         });
 
@@ -489,23 +487,27 @@ const getPrixLivre = (title: string, commande?: Commande): number => {
       const bom = '\uFEFF';
       const csvAvecBom = bom + csvContent;
 
+      // DEBUG : afficher le contenu CSV (sans ouvrir le téléchargement)
+      console.log('=== CONTENU CSV (preview) ===');
+      console.log(csvAvecBom);
+      console.log('=== FIN PREVIEW ===');
+
       // Créer et télécharger le fichier
       const blob = new Blob([csvAvecBom], { type: 'text/csv;charset=utf-8;' });
       const lien = document.createElement('a');
-      
+
       if (lien.download !== undefined) {
         const url = URL.createObjectURL(blob);
         lien.setAttribute('href', url);
-        
+
         // Nom du fichier avec date et filtre
         const maintenant = new Date();
         const dateStr = maintenant.toISOString().split('T')[0];
-        const moisOption = optionsMois.find(m => m.value === moisFiltre);
-        const filtreMois = moisFiltre === 'tous' ? 'tous-les-mois' : (moisOption?.label || 'inconnu').toLowerCase().replace('é', 'e').replace('û', 'u');
+        const filtreMois = moisFiltre === 'tous' ? 'tous-les-mois' : (moisOption?.label || 'inconnu').toLowerCase().replace(/é/g, 'e').replace(/û/g, 'u');
         const nomFichier = `ventes-${filtreMois}-${ventesFiltrees.length}-commandes-${dateStr}.csv`;
-        
+
         console.log('Nom du fichier CSV:', nomFichier);
-        
+
         lien.setAttribute('download', nomFichier);
         lien.style.visibility = 'hidden';
         document.body.appendChild(lien);
