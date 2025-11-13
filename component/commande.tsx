@@ -3129,7 +3129,7 @@ useEffect(() => {
                     }}
                     style={{ flex: 1 }}
                   >
-                    Non, fermer
+                    Non
                   </Button>
                   <Button
                     color="blue"
@@ -3139,7 +3139,7 @@ useEffect(() => {
                     style={{ flex: 1 }}
                     leftSection="🛒"
                   >
-                    Oui, ajouter au panier
+                    Oui
                   </Button>
                 </div>
               </>
