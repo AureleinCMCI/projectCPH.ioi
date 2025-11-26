@@ -172,7 +172,7 @@ export default function Statistique() {
     const fetchStats = async () => {
       try {
         // Récupérer les commandes (ventes)
-        const commandesRes = await fetch('/api/commande');
+        const commandesRes = await fetch('/api/test-vente');
         const commandes = await commandesRes.json();
         
         // Récupérer l'historique des réceptions

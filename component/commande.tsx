@@ -348,7 +348,121 @@ export default function Commande() {
   /* fin fonction */
 
 
-  // Fonction pour valider la vente de tous les livres du panier
+  const [submitting, setSubmitting] = useState(false);
+
+const validerVentePanier = async () => {
+  if (submitting) return; // éviter double envoi
+  if (panierApiItems.length === 0) {
+    alert('❌ Le panier est vide !');
+    return;
+  }
+  if (!user) {
+    alert('❌ Utilisateur non connecté !');
+    return;
+  }
+
+  setSubmitting(true);
+  try {
+    // Calculer la réduction répartie
+    const resultatsReduction = calculerReductionPanier();
+    const transactionId = `TXN_${Date.now()}_${user.id}`;
+
+    // Vérifier disponibilité pour TOUTES les lignes avant d'agir
+    const items = resultatsReduction.itemsAvecReduction;
+    const erreurs: string[] = [];
+    for (const it of items) {
+      const livreId = it.livre?.id ?? it.id;
+      const livre = inventaire.find(inv => inv.livre_id === livreId);
+      const quantiteDemandee = it.quantity || 1;
+      if (!livre) {
+        erreurs.push(`Livre introuvable (livre_id=${String(livreId)})`);
+        continue;
+      }
+      const quantiteReservee = livre.quantite_reservee || 0;
+      const quantiteDisponible = livre.quantite - quantiteReservee;
+      if (quantiteDisponible < quantiteDemandee) {
+        erreurs.push(`Stock insuffisant pour "${livre.title}" (${quantiteDisponible} disponibles, ${quantiteDemandee} demandés)`);
+      }
+    }
+    if (erreurs.length > 0) {
+      alert(`❌ Impossible de valider la vente :\n• ${erreurs.join('\n• ')}`);
+      setSubmitting(false);
+      return;
+    }
+
+    // (Optionnel) Si tu veux garder la décrémentation locale existante, garde ce bloc.
+    // Sinon, laisse la DB RPC gérer l'état du stock (mais ta RPC test actuelle n'écrase pas l'inventaire).
+
+    // Préparer les lignes pour l'API agrégée
+    const lignesPayload = items.map(it => {
+      const livreId = it.livre?.id ?? it.id;
+      const livre = inventaire.find(inv => inv.livre_id === livreId);
+      
+      return {
+        livre_id: livreId,
+        isbn: livre?.isbn ?? it.livre?.isbn ?? it.isbn ?? null, // ← AJOUTER
+        title: it.livre?.title || livre?.title || '',
+        quantite: it.quantity || 1,
+        prix_unitaire_final: Number(it.prixUnitaireFinal ?? (getItemPrice(it) || 0)),
+        prix_ligne_final: Number(it.prixFinal ?? 0),
+        reduction_appliquee: Number(it.reductionAppliquee ?? 0)
+      };
+    });
+
+    // Payload à envoyer à la RPC via notre endpoint serveur
+    const payload = {
+      transaction_id: transactionId,
+      user_id: user.id,
+      vendeur: user.name,
+      total_transaction_original: resultatsReduction.totalOriginal,
+      total_transaction_final: resultatsReduction.totalAvecReduction,
+      montant_reduction: resultatsReduction.montantReduction,
+      type_reduction: typeReduction,
+      valeur_reduction: valeurReduction,
+      lignes: lignesPayload,
+      metadata: {
+      source: 'ui:commande',
+      clientTimestamp: new Date().toISOString()
+      }
+    };
+
+    // Appel vers notre endpoint server qui déclenche la RPC DB
+    const resp = await fetch('/api/test-vente', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+
+    if (!resp.ok) {
+      const err = await resp.json().catch(() => null);
+      console.error('Erreur serveur test-vente:', resp.status, err);
+      throw new Error(err?.error || `Erreur serveur (${resp.status})`);
+    }
+
+    const json = await resp.json();
+    // la RPC renvoie un objet via le server; ajuster selon ce que retourne la RPC
+    const rpcResult = json?.result ?? json?.data ?? json;
+
+    // Exemple de gestion selon le retour que je t'ai proposé
+    if (rpcResult?.status === 'ok') {
+      const skipped = rpcResult?.skipped === true;
+      const commandeId = rpcResult?.commande_id ?? (rpcResult?.id ?? null);
+      alert(`✅ Ventes effectuées !\n🆔 Transaction: ${transactionId}\n💰 Total: ${resultatsReduction.totalAvecReduction.toFixed(2)}€\nCommande_id: ${commandeId}${skipped ? ' (déjà enregistrée)' : ''}`);
+      // vider le panier local seulement si tout OK
+      await viderPanier();
+      setPanierOpened(false);
+    } else {
+      console.error('RPC returned unexpected payload:', rpcResult);
+      alert('❌ Erreur lors de l\'enregistrement de la commande (RPC)');
+    }
+  } catch (error: any) {
+    console.error('❌ Erreur lors de la validation du panier:', error);
+    alert(`❌ Erreur lors de la validation du panier: ${error?.message ?? String(error)}`);
+  } finally {
+    setSubmitting(false);
+  }
+};
+/*Fonction pour valider la vente de tous les livres du panier
   const validerVentePanier = async () => {
     if (panierApiItems.length === 0) {
       alert('❌ Le panier est vide !');
@@ -431,7 +545,7 @@ export default function Commande() {
       console.error('❌ Erreur lors de la validation du panier:', error);
       alert('❌ Erreur lors de la validation du panier');
     }
-  };
+  }; */
   /* fin fonction */
 
   // Détection automatique du type d'appareil et choix du scanner
@@ -664,6 +778,7 @@ export default function Commande() {
   /* vendre une réservation */
 
   const [pendingReservationId, setPendingReservationId] = useState<number | null>(null);
+  
   async function vendreReservation(reservationId: number | null) {
     if (!reservationId) return;
     if (!user) return;
@@ -1146,7 +1261,7 @@ export default function Commande() {
             const html5QrcodeScanner = new Html5QrcodeScanner(
               "reader",
               {
-                fps: SCANNER_CONFIG.fps,
+                fps: 30,
                 aspectRatio: 2.5,
                 qrbox: { width: 250, height: 250 },
                 videoConstraints: {
@@ -2246,6 +2361,8 @@ useEffect(() => {
             {/* Boutons d'action */}
             <div style={{ display: 'flex', gap: '8px', justifyContent: 'center', marginTop: '15px', alignItems: 'center' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                 {selectedLivre.quantite > 0 && (
+                <>
                 <Text size="sm">Quantité:</Text>
                 <input
                   type="number"
@@ -2254,7 +2371,10 @@ useEffect(() => {
                   onChange={(e) => setQuantitePanier(Math.max(1, Number(e.target.value) || 1))}
                   style={{ width: '70px', padding: '6px 8px', borderRadius: 6, border: '1px solid #ddd' }}
                 />
+                </>
+                )}
               </div>
+              
               <div>
 
                 <Center>

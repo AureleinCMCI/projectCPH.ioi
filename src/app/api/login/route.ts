@@ -13,11 +13,7 @@ export async function POST(request: NextRequest): Promise<Response> {
     console.log('Tentative de connexion avec :', name, password);
 
     // Recherche de l'utilisateur par nom uniquement
-    const { data, error } = await supabase
-      .from('USER')
-      .select('*')
-      .eq('name', name)
-      .maybeSingle();
+    const { data, error } = await supabase.from('USER').select('*').eq('name', name).maybeSingle();
 
     console.log('Résultat Supabase :', data, error);
 

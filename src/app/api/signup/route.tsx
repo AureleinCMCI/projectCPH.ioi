@@ -8,7 +8,6 @@ export async function POST(request: NextRequest): Promise<Response> {
     const { name, password, photo }: { name: string; password: string; photo?: string } = await request.json();
     console.log("Tentative d'inscription avec :", { name, password });
 
-    // Vérifie si le nom existe déjà
     const { data: existingUser, error: selectError } = await supabase
       .from('USER')
       .select('id')
