@@ -1,55 +1,77 @@
 import { createClient } from '@/lib/supabase/clients';
 import { NextRequest } from 'next/server';
 
-
-
-
+export type Reception = {
+  id?: number;
+  user_id: number;
+  date_reception: number;
+  quantite: number;
+  livre_id: number;
+  info: number;
+  livre_title: string;
+  date_de_production?: string;
+}
 
 export async function POST(request: NextRequest) {
   try {
     const supabase = createClient();
-    const {id, ajout } = await request.json();
+    const body = await request.json();
 
-    // Récupérer la quantité actuelle
-    const { data: produit, error: fetchError } = await supabase
-      .from('inventaire')
-      .select('quantite,date_de_production')
-      .eq('id', id)
-      .maybeSingle();
+    const {
+      id,
+      ajout,
+      quantite,
+      date_de_production,
+      author,
+      title,
+      price,
+      isbn,
+      name_user,
+      livre_id,
+      info,
+      user_id,
+      livre_title,
+    } = body as Record<string, any>;
 
-    if (fetchError || !produit) {
-      return new Response(JSON.stringify({ error: "Produit non trouvé" }), { status: 404 });
-    }
-
-    // Calculer la nouvelle quantité
-    const nouvelleQuantite = produit.quantite + ajout;
-
-    // Mettre à jour la quantité
-    const { data, error } = await supabase
-      .from('inventaire')
-      .update({ quantite: nouvelleQuantite })
-      .eq('id', id)
-      .select()
-      .maybeSingle();
+    // Appel RPC atomique
+    const { data, error } = await supabase.rpc('reception_inventaire_atomique', {
+      p_id: id ?? null,
+      p_ajout: ajout ?? null,
+      p_quantite: quantite ?? null,
+      p_date_de_production: date_de_production ?? null,
+      p_author: author ?? null,
+      p_title: title ?? null,
+      p_price: price ?? null,
+      p_isbn: isbn ?? null,
+      p_name_user: name_user ?? null,
+      p_livre_id: livre_id ?? null,
+      p_info: info ?? null,
+      p_user_id: user_id ?? null,
+      p_livre_title: livre_title ?? null,
+    });
 
     if (error) {
+      console.error('Supabase RPC error:', error);
       return new Response(JSON.stringify({ error: error.message }), { status: 400 });
     }
 
-    return new Response(
-      JSON.stringify({ message: 'Quantité mise à jour', produit: data, success: true }),
-      { status: 200 }
-    );
+    // Vérifier si la fonction RPC a retourné une erreur métier
+    if (data && data.error) {
+      return new Response(JSON.stringify({ error: data.error }), { status: data.status || 400 });
+    }
+
+    return new Response(JSON.stringify(data), { status: 200 });
   } catch (err) {
     console.error('Erreur:', err);
     return new Response(
-      JSON.stringify({ error: "Erreur serveur", details: err}),
+      JSON.stringify({ error: 'Erreur serveur', details: String(err) }),
       { status: 500 }
     );
   }
 }
 
-export async function DELETE(request: NextRequest) {
+export async function DELETE(request: NextRequest)
+{
   try {
     const supabase = createClient();
     const {id, supprimer } = await request.json();

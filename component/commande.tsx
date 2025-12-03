@@ -400,7 +400,7 @@ const validerVentePanier = async () => {
       
       return {
         livre_id: livreId,
-        isbn: livre?.isbn ?? it.livre?.isbn ?? it.isbn ?? null, // ← AJOUTER
+        isbn: livre?.isbn ?? it.livre?.isbn ?? null,
         title: it.livre?.title || livre?.title || '',
         quantite: it.quantity || 1,
         prix_unitaire_final: Number(it.prixUnitaireFinal ?? (getItemPrice(it) || 0)),

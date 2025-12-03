@@ -5,6 +5,7 @@ import { Button, Center, Loader, Modal, Paper, Text, Textarea, TextInput, Pagina
 import { IconCamera, IconEdit } from '@tabler/icons-react';
 import { Html5QrcodeScanner } from 'html5-qrcode';
 import { jwtDecode } from 'jwt-decode';
+import { createWorker, PSM } from 'tesseract.js'; // AJOUT DE PSM ICI
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { uploadImageAndThumb } from '@/lib/supabaseUpload';
 import { dataUrlToFile, compressImageFile } from '@/lib/imageCompression'; // si tu utilises ces helpers// si tu utilises ces helpers
@@ -147,6 +148,95 @@ export default function Inventaire() {
     setTempQuantity(0);
   };
 
+  // --- NOUVELLES FONCTIONS OCR ---
+    const openOcrModal = async () => {
+    setOcrModalOpened(true);
+    try {
+      // Demander une haute résolution pour une meilleure précision OCR
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { 
+            facingMode: 'environment',
+            width: { ideal: 1920 }, 
+            height: { ideal: 1080 }
+        } 
+      });
+      if (ocrVideoRef.current) {
+        ocrVideoRef.current.srcObject = stream;
+        ocrVideoRef.current.play();
+      }
+    } catch (err) {
+      console.error('Erreur accès caméra OCR', err);
+      alert("Impossible d'accéder à la caméra.");
+      setOcrModalOpened(false);
+    }
+  };
+
+ const closeOcrModal = () => {
+    setOcrModalOpened(false);
+    setOcrScanning(false);
+    const video = ocrVideoRef.current;
+    const stream = video?.srcObject as MediaStream | null;
+    if (stream) {
+      stream.getTracks().forEach(t => t.stop());
+      if (video) video.srcObject = null;
+    }
+  };
+
+  // Remplacez l'ancienne fonction captureAndOcr par celle-ci :
+  const captureAndOcr = async () => {
+    if (!ocrVideoRef.current || !ocrCanvasRef.current) return;
+    
+    setOcrScanning(true);
+    try {
+        const video = ocrVideoRef.current;
+        const canvas = ocrCanvasRef.current;
+        
+        // 1. Capture de l'image (Plein écran)
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        
+        const ctx = canvas.getContext('2d');
+        if (ctx) {
+            // Pas besoin de filtres complexes, Gemini voit très bien
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            // 2. Conversion en image légère (Qualité 0.7 pour aller vite)
+            const base64Image = canvas.toDataURL('image/jpeg', 0.7);
+
+            // 3. Envoi à notre nouvelle route Google
+            const response = await fetch('/api/analyze-text-google', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ image: base64Image })
+            });
+
+            const data = await response.json();
+
+            if (!response.ok) throw new Error(data.error || 'Erreur API Google');
+
+            const cleanText = data.text;
+            console.log('Texte Gemini:', cleanText);
+            
+            if (cleanText && cleanText.length > 10) {
+                setFormData(prev => ({ 
+                    ...prev, 
+                    description: (prev.description ? prev.description + '\n\n' : '') + cleanText 
+                }));
+                alert('✅ Résumé analysé avec succès !');
+                closeOcrModal();
+            } else {
+                alert('⚠️ Texte non détecté. Essayez de stabiliser l\'image.');
+            }
+        }
+    } catch (err) {
+        console.error('Erreur Analyse:', err);
+        alert('Erreur lors de l\'analyse. Vérifiez votre connexion.');
+    } finally {
+        setOcrScanning(false);
+    }
+  };
+  // -------------------------------
+
   // Fonction pour ajouter un nouvel ISBN au livre sélectionné
   const addIsbnToBook = async () => {
     if (!selectedBook || !newIsbn.trim()) {
@@ -211,6 +301,13 @@ export default function Inventaire() {
   const [scannedCodes, setScannedCodes] = useState<string[]>([]);
   const [showCodesList, setShowCodesList] = useState(false);
   const [isbnList, setIsbnList] = useState<{ isbn: number; livre_id: number }[]>([]);
+
+  // --- NOUVEAUX ÉTATS POUR OCR CAMÉRA ---
+  const [ocrModalOpened, setOcrModalOpened] = useState(false);
+  const ocrVideoRef = useRef<HTMLVideoElement | null>(null);
+  const ocrCanvasRef = useRef<HTMLCanvasElement | null>(null);
+  const [ocrScanning, setOcrScanning] = useState(false);
+  // --------------------------------------
 
   const setScannerNode = useCallback((node: HTMLDivElement | null) => {
     scannerRef.current = node;
@@ -278,7 +375,6 @@ export default function Inventaire() {
       localStorage.removeItem('IsbnScanner'); // Nettoyer
     }
   }, []);
-
 
 
 
@@ -1322,15 +1418,15 @@ export default function Inventaire() {
           <div style={{ padding: '20px' }}>
             <h3 style={{ marginBottom: '20px', textAlign: 'center' }}>📚 Livres en Stock</h3>
 
-            <div style={{ padding: '0 0 20px 0' }}>
-              <TextInput
-                placeholder="Rechercher un livre..."
-                value={search}
-                onChange={(e) => { setSearch(e.currentTarget.value); setPage(1); }}
-                className={styles.searchInput}
+          <div style={{ padding: '0 0 20px 0' }}>
+            <TextInput
+              placeholder="Rechercher un livre..."
+              value={search}
+              onChange={(e) => { setSearch(e.currentTarget.value); setPage(1); }}
+              className={styles.searchInput}
 
-              />
-            </div>
+            />
+          </div>
 
             <div className={styles.transactionsList}>
               {livresLoading ? (
@@ -1698,7 +1794,21 @@ export default function Inventaire() {
             />
 
             <Textarea
-              label="Description"
+              label={
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  Description
+                  <Button 
+                    type="button"
+                    size="xs" 
+                    variant="light" 
+                    onClick={() => { openOcrModal(); setFormOpened(false); }}
+                    
+                    style={{ height: '20px', fontSize: '10px' }}
+                  >
+                    📷 Scanner texte
+                  </Button>
+                </div>
+              }
               name="description"
               value={formData.description}
               onChange={handleFormChange}
@@ -1723,7 +1833,7 @@ export default function Inventaire() {
               label="Prix"
               name="price"
               value={formData.price}
-              onChange={handleFormChange}
+                           onChange={handleFormChange}
               required
               mb="sm"
               classNames={isMobile ? { input: styles.iosModalInput } : undefined}
@@ -1751,13 +1861,97 @@ export default function Inventaire() {
             {capturedImagePreview && (
               <div style={{ marginTop: 10 }}>
                 <Text size="sm" color="dimmed" mb="xs">Aperçu de la photo :</Text>
-                <img src={capturedImagePreview} alt="Aperçu" style={{ width: 150, borderRadius: 8 }} />
+                <img src={capturedImagePreview} alt="Aperçu" style={{ width:  150, borderRadius: 8 }} />
               </div>
             )}
             <Center h={100}>
             </Center>
           </form>
         </Modal>
+
+        {/* --- NOUVELLE MODALE OCR --- */}
+         {ocrModalOpened && (
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            width: '100vw',
+            height: '100vh',
+            backgroundColor: 'black',
+            zIndex: 10000, // Au-dessus de tout
+            display: 'flex',
+            flexDirection: 'column'
+          }}>
+            {/* Header */}
+            <div style={{
+              padding: '20px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              background: 'rgba(0,0,0,0.5)',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              right: 0,
+              zIndex: 2
+            }}>
+              <Text c="white" fw={700}>📷 Scanner Texte</Text>
+              <Button color="red" size="xs" onClick={closeOcrModal}>Fermer</Button>
+            </div>
+
+            {/* Zone Vidéo */}
+            <div style={{ flex: 1, position: 'relative', overflow: 'hidden' }}>
+              <video 
+                ref={ocrVideoRef} 
+                style={{ 
+                  width: '100%', 
+                  height: '100%', 
+                  objectFit: 'cover' // Remplit tout l'écran
+                }} 
+                playsInline 
+                muted 
+              />
+              <canvas ref={ocrCanvasRef} style={{ display: 'none' }} />
+              
+              {/* SUPPRESSION DU CADRE BLANC ET DE L'OMBRE */}
+              {/* On garde juste une petite indication discrète en bas si besoin, ou rien du tout */}
+              <div style={{
+                position: 'absolute',
+                bottom: '20px',
+                width: '100%',
+                textAlign: 'center',
+                color: 'rgba(255, 255, 255, 0.7)',
+                fontSize: '14px',
+                pointerEvents: 'none',
+                textShadow: '0 1px 2px black'
+              }}>
+                Placez le texte ici
+              </div>
+            </div>
+
+            {/* Footer avec bouton capture */}
+            <div style={{
+              padding: '30px',
+              background: 'rgba(0,0,0,0.8)',
+              display: 'flex',
+              justifyContent: 'center',
+              paddingBottom: '50px' // Espace pour la barre home sur iOS
+            }}>
+              <Button 
+                size="xl" 
+                radius="xl"
+                color="blue" 
+                onClick={captureAndOcr} 
+                loading={ocrScanning}
+                disabled={ocrScanning}
+                style={{ width: '80%', height: '60px', fontSize: '18px' }}
+              >
+                {ocrScanning ? 'Analyse en cours...' : '📸 CAPTURER'}
+              </Button>
+            </div>
+          </div>
+        )}
+        {/* --------------------------- */}
 
         {/* Modal détails des livres sélectionnés */}
         <Modal opened={detailsOpened} onClose={() => setDetailsOpened(false)} title="ajouté un livre sélectionné" size="xl" centered>
