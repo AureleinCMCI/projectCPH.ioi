@@ -1944,8 +1944,7 @@ export default function Inventaire() {
                 onClick={captureAndOcr} 
                 loading={ocrScanning}
                 disabled={ocrScanning}
-                style={{ width: '80%', height: '60px', fontSize: '18px' }}
-              >
+                style={{ width: '80%', height: '60px', fontSize: '18px',marginBottom:'20px'}}>
                 {ocrScanning ? 'Analyse en cours...' : '📸 CAPTURER'}
               </Button>
             </div>

@@ -25,9 +25,8 @@ type InventaireItem = {
   isbn: number;
   quantite_reservee?: number;
   date_expiration_reservation?: string;
-  livre?: { image?: string };
+  livre?: { image?: string; description?: string }; // <--- AJOUTER CECI
 };
-
 
 
 /*Récupération des informations de l'utilisateur , verifié qui est connecté via jeto*/
@@ -112,7 +111,8 @@ export default function Commande() {
   const [selectedLivreForStock, setSelectedLivreForStock] = useState<InventaireItem | null>(null);
   const [stockAdded, setStockAdded] = useState(false);
   const [showQuantitySelection, setShowQuantitySelection] = useState(false);
-  
+  const [descriptionModalOpened, setDescriptionModalOpened] = useState(false);
+
 
   
   useEffect(() => {
@@ -1489,7 +1489,7 @@ const validerVentePanier = async () => {
   }, []);
   // filteredInventaire supprimé car il n'est pas utilisé
 
-
+  
 
 const [cameraVisible, setCameraVisible] = useState(false);
 /*constante des scanner */
@@ -1533,9 +1533,18 @@ useEffect(() => {
       console.warn('Livre introuvable pour ISBN', isbn);
     }
   };
-
-  // Suppression de la fonction inutilisée listeCommande
-
+  const fetchLivreByIsbn = async (isbn: string | number) => {
+    try {
+      const res = await fetch(`/api/livre?isbn=${encodeURIComponent(String(isbn))}`);
+      const json = await res.json();
+      console.log('GET /api/livre response', res.status, json);
+      if (!res.ok) return null;
+      return json.data ?? null;
+    } catch (err) {
+      console.error('Erreur fetchLivreByIsbn:', err);
+      return null;
+    }
+  };
   const decrementInventaire = async (livre: InventaireItem, quantite: number) => 
   {
     if (!quantite || quantite <= 0)
@@ -2216,6 +2225,9 @@ useEffect(() => {
                   mb="sm"
                   classNames={isMobile ? { input: styles.iosModalInput } : undefined}
                 />
+              <Button onClick={() => setDescriptionModalOpened(true)}  style={{ marginBottom: '10px' }} >
+                Voir la description
+              </Button> 
                 <TextInput
                   label="Titre du livre"
                   value={livre.title}
@@ -2355,6 +2367,32 @@ useEffect(() => {
               </Text>
               <Button size="xs" color="green" variant="outline" onClick={() => { setSelectedLivreForStock(selectedLivre); setStockAdded(false); setShowQuantitySelection(false); setAddStockModalOpened(true); setDetailOpened(false); }}  leftSection="➕" style={{ marginBottom: '10px' }} >
                 Rajouter au stock
+              </Button>
+                     <Button 
+                onClick={async () => {
+                  // 1. On récupère les infos complètes depuis la table 'livre'
+                  const data = await fetchLivreByIsbn(selectedLivre.isbn);
+                  if (data) {setSelectedLivre(prev => {
+                    if (!prev)
+                    {
+                      return null
+                    };
+                    return{
+                      ...prev,
+                      livre:
+                        {
+                          ...prev.livre, // On garde l'image si elle existe déjà
+                          description: data.description // On ajoute/écrase la description
+                        }
+                      };
+                    });
+                  } else {
+                    console.warn('Aucune description trouvée pour cet ISBN');
+                  }
+                  // 3. On ouvre la modale
+                  setDescriptionModalOpened(true);
+                }}>
+                Voir la description 
               </Button>
             </div>
 
@@ -2679,7 +2717,41 @@ useEffect(() => {
           <Text size="sm" c="dimmed">💡 Cliquez sur un livre pour voir ses détails et le vendre</Text>
         </div>
       </Modal>
+    <Modal
+        opened={descriptionModalOpened}
+        onClose={() => setDescriptionModalOpened(false)}
+        title="📖 Description du livre"
+        centered
+        size="md"
+      >
+        {selectedLivre && (
+          <div style={{ padding: '10px' }}>
+            <Text size="lg" fw={700} mb="md" style={{ textAlign: 'center' }}>
+              {selectedLivre.title}
+            </Text>
+            
+            <div style={{ 
+              maxHeight: '400px', 
+              overflowY: 'auto', 
+              backgroundColor: '#f8f9fa', 
+              padding: '15px', 
+              borderRadius: '8px',
+              lineHeight: '1.6',
+              whiteSpace: 'pre-wrap' // Important pour garder les paragraphes
+            }}>
+              <Text c={selectedLivre.livre?.description? "dark" : "dimmed"}>
+                {selectedLivre.livre?.description|| "Aucune description disponible pour ce livre."}
+              </Text>
+            </div>
 
+            <Center mt="lg">
+              <Button onClick={() => setDescriptionModalOpened(false)}>
+                Fermer
+              </Button>
+            </Center>
+          </div>
+        )}
+      </Modal>
       {/* Modale de confirmation de réduction */}
       <Modal
         opened={confirmReductionOpened}

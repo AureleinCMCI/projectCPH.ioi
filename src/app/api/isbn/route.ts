@@ -1,67 +1,45 @@
 import { createClient } from '@/lib/supabase/clients';
-import { NextRequest } from 'next/server';
-
-
-
-
-
-/* recupére les isbn selon livre id */
-export async function GET(request: NextRequest) {
-  const supabase = createClient();
-  
-  try {
-    // Récupérer le livre_id depuis les paramètres de requête
-    const { searchParams } = new URL(request.url);
-    const livre_id = searchParams.get('livre_id');
-    
-    let query = supabase.from('isbn').select('*');
-    
-    // Si livre_id = 'all', récupérer tous les ISBN
-    // Sinon, filtrer par livre_id spécifique
-    if (livre_id && livre_id !== 'all') {
-      query = query.eq('livre_id', livre_id);
-    }
-    
-    const { data, error } = await query;
-      
-    if (error) {
-      return Response.json({ error: "Erreur lors de la récupération des ISBN" }, { status: 400 });
-    }
-    
-    console.log(`📚 ISBN récupérés pour livre_id ${livre_id}:`, data);
-    return Response.json({ data });
-  } catch (error) {
-    console.error('Erreur API ISBN:', error);
-    return Response.json({ error: "Erreur serveur" }, { status: 500 });
-  }
-} 
+import { NextRequest, NextResponse } from 'next/server';
 
 export async function POST(request: NextRequest) {
-    const supabase = createClient();  
-    const { isbn, livre_id } = await request.json();
-  
-    // Vérifie d'abord si cet ISBN existe déjà pour ce livre
-    const { data: existingIsbn } = await supabase
-      .from('isbn')
-      .select('*')
-      .eq('isbn', isbn)
-      .eq('livre_id', livre_id)
-      .single();
+  const supabase = createClient();
+  const body = await request.json();
 
-    // Si l'ISBN n'existe pas encore pour ce livre, on l'ajoute
-    if (!existingIsbn) {
-      const { data, error } = await supabase
-        .from('isbn')
-        .insert([{ 
-          isbn: isbn,
-          livre_id: livre_id
-        }]);
-      
-      if (error) {
-        return Response.json({ error: "Erreur lors de l'ajout de l'ISBN alternatif" }, { status: 400 });
-      }
-      return Response.json({ message: "Nouvel ISBN ajouté avec succès", data });
+  try {
+    // CAS 1 : Insertion multiple (Optimisation)
+    // Si on reçoit { livre_id: 123, isbns: ["123", "456", "789"] }
+    if (body.livre_id && Array.isArray(body.isbns) && body.isbns.length > 0) {
+      const rows = body.isbns.map((isbn: string | number) => ({
+        livre_id: body.livre_id,
+        isbn: isbn
+      }));
+
+      // On insère tout d'un coup
+      const { data, error } = await supabase.from('isbn').insert(rows).select();
+
+      if (error) throw error;
+      return NextResponse.json({ message: `${rows.length} ISBNs ajoutés`, data }, { status: 200 });
     }
 
-    return Response.json({ message: "Cet ISBN existe déjà pour ce livre" });
+    // CAS 2 : Insertion unique (Votre ancien code, pour compatibilité)
+    // Si on reçoit { livre_id: 123, isbn: "123" }
+    else if (body.isbn && body.livre_id) {
+      const { data, error } = await supabase.from('isbn').insert([
+        { isbn: body.isbn, livre_id: body.livre_id }
+      ]).select();
+
+      if (error) throw error;
+      return NextResponse.json({ message: 'ISBN ajouté', data }, { status: 200 });
+    }
+
+    return NextResponse.json({ error: 'Données invalides' }, { status: 400 });
+
+  } catch (error: any) {
+    console.error('Erreur POST /api/isbn:', error);
+    // Gestion de l'erreur "duplicate key" (si un ISBN existe déjà)
+    if (error.code === '23505') {
+      return NextResponse.json({ message: 'Certains ISBN existent déjà (ignorés)', warning: true }, { status: 200 });
+    }
+    return NextResponse.json({ error: error.message }, { status: 500 });
+  }
 }
