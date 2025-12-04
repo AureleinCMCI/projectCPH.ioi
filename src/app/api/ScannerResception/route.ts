@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/clients';
-import { NextRequest } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
 
 export type Reception = {
   id?: number;
@@ -61,12 +61,10 @@ export async function POST(request: NextRequest) {
     }
 
     return new Response(JSON.stringify(data), { status: 200 });
-  } catch (err) {
-    console.error('Erreur:', err);
-    return new Response(
-      JSON.stringify({ error: 'Erreur serveur', details: String(err) }),
-      { status: 500 }
-    );
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Erreur API ScannerResception:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
 

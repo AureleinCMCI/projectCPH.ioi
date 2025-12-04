@@ -40,7 +40,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: message || 'Erreur serveur' }, { status: 500 });
   }
 }
-// ...existing code...
 
 // Ajoutez cette fonction GET juste avant ou après la fonction POST
 export async function GET(request: NextRequest) {
@@ -62,8 +61,10 @@ export async function GET(request: NextRequest) {
 
     return NextResponse.json({ data }, { status: 200 });
 
-  } catch (error: any) {
-    console.error('Erreur GET /api/isbn:', error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    // Correction du type 'any'
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Erreur GET /api/isbn:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
