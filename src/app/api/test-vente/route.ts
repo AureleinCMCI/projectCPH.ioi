@@ -28,10 +28,11 @@ export async function POST(req: Request) {
       JSON.stringify({ result: data, status: 'ok' }),
       { status: 200, headers: { 'Content-Type': 'application/json' } }
     );
-  } catch (err: any) {
-    console.error('Erreur serveur test-vente:', err);
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    console.error('Erreur serveur test-vente:', message);
     return new Response(
-      JSON.stringify({ status: 'error', message: err?.message ?? String(err) }),
+      JSON.stringify({ status: 'error', message }),
       { status: 500, headers: { 'Content-Type': 'application/json' } }
     );
   }

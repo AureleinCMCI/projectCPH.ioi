@@ -31,7 +31,7 @@ export async function POST(request: NextRequest) {
       info,
       user_id,
       livre_title,
-    } = body as Record<string, any>;
+    } = body as Record<string, unknown>;
 
     // Appel RPC atomique
     const { data, error } = await supabase.rpc('reception_inventaire_atomique', {
