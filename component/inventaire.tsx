@@ -185,11 +185,13 @@ export default function Inventaire() {
   // Remplacez l'ancienne fonction captureAndOcr par celle-ci :
   const captureAndOcr = async () => {
     if (!ocrVideoRef.current || !ocrCanvasRef.current) return;
-    
     setOcrScanning(true);
-    try {
+    setTimeout(async () => {
+        try {
         const video = ocrVideoRef.current;
         const canvas = ocrCanvasRef.current;
+        
+        if (!video || !canvas) return;
         
         // 1. Capture de l'image (Plein écran)
         canvas.width = video.videoWidth;
@@ -234,6 +236,7 @@ export default function Inventaire() {
     } finally {
         setOcrScanning(false);
     }
+   }, 1000);
   };
   // -------------------------------
 
