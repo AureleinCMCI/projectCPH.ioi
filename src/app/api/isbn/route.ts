@@ -34,12 +34,36 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ error: 'Données invalides' }, { status: 400 });
 
-  } catch (error: any) {
-    console.error('Erreur POST /api/isbn:', error);
-    // Gestion de l'erreur "duplicate key" (si un ISBN existe déjà)
-    if (error.code === '23505') {
-      return NextResponse.json({ message: 'Certains ISBN existent déjà (ignorés)', warning: true }, { status: 200 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('Erreur POST /api/isbn:', message);
+    return NextResponse.json({ error: message || 'Erreur serveur' }, { status: 500 });
+  }
+}
+// ...existing code...
+
+// Ajoutez cette fonction GET juste avant ou après la fonction POST
+export async function GET(request: NextRequest) {
+  const supabase = createClient();
+  const { searchParams } = new URL(request.url);
+  const livre_id = searchParams.get('livre_id');
+
+  try {
+    let query = supabase.from('isbn').select('*');
+
+    // Si un ID de livre est fourni, on filtre
+    if (livre_id) {
+      query = query.eq('livre_id', livre_id);
     }
+
+    const { data, error } = await query;
+
+    if (error) throw error;
+
+    return NextResponse.json({ data }, { status: 200 });
+
+  } catch (error: any) {
+    console.error('Erreur GET /api/isbn:', error);
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 }

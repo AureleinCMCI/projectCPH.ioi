@@ -1,5 +1,9 @@
 import { NextResponse } from 'next/server';
 import { GoogleGenerativeAI } from '@google/generative-ai';
+type GoogleModelInfo = {
+  name: string;
+  supportedGenerationMethods?: string[];
+};
 
 export async function POST(req: Request) {
   try {
@@ -14,9 +18,9 @@ export async function POST(req: Request) {
     // On affiche la liste dans le terminal (regardez votre console VS Code !)
     console.log("------------------------------------------------");
     console.log("🔍 MODÈLES DISPONIBLES POUR VOTRE CLÉ :");
-    if (listData.models) {
-        listData.models.forEach((m: any) => {
-            if (m.supportedGenerationMethods.includes("generateContent")) {
+      if (listData.models) {
+        listData.models.forEach((m: GoogleModelInfo) => {
+            if (m.supportedGenerationMethods?.includes("generateContent")) {
                 console.log(`👉 ${m.name.replace('models/', '')}`);
             }
         });
@@ -44,8 +48,9 @@ export async function POST(req: Request) {
     const response = await result.response;
     return NextResponse.json({ text: response.text() });
 
-  } catch (error: any) {
-    console.error('❌ Erreur Google Gemini:', error.message);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error);
+    console.error('❌ Erreur Google Gemini:', message);
+    return NextResponse.json({ error: message }, { status: 500 });
   }
 }
