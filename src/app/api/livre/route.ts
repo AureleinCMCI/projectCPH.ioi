@@ -73,7 +73,7 @@ export async function PATCH(request: NextRequest) {
     if (!id || !image) {
       return new Response(JSON.stringify({ error: 'id et image requis' }), { status: 400 });
     }
-
+    
     const { data, error } = await supabase
       .from('livre')
       .update({ image })

@@ -11,7 +11,8 @@ import { uploadImageAndThumb } from '@/lib/supabaseUpload';
 import { dataUrlToFile, compressImageFile } from '@/lib/imageCompression'; // si tu utilises ces helpers// si tu utilises ces helpers
 import styles from './style/ScannerResception.module.css';
 const scannerStyles = styles;
-type InventaireItem = { id: number; livre_id: number; title: string; author: string; quantite: number; price: number; isbn: number; livre?: { image?: string }; };
+
+type InventaireItem = { id: number; livre_id: number; title: string; author: string; quantite: number; price: number; isbn: number; livre?: { image?: string, description?: string }; };
 
 // Interface pour BarcodeDetector (API native du navigateur)
 interface BarcodeDetectorInterface {
@@ -1215,7 +1216,18 @@ export default function Inventaire() {
       }
     };
   };
-
+  const fetchLivreByIsbn = async (isbn: string | number) => {
+    try {
+      const res = await fetch(`/api/livre?isbn=${encodeURIComponent(String(isbn))}`);
+      const json = await res.json();
+      console.log('GET /api/livre response', res.status, json);
+      if (!res.ok) return null;
+      return json.data ?? null;
+    } catch (err) {
+      console.error('Erreur fetchLivreByIsbn:', err);
+      return null;
+    }
+  };
 
 
 
@@ -1290,6 +1302,23 @@ export default function Inventaire() {
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: livre.id, ajout, isbn: livre.isbn }),
         });
+        if (formData.description && formData.description.trim() !== '') {
+          try {
+            await fetch('/api/descriptionLivre', {
+              method: 'PATCH', // On utilise PATCH pour mettre à jour un livre existant
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                id: livre.livre_id,
+                isbn: livre.isbn,
+                description: formData.description
+              }),
+            });
+            console.log("Description mise à jour lors de l'incrémentation");
+          } catch (descError) {
+            console.error("Erreur mise à jour description:", descError);
+            // On ne bloque pas l'incrémentation si la description échoue
+          }
+        }
         if (!res.ok) throw new Error('Erreur lors de l\'incrémentation');
 
         await fetch('/api/historiqueResception', {
@@ -1448,14 +1477,26 @@ export default function Inventaire() {
                     style={{ cursor: 'pointer' }}
                     onClick={async () => {
                       setSelectedBook(item);
-                      setNewIsbn(''); // Réinitialiser le champ d'ajout
+                      setNewIsbn(''); 
                       setInventaireModalOpened(false);
                       setBookDetailsModalOpened(true);
-                      // Réinitialiser l'état d'édition
                       setIsEditingQuantity(false);
                       setTempQuantity(0);
-                      // Charger les ISBN existants depuis la base de données
                       await loadExistingIsbns(item.livre_id);
+
+                      // --- AJOUT ICI : Récupérer la description via l'API ---
+                      const fullData = await fetchLivreByIsbn(item.isbn);
+                      if (fullData && fullData.description) {
+                        console.log("Description chargée:", fullData.description);
+                        setSelectedBook(prev => {
+                            if (!prev) return null;
+                            return { 
+                                ...prev, 
+                                livre: { ...prev.livre, description: fullData.description } 
+                            };
+                        });
+                      }
+                      // ----------------------------------------------------
                     }}
                   >
                     <div className={styles.transactionIcon}>
@@ -1788,7 +1829,7 @@ export default function Inventaire() {
             <TextInput
               label="Auteur"
               name="author"
-              value={formData.author}
+                           value={formData.author}
               onChange={handleFormChange}
               required
               mb="sm"
@@ -1833,6 +1874,7 @@ export default function Inventaire() {
               style={{ fontSize: '10px', }}
             />
             <TextInput
+             
               label="Prix"
               name="price"
               value={formData.price}
@@ -2034,26 +2076,21 @@ export default function Inventaire() {
         {/* Modal d'incrémentation (comme dans commande.tsx) */}
         <Modal
           opened={incrementModalOpened}
-          onClose={() => { setIncrementModalOpened(false); setQuantiteToAdd(1); }}
-          title="Ajouté à l'inventaire"
-          centered
-          size={isMobile ? "xs" : "md"}
-        >
+          onClose={() => { setIncrementModalOpened(false); setQuantiteToAdd(1); }}title="Ajouté à l'inventaire" centered size={isMobile ? "xs" : "md"}>
           {(() => {
             const livre = inventaire.find(item => item.isbn.toString() === isbn.trim());
             if (livre) {
+
               return (
                 <div style={{ width: 400, maxWidth: '80vw', margin: '0 auto' }}>
                   <Text color="green" ta="center" size="lg" mb="xl">
                     📚 Livre trouvé - Ajouté à  l&apos;inventaire
                   </Text>
-
                   <TextInput
                     label="ISBN"
                     value={livre.isbn}
                     readOnly
-                    mb="sm"
-                  />
+                    mb="sm" />
 
                   <TextInput
                     label="Titre du livre"
@@ -2061,6 +2098,30 @@ export default function Inventaire() {
                     readOnly
                     mb="sm"
                   />
+              <Textarea
+                label={
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    Description
+                    <Button 
+                      type="button"
+                      size="xs" 
+                      variant="light" 
+                      onClick={() => { openOcrModal(); setFormOpened(false); }}
+                      
+                      style={{ height: '20px', fontSize: '10px' }}
+                    >
+                      📷 Scanner texte
+                    </Button>
+                  </div>
+                }
+                name="description"
+                value={formData.description}
+                onChange={handleFormChange}
+                minRows={1}
+                mb="sm"
+                classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+                style={{ fontSize: '10px', }}
+              />
 
                   <TextInput
                     label="Auteur"
@@ -2264,7 +2325,36 @@ export default function Inventaire() {
                 readOnly
                 mb="sm"
               />
-
+              <Textarea
+                label={
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    Description
+                    <Button 
+                      type="button"
+                      size="xs" 
+                      variant="light" 
+                      onClick={() => { openOcrModal(); setFormOpened(false); }}
+                      
+                      style={{ height: '20px', fontSize: '10px' }}
+                    >
+                      📷 Scanner texte
+                    </Button>
+                  </div>
+                }
+                name="description"
+                value={formData.description}
+                onChange={handleFormChange}
+                minRows={1}
+                mb="sm"
+                classNames={isMobile ? { input: styles.iosModalInput } : undefined}
+                style={{ fontSize: '10px', }}
+              />
+              <TextInput
+                label="Description"
+                value={selectedBook.livre?.description || 'Aucune description'}
+                readOnly
+                mb="sm"
+              />
               <TextInput
                 label="Titre du livre"
                 value={selectedBook.title}
