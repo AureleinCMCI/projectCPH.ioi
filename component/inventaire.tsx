@@ -169,7 +169,9 @@ export default function Inventaire() {
       console.error('Erreur accès caméra OCR', err);
       alert("Impossible d'accéder à la caméra.");
       setOcrModalOpened(false);
+    
     }
+
   };
 
  const closeOcrModal = () => {
@@ -228,9 +230,10 @@ export default function Inventaire() {
                 alert('✅ Résumé analysé avec succès !');
                 closeOcrModal();
             } else {
-                alert('⚠️ Texte non détecté. Essayez de stabiliser l\'image.');
-            }
+              alert('⚠️ Texte non détecté. Essayez de stabiliser l\'image.');
+          }
         }
+        setFormOpened(true);
     } catch (err) {
         console.error('Erreur Analyse:', err);
         alert('Erreur lors de l\'analyse. Vérifiez votre connexion.');
